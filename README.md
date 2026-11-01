@@ -204,6 +204,6 @@ MIT
 
 ## Contributing
 
-depquiet is designed to reach 10,000 stars through community templates. Every template you contribute helps thousands of developers skip a false positive.
+depquiet is designed to grow through community templates. Every template you contribute helps thousands of developers skip a false positive.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
