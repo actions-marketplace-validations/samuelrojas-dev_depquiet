@@ -4,19 +4,22 @@ This is the highest-value filter. 60-80% of CVEs flagged by scanners affect
 functions that the project never calls. A prototype pollution in lodash.merge()
 doesn't matter if you only use lodash.get().
 
-Strategy (v1 — grep-based, conservative):
-1. Check if the vulnerable PACKAGE is imported anywhere in the source code.
-2. If vulnerable_functions are known, check if any of those specific functions
-   appear in the source.
-3. Only mark as unreachable if we're confident the package/function isn't used.
+Strategy (v2 — AST-based for Python, grep for JS, conservative):
+1. Python files are parsed with ``ast`` to extract real import statements,
+   ignoring comments, strings, and partial-name matches that trip up regex.
+2. JS/TS files still use string matching (require/import patterns).
+3. If vulnerable_functions are known, check if any of those specific functions
+   appear in the source (string search — conservative).
+4. Only mark as unreachable if we're confident the package/function isn't used.
 
 Conservative by design: we'd rather let a false positive through than dismiss
-a real vulnerability. grep misses dynamic imports and re-exports, so we only
-filter when we see ZERO references.
+a real vulnerability. Files that fail to parse are treated as *possibly*
+importing the package (safe fallback).
 """
 
 from __future__ import annotations
 
+import ast
 import os
 import re
 from pathlib import Path
@@ -69,43 +72,105 @@ def _file_mentions(files: list[Path], pattern: str) -> list[str]:
     return matches
 
 
+def _ast_imports(source: str) -> set[str] | None:
+    """Extract all top-level package names from Python source using AST.
+
+    Returns the set of top-level module names found in import and
+    from-import statements, plus any ``__import__('name')`` calls.
+
+    Returns ``None`` on parse failure (SyntaxError) — the caller should
+    fall back to regex. Returns an empty ``set()`` when parsing succeeds
+    but no imports are found (meaning the file genuinely has no imports).
+    """
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return None
+
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                # 'import foo.bar' → top-level is 'foo'
+                names.add(alias.name.split(".")[0])
+        elif isinstance(node, ast.ImportFrom):
+            if node.module:
+                # 'from foo.bar import baz' → top-level is 'foo'
+                names.add(node.module.split(".")[0])
+        elif isinstance(node, ast.Call):
+            # __import__('foo')
+            func = node.func
+            if (
+                isinstance(func, ast.Name)
+                and func.id == "__import__"
+                and node.args
+                and isinstance(node.args[0], ast.Constant)
+                and isinstance(node.args[0].value, str)
+            ):
+                names.add(node.args[0].value.split(".")[0])
+    return names
+
+
 def _py_imports_package(files: list[Path], package: str) -> bool:
-    """Check whether any Python file imports the given package.
+    """Check whether any Python file imports the given package using AST.
 
-    Looks for:
-      - import <pkg>
-      - import <pkg>.submodule
-      - from <pkg> import ...
-      - from <pkg>.submodule import ...
-      - __import__('<pkg>')  /  __import__("<pkg>")
+    Uses ``ast.parse()`` for proper import detection — immune to false
+    positives from comments, docstrings, and partial name matches.
 
-    The top-level package name is extracted (e.g. "Pillow" is imported as
-    "PIL", but most PyPI names match their import name). We normalise
-    hyphens to underscores because that's the pip convention.
+    Falls back to regex for files that fail to parse (encoding issues,
+    syntax errors in Python 2 files, etc.) — conservative: if we can't
+    parse it, we check with regex so we don't accidentally filter a real
+    import.
     """
     # PyPI packages often use hyphens but Python imports use underscores
     import_name = package.replace("-", "_")
-    esc = re.escape(import_name)
-    pattern = re.compile(
-        # 'import pkg' or 'import pkg.sub' at start of line (possibly after
-        # other imports separated by commas: 'import os, pkg, sys')
-        rf"(?:^|\n)\s*import\s+(?:\w+\s*,\s*)*{esc}(?:\s|,|\.|\)|$)"
-        r"|"
-        # 'from pkg import ...' or 'from pkg.sub import ...'
-        rf"(?:^|\n)\s*from\s+{esc}(?:\s|\.)"
-        r"|"
-        # __import__('pkg') or __import__("pkg") — can appear anywhere
-        rf"__import__\(\s*['\"]" + esc + r"['\"]",
-        re.MULTILINE,
-    )
+
     for f in files:
         try:
             text = f.read_text(errors="replace")
-            if pattern.search(text):
-                return True
         except OSError:
             continue
+
+        imports = _ast_imports(text)
+        if imports is None:
+            # AST parse failed — fall back to regex (conservative: don't
+            # miss a real import in a file we can't parse).
+            if _regex_py_imports(text, import_name):
+                return True
+        else:
+            # AST parsed successfully — trust the extracted import set
+            if import_name in imports:
+                return True
     return False
+
+
+def _regex_py_imports(text: str, import_name: str) -> bool:
+    """Regex fallback for Python import detection (used when AST fails)."""
+    esc = re.escape(import_name)
+    pattern = re.compile(
+        rf"(?:^|\n)\s*import\s+(?:\w+\s*,\s*)*{esc}(?:\s|,|\.|\)|$)"
+        r"|"
+        rf"(?:^|\n)\s*from\s+{esc}(?:\s|\.)"
+        r"|"
+        rf"__import__\(\s*['\"]" + esc + r"['\"]",
+        re.MULTILINE,
+    )
+    return bool(pattern.search(text))
+
+
+def _py_file_imports_package(f: Path, package: str) -> bool:
+    """Check whether a single Python file imports the given package."""
+    import_name = package.replace("-", "_")
+    try:
+        text = f.read_text(errors="replace")
+    except OSError:
+        return False
+
+    imports = _ast_imports(text)
+    if imports is None:
+        # AST parse failed — fall back to regex
+        return _regex_py_imports(text, import_name)
+    return import_name in imports
 
 
 class ReachabilityFilter:
@@ -151,7 +216,7 @@ class ReachabilityFilter:
         if self.js_files and _file_mentions(self.js_files, pkg):
             return False
 
-        # Check Python files for actual import statements
+        # Check Python files for actual import statements (AST-based)
         if self.py_files and _py_imports_package(self.py_files, pkg):
             return False
 
@@ -161,26 +226,14 @@ class ReachabilityFilter:
     def find_imports(self, vuln: Vulnerability) -> list[str]:
         """Return list of files where the vulnerable package is imported.
 
-        Used for the ACTION output — showing the dev WHERE the risk is.
+        Uses AST for Python files, string matching for JS files.
         """
         results: list[str] = []
         pkg = vuln.package
         # Check JS files by name mention
         results.extend(_file_mentions(self.js_files, pkg))
-        # Check Python files by import pattern
-        import_name = pkg.replace("-", "_")
-        esc = re.escape(import_name)
-        pattern = re.compile(
-            rf"(?:^|\n)\s*import\s+(?:\w+\s*,\s*)*{esc}(?:\s|,|\.|\)|$)"
-            rf"|(?:^|\n)\s*from\s+{esc}(?:\s|\.)"
-            rf"|__import__\(\s*['\"]" + esc + r"['\"]",
-            re.MULTILINE,
-        )
+        # Check Python files by AST-based import detection
         for f in self.py_files:
-            try:
-                text = f.read_text(errors="replace")
-                if pattern.search(text):
-                    results.append(str(f))
-            except OSError:
-                continue
+            if _py_file_imports_package(f, pkg):
+                results.append(str(f))
         return results
