@@ -1,0 +1,36 @@
+{
+  "dependencies": [
+    {
+      "name": "requests",
+      "version": "2.31.0",
+      "vulns": [
+        {
+          "id": "CVE-2023-32681",
+          "fix_versions": ["2.31.0"],
+          "description": "Unintended leak of Proxy-Authorization header on redirects"
+        }
+      ]
+    },
+    {
+      "name": "cryptography",
+      "version": "41.0.7",
+      "vulns": [
+        {
+          "id": "CVE-2024-0727",
+          "fix_versions": ["42.0.2"],
+          "description": "NULL dereference when loading PKCS7/PKCS12 data"
+        },
+        {
+          "id": "CVE-2023-49083",
+          "fix_versions": ["41.0.6"],
+          "description": "NULL-dereference when loading PKCS7 certificates"
+        }
+      ]
+    },
+    {
+      "name": "flask",
+      "version": "2.3.3",
+      "vulns": []
+    }
+  ]
+}

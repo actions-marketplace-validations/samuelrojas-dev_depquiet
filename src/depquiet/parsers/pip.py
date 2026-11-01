@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import subprocess
 from pathlib import Path
+from typing import Any
 
 from depquiet.models import Severity, Vulnerability
 
@@ -39,7 +40,7 @@ class PipAuditParser:
         )
 
     @staticmethod
-    def run_audit(project: Path) -> dict:
+    def run_audit(project: Path) -> dict[str, Any]:
         """Run pip-audit and return JSON output."""
         try:
             result = subprocess.run(
@@ -54,7 +55,7 @@ class PipAuditParser:
             return {}
 
     @staticmethod
-    def parse(audit_json: dict, project: Path) -> list[Vulnerability]:
+    def parse(audit_json: dict[str, Any], project: Path) -> list[Vulnerability]:
         """Parse pip-audit JSON into Vulnerability objects."""
         vulns: list[Vulnerability] = []
 

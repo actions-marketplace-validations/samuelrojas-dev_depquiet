@@ -1,0 +1,7 @@
+id: ip-package-ssrf-private
+reason: "CVE-2023-42282: node ip package isPublic/isPrivate returns incorrect results for some crafted IPs. Only affects server-side SSRF protection relying on these functions."
+author: "@depquiet"
+cves:
+  - CVE-2023-42282
+package: ip
+not-imported: ["isPublic", "isPrivate"]

@@ -1,0 +1,6 @@
+id: cryptography-pkcs12-null-dereference
+reason: "CVE-2024-0727: OpenSSL null dereference when loading malformed PKCS12 files. Only affects applications that load untrusted PKCS12/PFX certificates. Standard TLS usage is not vulnerable."
+author: "@depquiet"
+cves:
+  - CVE-2024-0727
+package: cryptography

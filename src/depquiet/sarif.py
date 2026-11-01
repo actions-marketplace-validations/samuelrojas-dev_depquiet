@@ -12,15 +12,16 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 from depquiet import __version__
 from depquiet.models import ScanResult, TriageResult, Verdict
 
 
-def to_sarif(result: ScanResult) -> dict:
+def to_sarif(result: ScanResult) -> dict[str, Any]:
     """Convert a ScanResult to a SARIF v2.1.0 document."""
-    rules: list[dict] = []
-    results: list[dict] = []
+    rules: list[dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
     rule_index: dict[str, int] = {}
 
     actionable = [r for r in result.results if r.verdict != Verdict.FILTERED]
@@ -31,7 +32,7 @@ def to_sarif(result: ScanResult) -> dict:
 
         if rule_id not in rule_index:
             rule_index[rule_id] = len(rules)
-            rule: dict = {
+            rule: dict[str, Any] = {
                 "id": rule_id,
                 "shortDescription": {"text": vuln.title or f"{vuln.package} {vuln.severity.value}"},
                 "defaultConfiguration": {
@@ -42,7 +43,7 @@ def to_sarif(result: ScanResult) -> dict:
                 rule["helpUri"] = vuln.url
             rules.append(rule)
 
-        sarif_result: dict = {
+        sarif_result: dict[str, Any] = {
             "ruleId": rule_id,
             "ruleIndex": rule_index[rule_id],
             "level": _severity_to_level(vuln.severity.value),
@@ -116,9 +117,9 @@ def _build_locations(
     tr: TriageResult,
     project_path: str,
     package_manager: str = "npm",
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Build SARIF locations from reachable imports or package files."""
-    locations: list[dict] = []
+    locations: list[dict[str, Any]] = []
 
     if tr.reachable_imports:
         for imp in tr.reachable_imports[:5]:

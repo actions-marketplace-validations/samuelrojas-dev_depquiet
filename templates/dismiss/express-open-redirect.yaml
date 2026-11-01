@@ -1,0 +1,6 @@
+id: express-open-redirect-static
+reason: "CVE-2024-29041: express open redirect only affects res.redirect() with user-controlled input. Static redirects and API-only servers are not vulnerable."
+author: "@depquiet"
+cves:
+  - CVE-2024-29041
+package: express

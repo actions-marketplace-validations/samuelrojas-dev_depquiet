@@ -47,13 +47,13 @@ class Template:
         return not self.package or self.package == package
 
 
-def _parse_yaml_simple(text: str) -> dict:
+def _parse_yaml_simple(text: str) -> dict[str, object]:
     """Minimal YAML-subset parser for template files.
 
     Handles flat key: value, key: [list], and multi-line lists with - prefix.
     Good enough for templates; no external deps needed.
     """
-    result: dict = {}
+    result: dict[str, object] = {}
     current_key = ""
     current_list: list[str] = []
     in_list = False
@@ -102,21 +102,27 @@ def _load_template(path: Path) -> Template | None:
         data = _parse_yaml_simple(text)
 
         # Also check for top-level not-imported (flattened format)
-        not_imported = data.get("not-imported", [])
-        if isinstance(not_imported, str):
-            not_imported = [not_imported]
+        not_imported: list[str] = []
+        raw_imports = data.get("not-imported", [])
+        if isinstance(raw_imports, str):
+            not_imported = [raw_imports]
+        elif isinstance(raw_imports, list):
+            not_imported = [str(x) for x in raw_imports]
 
-        cves = data.get("cves", [])
-        if isinstance(cves, str):
-            cves = [cves]
+        cves: list[str] = []
+        raw_cves = data.get("cves", [])
+        if isinstance(raw_cves, str):
+            cves = [raw_cves]
+        elif isinstance(raw_cves, list):
+            cves = [str(x) for x in raw_cves]
 
         return Template(
-            id=data.get("id", path.stem),
-            reason=data.get("reason", ""),
+            id=str(data.get("id", path.stem)),
+            reason=str(data.get("reason", "")),
             cves=cves,
-            package=data.get("package", ""),
+            package=str(data.get("package", "")),
             not_imported=not_imported,
-            author=data.get("author", ""),
+            author=str(data.get("author", "")),
         )
     except (OSError, ValueError):
         return None

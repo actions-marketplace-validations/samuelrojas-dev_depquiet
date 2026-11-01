@@ -1,0 +1,59 @@
+{
+  "auditReportVersion": 2,
+  "vulnerabilities": {
+    "lodash": {
+      "name": "lodash",
+      "severity": "high",
+      "isDirect": true,
+      "via": [
+        {
+          "source": 1065,
+          "name": "lodash",
+          "title": "Prototype Pollution",
+          "url": "https://github.com/advisories/CVE-2020-8203",
+          "severity": "high",
+          "cwe": ["CWE-1321"],
+          "range": "<4.17.20"
+        }
+      ],
+      "effects": [],
+      "fixAvailable": { "name": "lodash", "version": "4.17.21" }
+    },
+    "express": {
+      "name": "express",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        {
+          "source": 1096,
+          "name": "express",
+          "title": "Open Redirect",
+          "url": "https://github.com/advisories/CVE-2024-29041",
+          "severity": "moderate",
+          "cwe": ["CWE-601"],
+          "range": "<4.19.2"
+        }
+      ],
+      "effects": [],
+      "fixAvailable": { "name": "express", "version": "4.19.2" }
+    },
+    "webpack-dev-middleware": {
+      "name": "webpack-dev-middleware",
+      "severity": "high",
+      "isDirect": true,
+      "via": [
+        {
+          "source": 1097,
+          "name": "webpack-dev-middleware",
+          "title": "Path Traversal",
+          "url": "https://github.com/advisories/CVE-2024-29180",
+          "severity": "high",
+          "cwe": ["CWE-22"],
+          "range": "<5.3.4"
+        }
+      ],
+      "effects": [],
+      "fixAvailable": { "name": "webpack-dev-middleware", "version": "5.3.4" }
+    }
+  }
+}

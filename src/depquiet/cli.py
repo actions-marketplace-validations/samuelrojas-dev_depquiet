@@ -16,9 +16,12 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 from depquiet import __version__
+from depquiet.config import load_config
 from depquiet.engine import scan
+from depquiet.models import ScanResult
 from depquiet.output import print_scan_result
 from depquiet.sarif import write_sarif
 
@@ -77,6 +80,26 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
 
+    # Load project config file
+    config = load_config(args.path)
+
+    # CLI flags override config. We detect whether --epss-threshold was
+    # explicitly passed so that "0.1" from the default doesn't clobber a
+    # config-file value.
+    cli_threshold: float | None = None
+    if argv is not None:
+        # When called programmatically, check if threshold differs from default
+        if args.epss_threshold != 0.1:
+            cli_threshold = args.epss_threshold
+    elif "--epss-threshold" in sys.argv:
+        cli_threshold = args.epss_threshold
+
+    merged = config.merge_cli(
+        epss_threshold=cli_threshold,
+        template_dirs=args.templates,
+        offline=args.offline,
+    )
+
     # Read piped input
     audit_json = None
     if args.stdin:
@@ -89,10 +112,11 @@ def main(argv: list[str] | None = None) -> int:
     # Run scan
     result = scan(
         project=args.path,
-        epss_threshold=args.epss_threshold,
-        skip_epss=args.offline,
-        template_dirs=args.templates,
+        epss_threshold=merged.epss_threshold,
+        skip_epss=merged.offline,
+        template_dirs=merged.template_dirs or None,
         audit_json=audit_json,
+        always_flag=merged.always_flag or None,
     )
 
     # Output
@@ -111,9 +135,10 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-def _print_json(result) -> None:
+def _print_json(result: ScanResult) -> None:
     """Print machine-readable JSON output."""
-    out = {
+    results_list: list[dict[str, Any]] = []
+    out: dict[str, Any] = {
         "project": result.project_path,
         "package_manager": result.package_manager,
         "total_dependencies": result.total_dependencies,
@@ -124,10 +149,10 @@ def _print_json(result) -> None:
             "filtered": len(result.filtered),
             "filter_rate": round(result.filter_rate, 1),
         },
-        "results": [],
+        "results": results_list,
     }
     for tr in result.results:
-        out["results"].append(
+        results_list.append(
             {
                 "cve": tr.vuln.cve,
                 "package": tr.vuln.package,

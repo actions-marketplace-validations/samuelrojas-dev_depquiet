@@ -1,0 +1,6 @@
+id: webpack-dev-middleware-dev-only
+reason: "CVE-2024-29180: webpack-dev-middleware path traversal only applies in development servers. This package is always a devDependency and never reaches production."
+author: "@depquiet"
+cves:
+  - CVE-2024-29180
+package: webpack-dev-middleware

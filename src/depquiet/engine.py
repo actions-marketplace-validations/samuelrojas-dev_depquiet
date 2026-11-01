@@ -14,6 +14,7 @@ but not for correctness — a vulnerability is filtered if ANY filter matches.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any, Protocol
 
 from depquiet.filters.devdep import DevDepFilter
 from depquiet.filters.epss import EpssFilter
@@ -30,7 +31,26 @@ from depquiet.models import (
 from depquiet.parsers.npm import NpmAuditParser
 from depquiet.parsers.pip import PipAuditParser
 
-_PARSERS = [NpmAuditParser, PipAuditParser]
+
+class _Parser(Protocol):
+    """Structural type for audit parsers."""
+
+    name: str
+
+    @staticmethod
+    def detect(project: Path) -> bool: ...
+
+    @staticmethod
+    def parse(audit_json: dict[str, Any], project: Path) -> list[Vulnerability]: ...
+
+    @classmethod
+    def scan(cls, project: Path) -> list[Vulnerability]: ...
+
+
+_PARSERS: list[type[_Parser]] = [
+    NpmAuditParser,
+    PipAuditParser,
+]
 
 
 def detect_package_manager(project: Path) -> str | None:
@@ -47,7 +67,8 @@ def scan(
     epss_threshold: float = 0.1,
     skip_epss: bool = False,
     template_dirs: list[Path] | None = None,
-    audit_json: dict | None = None,
+    audit_json: dict[str, Any] | None = None,
+    always_flag: list[str] | None = None,
 ) -> ScanResult:
     """Run a full triage scan on a project.
 
@@ -110,6 +131,22 @@ def scan(
         epss_percentile = None
         template_id = None
         template_reason = None
+
+        # Skip all filters if package is in always_flag
+        _always = set(always_flag) if always_flag else set()
+        if vuln.package in _always:
+            _epss = epss_filter.get_score(vuln.cve)
+            results.append(
+                TriageResult(
+                    vuln=vuln,
+                    verdict=Verdict.ACTION,
+                    reasons=[],
+                    epss_score=_epss[0] if _epss else None,
+                    epss_percentile=_epss[1] if _epss else None,
+                    reachable_imports=reachability.find_imports(vuln),
+                )
+            )
+            continue
 
         # Filter 1: devDependency
         if DevDepFilter.check(vuln):

@@ -25,19 +25,21 @@ from __future__ import annotations
 import json
 import subprocess
 from pathlib import Path
+from typing import Any
 
 from depquiet.models import Severity, Vulnerability
 
 
-def _read_package_json(project: Path) -> dict:
+def _read_package_json(project: Path) -> dict[str, Any]:
     """Read package.json to determine devDependencies."""
     pkg = project / "package.json"
     if pkg.exists():
-        return json.loads(pkg.read_text())
+        result: dict[str, Any] = json.loads(pkg.read_text())
+        return result
     return {}
 
 
-def _get_dev_packages(pkg_json: dict) -> set[str]:
+def _get_dev_packages(pkg_json: dict[str, Any]) -> set[str]:
     """Extract devDependency names from package.json."""
     return set(pkg_json.get("devDependencies", {}).keys())
 
@@ -53,7 +55,7 @@ class NpmAuditParser:
         return (project / "package-lock.json").exists() or (project / "yarn.lock").exists()
 
     @staticmethod
-    def run_audit(project: Path) -> dict:
+    def run_audit(project: Path) -> dict[str, Any]:
         """Run npm audit and return JSON output."""
         try:
             result = subprocess.run(
@@ -69,7 +71,7 @@ class NpmAuditParser:
             return {}
 
     @staticmethod
-    def parse(audit_json: dict, project: Path) -> list[Vulnerability]:
+    def parse(audit_json: dict[str, Any], project: Path) -> list[Vulnerability]:
         """Parse npm audit JSON into Vulnerability objects."""
         vulns: list[Vulnerability] = []
         pkg_json = _read_package_json(project)

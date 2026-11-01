@@ -1,0 +1,6 @@
+# depquiet configuration for this project
+epss_threshold: 0.05
+template_dirs:
+  - ./custom-templates
+always_flag:
+  - express
