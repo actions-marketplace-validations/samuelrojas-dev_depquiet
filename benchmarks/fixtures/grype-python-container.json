@@ -1,0 +1,130 @@
+{
+  "matches": [
+    {
+      "vulnerability": {
+        "id": "CVE-2024-27351",
+        "severity": "Medium",
+        "description": "Potential ReDoS in django.utils.text.Truncator.words",
+        "fix": {
+          "versions": [
+            "4.2.11"
+          ],
+          "state": "fixed"
+        },
+        "urls": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-27351"
+        ]
+      },
+      "artifact": {
+        "name": "django",
+        "version": "4.2.0",
+        "type": "python"
+      }
+    },
+    {
+      "vulnerability": {
+        "id": "CVE-2023-32681",
+        "severity": "Medium",
+        "description": "Unintended leak of Proxy-Authorization header",
+        "fix": {
+          "versions": [
+            "2.31.0"
+          ],
+          "state": "fixed"
+        },
+        "urls": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2023-32681"
+        ]
+      },
+      "artifact": {
+        "name": "requests",
+        "version": "2.28.0",
+        "type": "python"
+      }
+    },
+    {
+      "vulnerability": {
+        "id": "CVE-2023-50447",
+        "severity": "Critical",
+        "description": "Arbitrary Code Execution via PIL.ImageMath.eval",
+        "fix": {
+          "versions": [
+            "10.2.0"
+          ],
+          "state": "fixed"
+        },
+        "urls": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2023-50447"
+        ]
+      },
+      "artifact": {
+        "name": "pillow",
+        "version": "9.5.0",
+        "type": "python"
+      }
+    },
+    {
+      "vulnerability": {
+        "id": "CVE-2024-0727",
+        "severity": "Medium",
+        "description": "NULL dereference in PKCS12 parsing",
+        "fix": {
+          "versions": [
+            "42.0.2"
+          ],
+          "state": "fixed"
+        },
+        "urls": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-0727"
+        ]
+      },
+      "artifact": {
+        "name": "cryptography",
+        "version": "41.0.0",
+        "type": "python"
+      }
+    },
+    {
+      "vulnerability": {
+        "id": "CVE-2024-6345",
+        "severity": "High",
+        "description": "Remote code execution via download functions",
+        "fix": {
+          "versions": [
+            "70.0.0"
+          ],
+          "state": "fixed"
+        },
+        "urls": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-6345"
+        ]
+      },
+      "artifact": {
+        "name": "setuptools",
+        "version": "68.0.0",
+        "type": "python"
+      }
+    },
+    {
+      "vulnerability": {
+        "id": "CVE-2024-39689",
+        "severity": "Medium",
+        "description": "Removal of e-Tugra root certificate",
+        "fix": {
+          "versions": [
+            "2024.7.4"
+          ],
+          "state": "fixed"
+        },
+        "urls": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-39689"
+        ]
+      },
+      "artifact": {
+        "name": "certifi",
+        "version": "2023.7.22",
+        "type": "python"
+      }
+    }
+  ]
+}

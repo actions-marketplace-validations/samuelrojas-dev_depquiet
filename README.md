@@ -188,6 +188,22 @@ offline: false
 
 CLI flags override config values. `template_dirs` from both sources are merged.
 
+## Benchmarks
+
+Tested against realistic audit output from popular project types (offline mode, all filters active):
+
+| Scenario | Parser | Alerts | Filtered | Rate |
+|----------|--------|-------:|---------:|-----:|
+| Express web app | npm | 15 | 13 | **87%** |
+| Django web app | pip | 9 | 8 | **89%** |
+| Node.js container | trivy | 8 | 8 | **100%** |
+| Python container | grype | 6 | 5 | **83%** |
+| **Total** | | **38** | **34** | **89%** |
+
+**89% noise reduction** — from 38 alerts down to 4 that actually matter. All scans complete in under 10ms.
+
+Run the benchmarks yourself: `python -I benchmarks/run_benchmark.py`
+
 ## Compared to
 
 | Tool | Approach | Limitation |
@@ -195,6 +211,7 @@ CLI flags override config values. `template_dirs` from both sources are merged.
 | `npm audit` | Flags everything | 80% false positives |
 | `pip-audit` | Flags everything | No triage, no context |
 | Trivy | Multi-scanner, flags everything | Great detection, no triage |
+| Grype | Container scanner, flags everything | Great detection, no triage |
 | Dependabot | GitHub-only, flags everything | No triage, overwhelming noise |
 | GitHub Dependabot Reachability | AST analysis (Oct 2026) | JS/TS only, Enterprise Cloud only, preview |
 | Snyk / Mend | SaaS, paid | $100K+/year for reachability |

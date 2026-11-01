@@ -1,0 +1,4 @@
+{
+  "app.py": "import django\nfrom django.http import HttpResponse\nimport requests\n",
+  "requirements.txt": "django==4.2.0\nrequests==2.28.0\npillow==9.5.0\ncryptography==41.0.0\n"
+}

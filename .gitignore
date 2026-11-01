@@ -17,3 +17,4 @@ htmlcov/
 .mypy_cache/
 *.sarif
 .depquiet-cache/
+benchmarks/results.json

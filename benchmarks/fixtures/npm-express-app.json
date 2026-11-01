@@ -1,0 +1,275 @@
+{
+  "auditReportVersion": 2,
+  "vulnerabilities": {
+    "braces": {
+      "name": "braces",
+      "severity": "high",
+      "via": [
+        {
+          "title": "Uncontrolled resource consumption",
+          "url": "https://github.com/advisories/GHSA-grv7-fg5c-xmjg",
+          "source": 1101081
+        }
+      ],
+      "fixAvailable": {
+        "name": "braces",
+        "version": "3.0.3"
+      },
+      "effects": [
+        "micromatch",
+        "fast-glob"
+      ],
+      "isDirect": false,
+      "range": "<3.0.3"
+    },
+    "express": {
+      "name": "express",
+      "severity": "critical",
+      "via": [
+        {
+          "title": "Open redirect in express",
+          "url": "https://github.com/advisories/GHSA-rv95-896h-c2f7",
+          "source": 1101082
+        }
+      ],
+      "fixAvailable": {
+        "name": "express",
+        "version": "4.21.2"
+      },
+      "effects": [],
+      "isDirect": true,
+      "range": "<4.21.2"
+    },
+    "webpack-dev-middleware": {
+      "name": "webpack-dev-middleware",
+      "severity": "high",
+      "via": [
+        {
+          "title": "Path traversal in webpack-dev-middleware",
+          "url": "https://github.com/advisories/GHSA-wr3j-32j7-4m2q",
+          "source": 1101083
+        }
+      ],
+      "fixAvailable": {
+        "name": "webpack-dev-middleware",
+        "version": "7.1.0"
+      },
+      "effects": [],
+      "isDirect": true,
+      "range": "<5.3.4 || >=6.0.0 <6.1.2"
+    },
+    "eslint-plugin-import": {
+      "name": "eslint-plugin-import",
+      "severity": "moderate",
+      "via": [
+        {
+          "title": "ReDoS in eslint-plugin-import",
+          "url": "https://github.com/advisories/GHSA-1234-fake-xxxx",
+          "source": 1101099
+        }
+      ],
+      "fixAvailable": {
+        "name": "eslint-plugin-import",
+        "version": "2.30.0"
+      },
+      "effects": [],
+      "isDirect": true,
+      "range": "<2.30.0"
+    },
+    "semver": {
+      "name": "semver",
+      "severity": "moderate",
+      "via": [
+        {
+          "title": "ReDoS in semver",
+          "url": "https://github.com/advisories/GHSA-c2qf-rxjj-qqgw",
+          "source": 1101084
+        }
+      ],
+      "fixAvailable": {
+        "name": "semver",
+        "version": "7.5.2"
+      },
+      "effects": [],
+      "isDirect": false,
+      "range": "<7.5.2"
+    },
+    "lodash": {
+      "name": "lodash",
+      "severity": "high",
+      "via": [
+        {
+          "title": "Prototype Pollution in lodash",
+          "url": "https://github.com/advisories/GHSA-p6mc-m468-83gw",
+          "source": 1101085
+        }
+      ],
+      "fixAvailable": {
+        "name": "lodash",
+        "version": "4.17.21"
+      },
+      "effects": [],
+      "isDirect": false,
+      "range": "<4.17.21"
+    },
+    "ip": {
+      "name": "ip",
+      "severity": "high",
+      "via": [
+        {
+          "title": "SSRF in ip module",
+          "url": "https://github.com/advisories/GHSA-78xj-cgh5-2h22",
+          "source": 1101086
+        }
+      ],
+      "fixAvailable": {
+        "name": "ip",
+        "version": "2.0.1"
+      },
+      "effects": [],
+      "isDirect": false,
+      "range": "<=2.0.0"
+    },
+    "tough-cookie": {
+      "name": "tough-cookie",
+      "severity": "moderate",
+      "via": [
+        {
+          "title": "Prototype pollution in tough-cookie",
+          "url": "https://github.com/advisories/GHSA-72xf-g2v4-qvf3",
+          "source": 1101087
+        }
+      ],
+      "fixAvailable": {
+        "name": "tough-cookie",
+        "version": "4.1.4"
+      },
+      "effects": [],
+      "isDirect": false,
+      "range": "<4.1.3"
+    },
+    "xml2js": {
+      "name": "xml2js",
+      "severity": "moderate",
+      "via": [
+        {
+          "title": "Prototype pollution in xml2js",
+          "url": "https://github.com/advisories/GHSA-776f-qx25-q3cc",
+          "source": 1101088
+        }
+      ],
+      "fixAvailable": false,
+      "effects": [],
+      "isDirect": false,
+      "range": ">=0.4.0"
+    },
+    "jest-environment-jsdom": {
+      "name": "jest-environment-jsdom",
+      "severity": "moderate",
+      "via": [
+        {
+          "title": "Improper neutralization in jsdom",
+          "url": "https://github.com/advisories/GHSA-xxxx-yyyy-0002",
+          "source": 1101089
+        }
+      ],
+      "fixAvailable": {
+        "name": "jest-environment-jsdom",
+        "version": "30.0.0"
+      },
+      "effects": [],
+      "isDirect": true,
+      "range": "<30.0.0"
+    },
+    "nodemon": {
+      "name": "nodemon",
+      "severity": "moderate",
+      "via": [
+        {
+          "title": "Path traversal in nodemon",
+          "url": "https://github.com/advisories/GHSA-xxxx-yyyy-0003",
+          "source": 1101090
+        }
+      ],
+      "fixAvailable": {
+        "name": "nodemon",
+        "version": "3.1.0"
+      },
+      "effects": [],
+      "isDirect": true,
+      "range": "<3.1.0"
+    },
+    "qs": {
+      "name": "qs",
+      "severity": "high",
+      "via": [
+        {
+          "title": "Prototype Pollution in qs",
+          "url": "https://github.com/advisories/GHSA-xxxx-yyyy-0004",
+          "source": 1101091
+        }
+      ],
+      "fixAvailable": {
+        "name": "qs",
+        "version": "6.5.3"
+      },
+      "effects": [],
+      "isDirect": false,
+      "range": "<6.5.3"
+    },
+    "minimatch": {
+      "name": "minimatch",
+      "severity": "high",
+      "via": [
+        {
+          "title": "ReDoS in minimatch",
+          "url": "https://github.com/advisories/GHSA-f8q6-p94x-37v3",
+          "source": 1101092
+        }
+      ],
+      "fixAvailable": {
+        "name": "minimatch",
+        "version": "3.0.5"
+      },
+      "effects": [],
+      "isDirect": false,
+      "range": "<3.0.5"
+    },
+    "debug": {
+      "name": "debug",
+      "severity": "low",
+      "via": [
+        {
+          "title": "Regular Expression DoS in debug",
+          "url": "https://github.com/advisories/GHSA-xxxx-yyyy-0005",
+          "source": 1101093
+        }
+      ],
+      "fixAvailable": {
+        "name": "debug",
+        "version": "4.3.5"
+      },
+      "effects": [],
+      "isDirect": false,
+      "range": "<4.3.5"
+    },
+    "glob-parent": {
+      "name": "glob-parent",
+      "severity": "high",
+      "via": [
+        {
+          "title": "ReDoS in glob-parent",
+          "url": "https://github.com/advisories/GHSA-ww39-953v-wcq6",
+          "source": 1101094
+        }
+      ],
+      "fixAvailable": {
+        "name": "glob-parent",
+        "version": "5.1.2"
+      },
+      "effects": [],
+      "isDirect": false,
+      "range": "<5.1.2"
+    }
+  }
+}
