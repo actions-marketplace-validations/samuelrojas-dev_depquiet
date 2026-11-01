@@ -8,7 +8,7 @@
 
 **Cut through vulnerability alert noise. Surface the signal.**
 
-`depquiet` triages your `npm audit` / `pip-audit` / Dependabot alerts and tells you which CVEs actually matter — in seconds, not hours.
+`depquiet` triages your `npm audit` / `pip-audit` / `trivy` / Dependabot alerts and tells you which CVEs actually matter — in seconds, not hours.
 
 ```
 $ depquiet
@@ -79,6 +79,7 @@ depquiet --path ./my-app
 # Pipe in existing audit output
 npm audit --json | depquiet --stdin
 pip-audit --format json | depquiet --stdin
+trivy fs --format json . | depquiet --stdin
 
 # Fully offline (skip EPSS API)
 depquiet --offline
@@ -91,6 +92,9 @@ depquiet --json
 
 # Custom EPSS threshold
 depquiet --epss-threshold 0.05
+
+# Use a custom config file
+depquiet --config ./ci-config.yaml
 ```
 
 ## CI Integration
@@ -128,14 +132,26 @@ The action installs depquiet, runs it, uploads SARIF to GitHub Code Scanning, an
 
 ## Community templates
 
-depquiet uses [nuclei-style](https://github.com/projectdiscovery/nuclei-templates) YAML templates to encode community knowledge about known false positives:
+depquiet ships with **9 built-in templates** and uses [nuclei-style](https://github.com/projectdiscovery/nuclei-templates) YAML to encode community knowledge about known false positives:
+
+| Template | CVE | What it catches |
+|---|---|---|
+| lodash prototype pollution | CVE-2020-8203, CVE-2019-10744 | Only merge/defaultsDeep affected |
+| semver ReDoS | CVE-2022-25883 | Only untrusted input to `semver.clean()` |
+| express open redirect | CVE-2024-29041 | Only unvalidated `res.redirect()` |
+| axios SSRF | CVE-2023-45857 | Server-side only, cookies header |
+| json5 prototype pollution | CVE-2022-46175 | Only `parse()` with `reviver` |
+| webpack-dev-middleware | CVE-2024-29180 | devDependency only |
+| ip SSRF | CVE-2023-42282 | `isPrivate()` bypass, private networks only |
+| requests proxy-auth leak | CVE-2023-32681 | Only proxy + redirect |
+| cryptography null dereference | CVE-2024-0727 | Only PKCS12 loading |
 
 ```yaml
-id: CVE-2024-48930-lodash-merge
+id: prototype-pollution-lodash
 reason: "Only defaultsDeep/merge are affected. Other lodash functions are safe."
-author: "@contributor"
 cves:
-  - CVE-2024-48930
+  - CVE-2020-8203
+  - CVE-2019-10744
 not-imported: ["lodash.defaultsDeep", "lodash.merge"]
 ```
 
@@ -149,7 +165,7 @@ Templates are the growth engine: each contribution helps every depquiet user.
 
 ## Configuration
 
-Create `.depquiet.yaml` in your project root:
+Create `.depquiet.yaml` in your project root (or pass `--config path/to/config.yaml`):
 
 ```yaml
 # EPSS threshold (default: 0.1 = 10%)
@@ -163,13 +179,20 @@ template_dirs:
 always_flag:
   - lodash
   - express
+
+# Skip EPSS API (fully offline)
+offline: false
 ```
+
+CLI flags override config values. `template_dirs` from both sources are merged.
 
 ## Compared to
 
 | Tool | Approach | Limitation |
 |---|---|---|
 | `npm audit` | Flags everything | 80% false positives |
+| `pip-audit` | Flags everything | No triage, no context |
+| Trivy | Multi-scanner, flags everything | Great detection, no triage |
 | Dependabot | GitHub-only, flags everything | No triage, overwhelming noise |
 | GitHub Dependabot Reachability | AST analysis (Oct 2026) | JS/TS only, Enterprise Cloud only, preview |
 | Snyk / Mend | SaaS, paid | $100K+/year for reachability |

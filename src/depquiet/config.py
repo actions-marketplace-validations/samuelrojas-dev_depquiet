@@ -65,16 +65,24 @@ class Config:
 _CONFIG_NAMES = (".depquiet.yaml", ".depquiet.yml")
 
 
-def load_config(project: Path) -> Config:
-    """Load .depquiet.yaml from the project root.
+def load_config(project: Path, *, config_path: Path | None = None) -> Config:
+    """Load .depquiet.yaml from the project root (or *config_path*).
 
     Returns the default Config if no config file exists or if the file
     is malformed (with a warning to stderr).
     """
-    for name in _CONFIG_NAMES:
-        config_path = project / name
+    if config_path is not None:
         if config_path.is_file():
             return _parse_config(config_path, project)
+        import sys
+
+        print(f"Warning: config file not found: {config_path}", file=sys.stderr)
+        return Config()
+
+    for name in _CONFIG_NAMES:
+        candidate = project / name
+        if candidate.is_file():
+            return _parse_config(candidate, project)
 
     return Config()
 

@@ -30,6 +30,7 @@ from depquiet.models import (
 )
 from depquiet.parsers.npm import NpmAuditParser
 from depquiet.parsers.pip import PipAuditParser
+from depquiet.parsers.trivy import TrivyParser
 
 
 class _Parser(Protocol):
@@ -50,6 +51,7 @@ class _Parser(Protocol):
 _PARSERS: list[type[_Parser]] = [
     NpmAuditParser,
     PipAuditParser,
+    TrivyParser,
 ]
 
 
@@ -95,7 +97,11 @@ def scan(
     vulns: list[Vulnerability] = []
     if audit_json is not None:
         # Use provided JSON (piped input or testing)
-        if pm == "pip":
+        # Auto-detect format: Trivy has "Results", pip has "dependencies",
+        # npm has "vulnerabilities"
+        if "Results" in audit_json:
+            vulns = TrivyParser.parse(audit_json, project)
+        elif pm == "pip" or "dependencies" in audit_json:
             vulns = PipAuditParser.parse(audit_json, project)
         else:
             vulns = NpmAuditParser.parse(audit_json, project)

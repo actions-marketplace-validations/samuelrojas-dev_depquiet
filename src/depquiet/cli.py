@@ -77,11 +77,17 @@ def main(argv: list[str] | None = None) -> int:
         metavar="DIR",
         help="Extra directory of community templates (can be repeated)",
     )
+    parser.add_argument(
+        "--config",
+        type=Path,
+        metavar="FILE",
+        help="Path to config file (default: .depquiet.yaml in project root)",
+    )
 
     args = parser.parse_args(argv)
 
     # Load project config file
-    config = load_config(args.path)
+    config = load_config(args.path, config_path=args.config)
 
     # CLI flags override config. We detect whether --epss-threshold was
     # explicitly passed so that "0.1" from the default doesn't clobber a

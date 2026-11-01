@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-01
+
+### Added
+
+- **Trivy parser**: auto-detects `trivy fs --format json` output via `--stdin`, processes `lang-pkgs` results (skips OS packages)
+- **`.depquiet.yaml` config file**: commit triage preferences alongside code — `epss_threshold`, `template_dirs`, `always_flag`, `offline`
+- **`--config` CLI flag**: specify a custom config file path instead of the default `.depquiet.yaml` in the project root
+- **`always_flag`**: packages that must never be filtered — forced to ACTION verdict regardless of filters
+- **7 new community templates**: express open redirect, axios SSRF, webpack-dev-middleware, json5 prototype pollution, ip SSRF, requests proxy-auth leak, cryptography null dereference (9 total)
+- **Trivy container example** in `examples/trivy-container/`
+- **Node.js API example** with `.depquiet.yaml` config in `examples/node-api/`
+- **Python web app example** in `examples/python-web/`
+- PEP 561 `py.typed` marker for typed package compliance
+
+### Changed
+
+- Full `mypy --strict` compliance across all source files
+- All bare `dict` annotations replaced with `dict[str, Any]`
+- Parser list uses `Protocol` for structural typing
+- Test suite expanded from 29 to 156 tests
+- Coverage raised from 84% to 99%
+
+### Fixed
+
+- SARIF output bug: `_build_locations` crashed on missing imports field
+- `_parse_yaml_simple` return type narrowed from `dict` to `dict[str, object]` for mypy strict
+
 ## [0.1.0] - 2026-10-31
 
 ### Added
@@ -27,5 +54,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/samuelrojas-dev/depquiet/releases/tag/v0.1.0

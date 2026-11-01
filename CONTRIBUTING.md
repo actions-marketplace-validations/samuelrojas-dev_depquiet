@@ -80,13 +80,15 @@ Open an issue describing:
 ```
 src/depquiet/
 ├── cli.py          # Entry point, argument parsing
+├── config.py       # .depquiet.yaml config file support
 ├── engine.py       # Core orchestrator — runs parsers + filters
 ├── models.py       # Dataclasses: Vulnerability, FilterResult
 ├── output.py       # Terminal output with colors
 ├── sarif.py        # SARIF v2.1.0 export
 ├── parsers/
 │   ├── npm.py      # npm audit JSON parser
-│   └── pip.py      # pip-audit JSON parser
+│   ├── pip.py      # pip-audit JSON parser
+│   └── trivy.py    # Trivy JSON parser (lang-pkgs only)
 └── filters/
     ├── devdep.py       # devDependency filter
     ├── reachability.py # Import reachability analysis
