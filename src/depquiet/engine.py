@@ -32,6 +32,7 @@ from depquiet.parsers.dependabot import DependabotParser
 from depquiet.parsers.grype import GrypeParser
 from depquiet.parsers.npm import NpmAuditParser
 from depquiet.parsers.pip import PipAuditParser
+from depquiet.parsers.snyk import SnykParser
 from depquiet.parsers.trivy import TrivyParser
 
 
@@ -56,6 +57,7 @@ _PARSERS: list[type[_Parser]] = [
     TrivyParser,
     DependabotParser,
     GrypeParser,
+    SnykParser,
 ]
 
 
@@ -109,6 +111,11 @@ def scan(
             vulns = GrypeParser.parse(audit_json, project)
         elif "alerts" in audit_json:
             vulns = DependabotParser.parse(audit_json, project)
+        elif (
+            "packageManager" in audit_json
+            and isinstance(audit_json.get("vulnerabilities"), list)
+        ):
+            vulns = SnykParser.parse(audit_json, project)
         elif pm == "pip" or "dependencies" in audit_json:
             vulns = PipAuditParser.parse(audit_json, project)
         else:
