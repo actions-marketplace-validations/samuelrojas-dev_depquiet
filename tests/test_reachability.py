@@ -247,9 +247,7 @@ class TestReachabilityPython:
         """Package name in a string should NOT count as reachable."""
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp)
-            (project / "app.py").write_text(
-                'description = "uses requests"\nimport flask\n'
-            )
+            (project / "app.py").write_text('description = "uses requests"\nimport flask\n')
             rf = ReachabilityFilter(project)
             assert rf.check(_vuln("requests")) is True  # unreachable
 

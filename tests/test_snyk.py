@@ -266,9 +266,7 @@ class TestSnykParser:
     def test_missing_package_name_skipped(self) -> None:
         """Entries without packageName are skipped."""
         data: dict[str, Any] = {
-            "vulnerabilities": [
-                {"id": "SNYK-TEST-1", "severity": "high", "version": "1.0.0"}
-            ],
+            "vulnerabilities": [{"id": "SNYK-TEST-1", "severity": "high", "version": "1.0.0"}],
             "packageManager": "npm",
         }
         assert SnykParser.parse(data, _PROJECT) == []
@@ -276,9 +274,7 @@ class TestSnykParser:
     def test_missing_id_and_cve_skipped(self) -> None:
         """Entries without any id or CVE are skipped."""
         data: dict[str, Any] = {
-            "vulnerabilities": [
-                {"packageName": "foo", "severity": "high", "version": "1.0.0"}
-            ],
+            "vulnerabilities": [{"packageName": "foo", "severity": "high", "version": "1.0.0"}],
             "packageManager": "npm",
         }
         assert SnykParser.parse(data, _PROJECT) == []
