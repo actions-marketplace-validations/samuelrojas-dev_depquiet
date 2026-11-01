@@ -111,10 +111,7 @@ def scan(
             vulns = GrypeParser.parse(audit_json, project)
         elif "alerts" in audit_json:
             vulns = DependabotParser.parse(audit_json, project)
-        elif (
-            "packageManager" in audit_json
-            and isinstance(audit_json.get("vulnerabilities"), list)
-        ):
+        elif "packageManager" in audit_json and isinstance(audit_json.get("vulnerabilities"), list):
             vulns = SnykParser.parse(audit_json, project)
         elif pm == "pip" or "dependencies" in audit_json:
             vulns = PipAuditParser.parse(audit_json, project)
