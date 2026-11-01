@@ -42,7 +42,7 @@ Developers spend **3.5 hours per week** triaging vulnerability alerts that are m
 
 - **60-80% of CVEs are unreachable** — the vulnerable function is never called
 - **npm audit is "broken by design"** — 80% false positive rate ([Dan Abramov](https://overreacted.io/npm-audit-broken-by-design/))
-- **Dependabot is a "noise machine"** — Filippo Valsorda recommends [disabling it entirely](https://words.filippo.io/dispatches/vulnerability-management/)
+- **Dependabot is a "noise machine"** — Filippo Valsorda recommends [disabling it entirely](https://words.filippo.io/dependabot)
 
 The result? **Alert fatigue.** Teams either waste hours triaging noise, or ignore alerts entirely and miss the real threats.
 
