@@ -28,6 +28,7 @@ from depquiet.models import (
     Verdict,
     Vulnerability,
 )
+from depquiet.parsers.dependabot import DependabotParser
 from depquiet.parsers.npm import NpmAuditParser
 from depquiet.parsers.pip import PipAuditParser
 from depquiet.parsers.trivy import TrivyParser
@@ -52,6 +53,7 @@ _PARSERS: list[type[_Parser]] = [
     NpmAuditParser,
     PipAuditParser,
     TrivyParser,
+    DependabotParser,
 ]
 
 
@@ -101,6 +103,8 @@ def scan(
         # npm has "vulnerabilities"
         if "Results" in audit_json:
             vulns = TrivyParser.parse(audit_json, project)
+        elif "alerts" in audit_json:
+            vulns = DependabotParser.parse(audit_json, project)
         elif pm == "pip" or "dependencies" in audit_json:
             vulns = PipAuditParser.parse(audit_json, project)
         else:

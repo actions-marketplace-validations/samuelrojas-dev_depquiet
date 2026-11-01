@@ -1,0 +1,82 @@
+[
+  {
+    "number": 1,
+    "state": "open",
+    "dependency": {
+      "package": { "ecosystem": "npm", "name": "lodash" },
+      "manifest_path": "package-lock.json",
+      "scope": "runtime"
+    },
+    "security_advisory": {
+      "ghsa_id": "GHSA-jf85-cpcp-j695",
+      "cve_id": "CVE-2020-8203",
+      "summary": "Prototype Pollution in lodash",
+      "severity": "high"
+    },
+    "security_vulnerability": {
+      "severity": "high",
+      "vulnerable_version_range": ">= 4.17.0, < 4.17.20",
+      "first_patched_version": { "identifier": "4.17.20" }
+    }
+  },
+  {
+    "number": 2,
+    "state": "open",
+    "dependency": {
+      "package": { "ecosystem": "npm", "name": "semver" },
+      "manifest_path": "package-lock.json",
+      "scope": "development"
+    },
+    "security_advisory": {
+      "ghsa_id": "GHSA-c2qf-rxjj-qqgw",
+      "cve_id": "CVE-2022-25883",
+      "summary": "Regular Expression Denial of Service in semver",
+      "severity": "moderate"
+    },
+    "security_vulnerability": {
+      "severity": "moderate",
+      "vulnerable_version_range": ">= 6.0.0, < 6.3.1",
+      "first_patched_version": { "identifier": "6.3.1" }
+    }
+  },
+  {
+    "number": 3,
+    "state": "open",
+    "dependency": {
+      "package": { "ecosystem": "npm", "name": "braces" },
+      "manifest_path": "package-lock.json",
+      "scope": "runtime"
+    },
+    "security_advisory": {
+      "ghsa_id": "GHSA-grv7-fg5c-xmjg",
+      "cve_id": "CVE-2024-4068",
+      "summary": "Uncontrolled resource consumption in braces",
+      "severity": "high"
+    },
+    "security_vulnerability": {
+      "severity": "high",
+      "vulnerable_version_range": "< 3.0.3",
+      "first_patched_version": { "identifier": "3.0.3" }
+    }
+  },
+  {
+    "number": 4,
+    "state": "dismissed",
+    "dependency": {
+      "package": { "ecosystem": "npm", "name": "debug" },
+      "manifest_path": "package-lock.json",
+      "scope": "runtime"
+    },
+    "security_advisory": {
+      "ghsa_id": "GHSA-dismissed-example",
+      "cve_id": "CVE-2017-16137",
+      "summary": "Regular Expression Denial of Service in debug",
+      "severity": "low"
+    },
+    "security_vulnerability": {
+      "severity": "low",
+      "vulnerable_version_range": "< 2.6.9",
+      "first_patched_version": { "identifier": "2.6.9" }
+    }
+  }
+]

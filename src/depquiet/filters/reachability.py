@@ -69,6 +69,45 @@ def _file_mentions(files: list[Path], pattern: str) -> list[str]:
     return matches
 
 
+def _py_imports_package(files: list[Path], package: str) -> bool:
+    """Check whether any Python file imports the given package.
+
+    Looks for:
+      - import <pkg>
+      - import <pkg>.submodule
+      - from <pkg> import ...
+      - from <pkg>.submodule import ...
+      - __import__('<pkg>')  /  __import__("<pkg>")
+
+    The top-level package name is extracted (e.g. "Pillow" is imported as
+    "PIL", but most PyPI names match their import name). We normalise
+    hyphens to underscores because that's the pip convention.
+    """
+    # PyPI packages often use hyphens but Python imports use underscores
+    import_name = package.replace("-", "_")
+    esc = re.escape(import_name)
+    pattern = re.compile(
+        # 'import pkg' or 'import pkg.sub' at start of line (possibly after
+        # other imports separated by commas: 'import os, pkg, sys')
+        rf"(?:^|\n)\s*import\s+(?:\w+\s*,\s*)*{esc}(?:\s|,|\.|\)|$)"
+        r"|"
+        # 'from pkg import ...' or 'from pkg.sub import ...'
+        rf"(?:^|\n)\s*from\s+{esc}(?:\s|\.)"
+        r"|"
+        # __import__('pkg') or __import__("pkg") — can appear anywhere
+        rf"__import__\(\s*['\"]" + esc + r"['\"]",
+        re.MULTILINE,
+    )
+    for f in files:
+        try:
+            text = f.read_text(errors="replace")
+            if pattern.search(text):
+                return True
+        except OSError:
+            continue
+    return False
+
+
 class ReachabilityFilter:
     """Check whether a vulnerable package/function is imported in the project."""
 
@@ -95,31 +134,53 @@ class ReachabilityFilter:
         """Return True if the vulnerable code is unreachable (safe to filter).
 
         Conservative: returns True only when we're confident the package or its
-        vulnerable functions are never referenced in source code.
+        vulnerable functions are never referenced in source code. Checks both
+        JS and Python source files so mixed-language projects work correctly.
         """
         pkg = vuln.package
 
-        # Pick the right file set based on what ecosystem we're scanning
-        if any(f.suffix in _JS_EXTENSIONS for f in self.js_files):
-            files = self.js_files
-        elif any(f.suffix in _PY_EXTENSIONS for f in self.py_files):
-            files = self.py_files
-        else:
-            # Can't determine — don't filter
+        # If we know which specific functions are vulnerable, check those
+        # across all source files
+        if vuln.vulnerable_functions:
+            all_files = self.js_files + self.py_files
+            if not all_files:
+                return False
+            return all(not _file_mentions(all_files, func) for func in vuln.vulnerable_functions)
+
+        # Check JS files for package name (require/import patterns)
+        if self.js_files and _file_mentions(self.js_files, pkg):
             return False
 
-        # If we know which specific functions are vulnerable, check those
-        if vuln.vulnerable_functions:
-            return all(not _file_mentions(files, func) for func in vuln.vulnerable_functions)
+        # Check Python files for actual import statements
+        if self.py_files and _py_imports_package(self.py_files, pkg):
+            return False
 
-        # Otherwise check if the package itself is imported anywhere
-        # For JS: require('pkg') or import ... from 'pkg' or import('pkg')
-        return not _file_mentions(files, pkg)
+        # Only filter if we had files to check
+        return bool(self.js_files or self.py_files)
 
     def find_imports(self, vuln: Vulnerability) -> list[str]:
         """Return list of files where the vulnerable package is imported.
 
         Used for the ACTION output — showing the dev WHERE the risk is.
         """
-        files = self.js_files or self.py_files
-        return _file_mentions(files, vuln.package)
+        results: list[str] = []
+        pkg = vuln.package
+        # Check JS files by name mention
+        results.extend(_file_mentions(self.js_files, pkg))
+        # Check Python files by import pattern
+        import_name = pkg.replace("-", "_")
+        esc = re.escape(import_name)
+        pattern = re.compile(
+            rf"(?:^|\n)\s*import\s+(?:\w+\s*,\s*)*{esc}(?:\s|,|\.|\)|$)"
+            rf"|(?:^|\n)\s*from\s+{esc}(?:\s|\.)"
+            rf"|__import__\(\s*['\"]" + esc + r"['\"]",
+            re.MULTILINE,
+        )
+        for f in self.py_files:
+            try:
+                text = f.read_text(errors="replace")
+                if pattern.search(text):
+                    results.append(str(f))
+            except OSError:
+                continue
+        return results

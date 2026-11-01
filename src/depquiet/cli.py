@@ -107,13 +107,15 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     # Read piped input
-    audit_json = None
+    audit_json: dict[str, Any] | None = None
     if args.stdin:
         try:
-            audit_json = json.load(sys.stdin)
+            raw = json.load(sys.stdin)
         except json.JSONDecodeError:
             print("Error: invalid JSON on stdin", file=sys.stderr)
             return 1
+        # Dependabot exports are JSON arrays — wrap for the engine
+        audit_json = {"alerts": raw} if isinstance(raw, list) else raw
 
     # Run scan
     result = scan(

@@ -80,6 +80,7 @@ depquiet --path ./my-app
 npm audit --json | depquiet --stdin
 pip-audit --format json | depquiet --stdin
 trivy fs --format json . | depquiet --stdin
+gh api /repos/OWNER/REPO/dependabot/alerts --paginate | depquiet --stdin
 
 # Fully offline (skip EPSS API)
 depquiet --offline

@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import json
+import subprocess
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -324,3 +327,74 @@ class TestTrivyCli:
         config = load_config(tmp_path, config_path=tmp_path / "nope.yaml")
         assert config.epss_threshold == 0.1  # default
         assert "not found" in capsys.readouterr().err
+
+
+# ── run_audit / scan method tests ────────────────────────────────────
+
+
+class TestTrivyRunAudit:
+    """Tests for TrivyParser.run_audit() with mocked subprocess."""
+
+    def test_run_audit_success(self, tmp_path: Path) -> None:
+        trivy_output = json.dumps(TRIVY_BASIC)
+        fake_result = subprocess.CompletedProcess(
+            args=["trivy"], returncode=0, stdout=trivy_output, stderr=""
+        )
+        with patch("depquiet.parsers.trivy.subprocess.run", return_value=fake_result):
+            result = TrivyParser.run_audit(tmp_path)
+        assert "Results" in result
+        assert len(result["Results"]) == 1
+
+    def test_run_audit_empty_stdout(self, tmp_path: Path) -> None:
+        fake_result = subprocess.CompletedProcess(
+            args=["trivy"], returncode=0, stdout="", stderr=""
+        )
+        with patch("depquiet.parsers.trivy.subprocess.run", return_value=fake_result):
+            result = TrivyParser.run_audit(tmp_path)
+        assert result == {}
+
+    def test_run_audit_timeout(self, tmp_path: Path) -> None:
+        with patch(
+            "depquiet.parsers.trivy.subprocess.run",
+            side_effect=subprocess.TimeoutExpired(cmd="trivy", timeout=180),
+        ):
+            result = TrivyParser.run_audit(tmp_path)
+        assert result == {}
+
+    def test_run_audit_not_installed(self, tmp_path: Path) -> None:
+        with patch(
+            "depquiet.parsers.trivy.subprocess.run",
+            side_effect=FileNotFoundError("trivy not found"),
+        ):
+            result = TrivyParser.run_audit(tmp_path)
+        assert result == {}
+
+    def test_run_audit_invalid_json(self, tmp_path: Path) -> None:
+        fake_result = subprocess.CompletedProcess(
+            args=["trivy"], returncode=0, stdout="not json{", stderr=""
+        )
+        with patch("depquiet.parsers.trivy.subprocess.run", return_value=fake_result):
+            result = TrivyParser.run_audit(tmp_path)
+        assert result == {}
+
+
+class TestTrivyScan:
+    """Tests for TrivyParser.scan() (combines run_audit + parse)."""
+
+    def test_scan_end_to_end(self, tmp_path: Path) -> None:
+        trivy_output = json.dumps(TRIVY_BASIC)
+        fake_result = subprocess.CompletedProcess(
+            args=["trivy"], returncode=0, stdout=trivy_output, stderr=""
+        )
+        with patch("depquiet.parsers.trivy.subprocess.run", return_value=fake_result):
+            vulns = TrivyParser.scan(tmp_path)
+        assert len(vulns) == 2
+        assert vulns[0].cve == "CVE-2020-8203"
+
+    def test_scan_empty(self, tmp_path: Path) -> None:
+        fake_result = subprocess.CompletedProcess(
+            args=["trivy"], returncode=0, stdout="", stderr=""
+        )
+        with patch("depquiet.parsers.trivy.subprocess.run", return_value=fake_result):
+            vulns = TrivyParser.scan(tmp_path)
+        assert vulns == []

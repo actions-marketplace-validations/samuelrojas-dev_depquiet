@@ -86,9 +86,10 @@ src/depquiet/
 ├── output.py       # Terminal output with colors
 ├── sarif.py        # SARIF v2.1.0 export
 ├── parsers/
-│   ├── npm.py      # npm audit JSON parser
-│   ├── pip.py      # pip-audit JSON parser
-│   └── trivy.py    # Trivy JSON parser (lang-pkgs only)
+│   ├── npm.py         # npm audit JSON parser
+│   ├── pip.py         # pip-audit JSON parser
+│   ├── trivy.py       # Trivy JSON parser (lang-pkgs only)
+│   └── dependabot.py  # GitHub Dependabot alerts parser
 └── filters/
     ├── devdep.py       # devDependency filter
     ├── reachability.py # Import reachability analysis
