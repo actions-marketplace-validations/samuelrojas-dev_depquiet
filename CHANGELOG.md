@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-01
+
+### Added
+
+- **Snyk parser**: triage Snyk CLI output via `snyk test --json | depquiet --stdin` — auto-detects `vulnerabilities` array + `packageManager` key, extracts CVEs from `identifiers`, maps dependency chain depth from `from[]`, deduplicates CVE+package
+- **AST-based Python reachability** (v2): upgraded from regex to `ast.parse()` — immune to false positives from comments, docstrings, strings, and variable names that tripped up the old regex. Falls back to regex for unparseable files (Python 2, encoding issues)
+- **12 new community templates** (21 total): minimist prototype pollution, nth-check ReDoS, postcss ReDoS, glob-parent ReDoS, node-forge timing attack, shell-quote injection, qs prototype pollution, semver ReDoS, word-wrap ReDoS, tough-cookie prototype pollution, js-yaml code execution, certifi root CA removal
+
+### Changed
+
+- Test suite expanded from 234 to 292 tests
+- Coverage maintained at **100%** across all 20 source files (948/948 statements)
+- 6 parsers now supported: npm, pip, trivy, dependabot, grype, snyk
+
 ## [0.3.0] - 2026-11-01
 
 ### Added
@@ -71,7 +85,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/samuelrojas-dev/depquiet/releases/tag/v0.1.0

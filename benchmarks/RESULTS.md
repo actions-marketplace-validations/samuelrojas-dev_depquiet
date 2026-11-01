@@ -6,10 +6,10 @@ Realistic audit fixtures, offline mode (no EPSS API), all filters active.
 
 | Scenario | Parser | Total | Action | Review | Filtered | Filter rate | Time |
 |----------|--------|------:|-------:|-------:|---------:|------------:|-----:|
-| npm-express-app | npm | 15 | 2 | 0 | 13 | **87%** | 3ms |
-| pip-django-app | pip | 9 | 1 | 0 | 8 | **89%** | 3ms |
-| trivy-node-container | trivy | 8 | 0 | 0 | 8 | **100%** | 1ms |
-| grype-python-container | grype | 6 | 1 | 0 | 5 | **83%** | 1ms |
+| npm-express-app | npm | 15 | 2 | 0 | 13 | **87%** | 9ms |
+| pip-django-app | pip | 9 | 1 | 0 | 8 | **89%** | 2ms |
+| trivy-node-container | trivy | 8 | 0 | 0 | 8 | **100%** | 2ms |
+| grype-python-container | grype | 6 | 1 | 0 | 5 | **83%** | 2ms |
 | **Total** | **all** | **38** | **4** | **0** | **34** | **89%** | |
 
 ## Filter breakdown
@@ -17,9 +17,9 @@ Realistic audit fixtures, offline mode (no EPSS API), all filters active.
 | Scenario | Unreachable | Dev-only | Low EPSS | Template |
 |----------|------------:|---------:|---------:|---------:|
 | npm-express-app | 13 | 4 | 0 | 0 |
-| pip-django-app | 7 | 0 | 0 | 2 |
+| pip-django-app | 7 | 0 | 0 | 3 |
 | trivy-node-container | 7 | 0 | 0 | 7 |
-| grype-python-container | 4 | 0 | 0 | 2 |
+| grype-python-container | 4 | 0 | 0 | 3 |
 
 ## Key takeaways
 

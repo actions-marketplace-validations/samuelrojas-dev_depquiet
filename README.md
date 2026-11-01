@@ -8,7 +8,7 @@
 
 **Cut through vulnerability alert noise. Surface the signal.**
 
-`depquiet` triages your `npm audit` / `pip-audit` / `trivy` / `grype` / Dependabot alerts and tells you which CVEs actually matter — in seconds, not hours.
+`depquiet` triages your `npm audit` / `pip-audit` / `trivy` / `grype` / Dependabot / Snyk alerts and tells you which CVEs actually matter — in seconds, not hours.
 
 ```
 $ depquiet
@@ -59,7 +59,7 @@ depquiet applies four deterministic filters to separate signal from noise:
 
 ### Zero false negatives by design
 
-depquiet is **conservative**: it would rather let a false positive through than dismiss a real vulnerability. Grep-based reachability misses dynamic imports, so it only filters when there are **zero references** to the package in your source code.
+depquiet is **conservative**: it would rather let a false positive through than dismiss a real vulnerability. Python reachability uses AST parsing (immune to false positives from comments, docstrings, and strings); JS/TS uses string matching. Both only filter when there are **zero real references** to the package in your source code.
 
 ## Install
 
@@ -81,6 +81,7 @@ npm audit --json | depquiet --stdin
 pip-audit --format json | depquiet --stdin
 trivy fs --format json . | depquiet --stdin
 grype dir:. -o json | depquiet --stdin
+snyk test --json | depquiet --stdin
 gh api /repos/OWNER/REPO/dependabot/alerts --paginate | depquiet --stdin
 
 # Fully offline (skip EPSS API)
@@ -134,7 +135,7 @@ The action installs depquiet, runs it, uploads SARIF to GitHub Code Scanning, an
 
 ## Community templates
 
-depquiet ships with **9 built-in templates** and uses [nuclei-style](https://github.com/projectdiscovery/nuclei-templates) YAML to encode community knowledge about known false positives:
+depquiet ships with **21 built-in templates** and uses [nuclei-style](https://github.com/projectdiscovery/nuclei-templates) YAML to encode community knowledge about known false positives:
 
 | Template | CVE | What it catches |
 |---|---|---|
@@ -147,6 +148,17 @@ depquiet ships with **9 built-in templates** and uses [nuclei-style](https://git
 | ip SSRF | CVE-2023-42282 | `isPrivate()` bypass, private networks only |
 | requests proxy-auth leak | CVE-2023-32681 | Only proxy + redirect |
 | cryptography null dereference | CVE-2024-0727 | Only PKCS12 loading |
+| minimist prototype pollution | CVE-2021-44906, CVE-2020-7598 | Only direct argv parsing |
+| nth-check ReDoS | CVE-2021-3803 | Only attacker-controlled CSS selectors |
+| postcss ReDoS | CVE-2023-44270 | Only attacker-controlled CSS input |
+| glob-parent ReDoS | CVE-2020-28469 | Only attacker-controlled glob patterns |
+| node-forge timing attack | CVE-2022-24771 | Network-level timing measurement needed |
+| shell-quote injection | CVE-2021-42740 | Only untrusted input to shell-quote |
+| qs prototype pollution | CVE-2022-24999 | Mitigated by Express 4.x defaults |
+| word-wrap ReDoS | CVE-2023-26115 | Only very long strings without spaces |
+| tough-cookie prototype pollution | CVE-2023-26136 | Only attacker-controlled cookie jar |
+| js-yaml code execution | CVE-2013-4660 | Only `yaml.load()` with default schema |
+| certifi root CA removal | CVE-2023-37920 | Only chains through distrusted CAs |
 
 ```yaml
 id: prototype-pollution-lodash
@@ -213,8 +225,9 @@ Run the benchmarks yourself: `python -I benchmarks/run_benchmark.py`
 | Trivy | Multi-scanner, flags everything | Great detection, no triage |
 | Grype | Container scanner, flags everything | Great detection, no triage |
 | Dependabot | GitHub-only, flags everything | No triage, overwhelming noise |
+| Snyk | SaaS, paid | $100K+/year for reachability |
 | GitHub Dependabot Reachability | AST analysis (Oct 2026) | JS/TS only, Enterprise Cloud only, preview |
-| Snyk / Mend | SaaS, paid | $100K+/year for reachability |
+| Mend / Black Duck | SaaS, paid | Enterprise pricing, vendor lock-in |
 | **depquiet** | Deterministic triage, community templates | Free, offline, works everywhere |
 
 ## License
