@@ -1,0 +1,47 @@
+{
+  "dependencies": [
+    {
+      "name": "requests",
+      "version": "2.25.0",
+      "vulns": [
+        {
+          "id": "CVE-2023-32681",
+          "fix_versions": ["2.31.0"],
+          "description": "Requests Session object does not verify requests after making first request with verify=False"
+        }
+      ]
+    },
+    {
+      "name": "urllib3",
+      "version": "1.26.5",
+      "vulns": [
+        {
+          "id": "CVE-2023-43804",
+          "fix_versions": ["1.26.18", "2.0.7"],
+          "description": "urllib3 doesn't remove HTTP Authorization header when following cross-origin redirect"
+        },
+        {
+          "id": "CVE-2023-45803",
+          "fix_versions": ["1.26.18", "2.0.7"],
+          "description": "urllib3 request body not stripped after redirect from 303 status"
+        }
+      ]
+    },
+    {
+      "name": "flask",
+      "version": "2.3.0",
+      "vulns": []
+    },
+    {
+      "name": "cryptography",
+      "version": "41.0.0",
+      "vulns": [
+        {
+          "id": "CVE-2023-49083",
+          "fix_versions": ["41.0.6"],
+          "description": "cryptography Null pointer dereference with pkcs12.serialize_key_and_certificates"
+        }
+      ]
+    }
+  ]
+}

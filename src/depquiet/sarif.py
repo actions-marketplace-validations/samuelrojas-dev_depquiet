@@ -49,7 +49,7 @@ def to_sarif(result: ScanResult) -> dict:
             "message": {
                 "text": _build_message(tr),
             },
-            "locations": _build_locations(tr, result.project_path),
+            "locations": _build_locations(tr, result.project_path, result.package_manager),
         }
 
         if tr.epss_score is not None:
@@ -112,7 +112,11 @@ def _build_message(tr: TriageResult) -> str:
     return " | ".join(parts)
 
 
-def _build_locations(tr: TriageResult, project_path: str) -> list[dict]:
+def _build_locations(
+    tr: TriageResult,
+    project_path: str,
+    package_manager: str = "npm",
+) -> list[dict]:
     """Build SARIF locations from reachable imports or package files."""
     locations: list[dict] = []
 
@@ -137,7 +141,7 @@ def _build_locations(tr: TriageResult, project_path: str) -> list[dict]:
             "npm": "package.json",
             "pip": "requirements.txt",
         }
-        manifest = pm_files.get("npm", "package.json")
+        manifest = pm_files.get(package_manager, "package.json")
         locations.append(
             {
                 "physicalLocation": {
