@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Grype parser**: triage Anchore Grype output via `grype dir:. -o json | depquiet --stdin` — auto-detects `matches` array, deduplicates CVE+package, maps artifact types to depquiet ecosystems, handles both modern and legacy fix formats
 - **Dependabot parser**: triage GitHub Dependabot alerts via `gh api /repos/OWNER/REPO/dependabot/alerts --paginate | depquiet --stdin` — auto-detects JSON arrays, processes only open alerts, deduplicates CVE+package, handles GHSA-only advisories
 - **Dependabot example** in `examples/dependabot-alerts/` with sample alerts and expected verdicts
 
@@ -17,8 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Python reachability analysis**: upgraded from bare string matching to proper `import X` / `from X import Y` / `__import__('X')` detection — prevents false positives from package names appearing in comments or prose
 - **Mixed-project reachability**: `check()` now searches both JS and Python files instead of picking one ecosystem, so mixed-language projects triage correctly
 - trivy.py test coverage raised from 84% to 100%
-- Test suite expanded from 156 to 220 tests
-- Coverage raised from 98% to **100%** across all 18 source files (829/829 statements)
+- Test suite expanded from 156 to 234 tests
+- Coverage raised from 98% to **100%** across all 19 source files (869/869 statements)
 
 ## [0.2.0] - 2026-11-01
 

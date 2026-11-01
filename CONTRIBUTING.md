@@ -89,7 +89,8 @@ src/depquiet/
 │   ├── npm.py         # npm audit JSON parser
 │   ├── pip.py         # pip-audit JSON parser
 │   ├── trivy.py       # Trivy JSON parser (lang-pkgs only)
-│   └── dependabot.py  # GitHub Dependabot alerts parser
+│   ├── dependabot.py  # GitHub Dependabot alerts parser
+│   └── grype.py       # Anchore Grype JSON parser
 └── filters/
     ├── devdep.py       # devDependency filter
     ├── reachability.py # Import reachability analysis

@@ -8,7 +8,7 @@
 
 **Cut through vulnerability alert noise. Surface the signal.**
 
-`depquiet` triages your `npm audit` / `pip-audit` / `trivy` / Dependabot alerts and tells you which CVEs actually matter — in seconds, not hours.
+`depquiet` triages your `npm audit` / `pip-audit` / `trivy` / `grype` / Dependabot alerts and tells you which CVEs actually matter — in seconds, not hours.
 
 ```
 $ depquiet
@@ -80,6 +80,7 @@ depquiet --path ./my-app
 npm audit --json | depquiet --stdin
 pip-audit --format json | depquiet --stdin
 trivy fs --format json . | depquiet --stdin
+grype dir:. -o json | depquiet --stdin
 gh api /repos/OWNER/REPO/dependabot/alerts --paginate | depquiet --stdin
 
 # Fully offline (skip EPSS API)
