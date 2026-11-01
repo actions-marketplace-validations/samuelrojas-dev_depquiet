@@ -1,0 +1,69 @@
+name: Bug Report
+description: Something isn't working correctly
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! Please fill out the sections below so we can reproduce and fix it.
+
+  - type: input
+    id: version
+    attributes:
+      label: depquiet version
+      description: Run `depquiet --version`
+      placeholder: "0.1.0"
+    validations:
+      required: true
+
+  - type: input
+    id: python-version
+    attributes:
+      label: Python version
+      description: Run `python --version`
+      placeholder: "3.13.0"
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating System
+      placeholder: "macOS 15.1 / Ubuntu 24.04 / Windows 11"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the bug. What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: The exact commands you ran
+      render: bash
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: Error output
+      description: Paste the full terminal output
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: audit-json
+    attributes:
+      label: Audit JSON (if relevant)
+      description: Paste or attach the audit JSON that triggered the bug. Sanitize private package names if needed.
+      render: json
+    validations:
+      required: false

@@ -1,0 +1,53 @@
+name: Template Contribution
+description: Propose a new dismiss template for a known false positive
+labels: ["template"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Community templates are what make depquiet powerful. Thanks for contributing one!
+
+  - type: input
+    id: template-id
+    attributes:
+      label: Template ID
+      description: A short kebab-case identifier
+      placeholder: "prototype-pollution-lodash"
+    validations:
+      required: true
+
+  - type: textarea
+    id: cves
+    attributes:
+      label: CVEs covered
+      description: List each CVE on its own line
+      placeholder: |
+        CVE-2020-8203
+        CVE-2019-10744
+    validations:
+      required: true
+
+  - type: input
+    id: packages
+    attributes:
+      label: Affected packages
+      description: Comma-separated package names
+      placeholder: "lodash, lodash.merge"
+    validations:
+      required: true
+
+  - type: textarea
+    id: reason
+    attributes:
+      label: Why is this safe to dismiss?
+      description: Explain why this CVE is a false positive in most projects. Be specific about the conditions under which it IS exploitable.
+    validations:
+      required: true
+
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Links to advisories, blog posts, or discussions that support this template
+    validations:
+      required: true

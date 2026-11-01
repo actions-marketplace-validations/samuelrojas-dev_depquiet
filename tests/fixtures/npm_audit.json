@@ -1,0 +1,99 @@
+{
+  "auditReportVersion": 2,
+  "vulnerabilities": {
+    "lodash": {
+      "name": "lodash",
+      "severity": "high",
+      "isDirect": true,
+      "via": [
+        {
+          "source": 1094939,
+          "name": "lodash",
+          "dependency": "lodash",
+          "title": "Prototype Pollution in lodash",
+          "url": "https://github.com/advisories/GHSA-jf85-cpcp-j695",
+          "severity": "high",
+          "cwe": ["CWE-1321"],
+          "cvss": {"score": 7.4},
+          "range": "<4.17.21"
+        }
+      ],
+      "effects": [],
+      "range": "<4.17.21",
+      "nodes": ["node_modules/lodash"],
+      "fixAvailable": {"name": "lodash", "version": "4.17.21"}
+    },
+    "braces": {
+      "name": "braces",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        {
+          "source": 1098820,
+          "name": "braces",
+          "dependency": "braces",
+          "title": "Uncontrolled resource consumption in braces",
+          "url": "https://github.com/advisories/GHSA-grv7-fg5c-xmjg",
+          "severity": "high",
+          "cwe": ["CWE-400"],
+          "cvss": {"score": 7.5},
+          "range": "<3.0.3"
+        }
+      ],
+      "effects": ["micromatch"],
+      "range": "<3.0.3",
+      "nodes": ["node_modules/braces"],
+      "fixAvailable": {"name": "braces", "version": "3.0.3"}
+    },
+    "micromatch": {
+      "name": "micromatch",
+      "severity": "high",
+      "isDirect": false,
+      "via": ["braces"],
+      "effects": [],
+      "range": "*",
+      "nodes": ["node_modules/micromatch"],
+      "fixAvailable": false
+    },
+    "debug": {
+      "name": "debug",
+      "severity": "low",
+      "isDirect": true,
+      "via": [
+        {
+          "source": 12345,
+          "name": "debug",
+          "dependency": "debug",
+          "title": "Regular Expression Denial of Service in debug",
+          "url": "https://github.com/advisories/GHSA-test-debug-1234",
+          "severity": "low",
+          "cwe": ["CWE-1333"],
+          "cvss": {"score": 3.7},
+          "range": "<2.6.9"
+        }
+      ],
+      "effects": [],
+      "range": "<2.6.9",
+      "nodes": ["node_modules/debug"],
+      "fixAvailable": {"name": "debug", "version": "2.6.9"}
+    }
+  },
+  "metadata": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 1,
+      "moderate": 0,
+      "high": 3,
+      "critical": 0,
+      "total": 4
+    },
+    "dependencies": {
+      "prod": 120,
+      "dev": 340,
+      "optional": 12,
+      "peer": 0,
+      "peerOptional": 0,
+      "total": 472
+    }
+  }
+}

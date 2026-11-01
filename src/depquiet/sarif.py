@@ -1,0 +1,149 @@
+"""SARIF output — integrates with GitHub Code Scanning and VS Code.
+
+SARIF (Static Analysis Results Interchange Format) is the universal format
+for vulnerability findings. GitHub Code Scanning, VS Code, and most CI
+tools can consume it.
+
+We emit SARIF v2.1.0 with one run per scan. Each ACTION or REVIEW result
+becomes a result; FILTERED items are omitted (that's the point).
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from depquiet import __version__
+from depquiet.models import ScanResult, TriageResult, Verdict
+
+
+def to_sarif(result: ScanResult) -> dict:
+    """Convert a ScanResult to a SARIF v2.1.0 document."""
+    rules: list[dict] = []
+    results: list[dict] = []
+    rule_index: dict[str, int] = {}
+
+    actionable = [r for r in result.results if r.verdict != Verdict.FILTERED]
+
+    for tr in actionable:
+        vuln = tr.vuln
+        rule_id = vuln.cve or f"{vuln.package}-{vuln.severity.value}"
+
+        if rule_id not in rule_index:
+            rule_index[rule_id] = len(rules)
+            rule: dict = {
+                "id": rule_id,
+                "shortDescription": {"text": vuln.title or f"{vuln.package} {vuln.severity.value}"},
+                "defaultConfiguration": {
+                    "level": _severity_to_level(vuln.severity.value),
+                },
+            }
+            if vuln.url:
+                rule["helpUri"] = vuln.url
+            rules.append(rule)
+
+        sarif_result: dict = {
+            "ruleId": rule_id,
+            "ruleIndex": rule_index[rule_id],
+            "level": _severity_to_level(vuln.severity.value),
+            "message": {
+                "text": _build_message(tr),
+            },
+            "locations": _build_locations(tr, result.project_path),
+        }
+
+        if tr.epss_score is not None:
+            sarif_result.setdefault("properties", {})["epss_score"] = tr.epss_score
+
+        results.append(sarif_result)
+
+    return {
+        "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [
+            {
+                "tool": {
+                    "driver": {
+                        "name": "depquiet",
+                        "version": __version__,
+                        "informationUri": "https://github.com/samuelrojas-dev/depquiet",
+                        "rules": rules,
+                    }
+                },
+                "results": results,
+            }
+        ],
+    }
+
+
+def write_sarif(result: ScanResult, path: Path) -> None:
+    """Write SARIF output to a file."""
+    sarif = to_sarif(result)
+    path.write_text(json.dumps(sarif, indent=2))
+
+
+def _severity_to_level(severity: str) -> str:
+    """Map vulnerability severity to SARIF level."""
+    return {
+        "critical": "error",
+        "high": "error",
+        "moderate": "warning",
+        "low": "note",
+        "info": "note",
+    }.get(severity, "warning")
+
+
+def _build_message(tr: TriageResult) -> str:
+    """Build a human-readable message for a SARIF result."""
+    vuln = tr.vuln
+    parts = [f"{vuln.package}@{vuln.version}: {vuln.title or vuln.cve}"]
+
+    if vuln.fix_version:
+        parts.append(f"Fix: update to {vuln.fix_version}")
+
+    if tr.epss_score is not None:
+        parts.append(f"EPSS: {tr.epss_score:.1%}")
+
+    if tr.verdict == Verdict.REVIEW:
+        parts.append("Verdict: REVIEW")
+    else:
+        parts.append("Verdict: ACTION REQUIRED")
+
+    return " | ".join(parts)
+
+
+def _build_locations(tr: TriageResult, project_path: str) -> list[dict]:
+    """Build SARIF locations from reachable imports or package files."""
+    locations: list[dict] = []
+
+    if tr.reachable_imports:
+        for imp in tr.reachable_imports[:5]:
+            # Make path relative to project
+            try:
+                rel = str(Path(imp).relative_to(project_path))
+            except ValueError:
+                rel = imp
+            locations.append(
+                {
+                    "physicalLocation": {
+                        "artifactLocation": {"uri": rel},
+                    }
+                }
+            )
+
+    if not locations:
+        # Default to package manifest
+        pm_files = {
+            "npm": "package.json",
+            "pip": "requirements.txt",
+        }
+        manifest = pm_files.get("npm", "package.json")
+        locations.append(
+            {
+                "physicalLocation": {
+                    "artifactLocation": {"uri": manifest},
+                }
+            }
+        )
+
+    return locations

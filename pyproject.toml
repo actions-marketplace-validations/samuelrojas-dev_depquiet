@@ -1,0 +1,103 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "depquiet"
+version = "0.1.0"
+description = "Cut through vulnerability alert noise. Tells you which CVEs actually matter."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [
+    { name = "Samuel Rojas", email = "sarojas123@icloud.com" },
+]
+keywords = [
+    "security",
+    "vulnerability",
+    "triage",
+    "dependabot",
+    "npm-audit",
+    "pip-audit",
+    "trivy",
+    "cve",
+    "sca",
+    "epss",
+    "reachability",
+    "sarif",
+    "devsecops",
+    "supply-chain",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Software Development :: Testing",
+    "Typing :: Typed",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.4",
+    "mypy>=1.10",
+]
+
+[project.scripts]
+depquiet = "depquiet.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/samuelrojas-dev/depquiet"
+Repository = "https://github.com/samuelrojas-dev/depquiet"
+Documentation = "https://github.com/samuelrojas-dev/depquiet#readme"
+Issues = "https://github.com/samuelrojas-dev/depquiet/issues"
+Changelog = "https://github.com/samuelrojas-dev/depquiet/blob/main/CHANGELOG.md"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/depquiet"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers -v"
+markers = [
+    "live: requires network access (deselect with '-m not live')",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # bugbear
+    "SIM",  # simplify
+    "RUF",  # ruff-specific
+]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+[tool.coverage.run]
+source = ["depquiet"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 80

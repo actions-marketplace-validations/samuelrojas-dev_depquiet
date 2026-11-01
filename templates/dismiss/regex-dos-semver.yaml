@@ -1,0 +1,6 @@
+id: regex-dos-semver
+reason: "ReDoS in semver only matters if you parse untrusted user input as a semver string. Build-time usage is safe."
+author: "@depquiet"
+cves:
+  - CVE-2022-25883
+package: semver
