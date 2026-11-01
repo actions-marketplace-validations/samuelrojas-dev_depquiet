@@ -4,10 +4,13 @@ This is the highest-value filter. 60-80% of CVEs flagged by scanners affect
 functions that the project never calls. A prototype pollution in lodash.merge()
 doesn't matter if you only use lodash.get().
 
-Strategy (v2 — AST-based for Python, grep for JS, conservative):
+Strategy (v3 — AST-based for Python AND JS/TS, conservative):
 1. Python files are parsed with ``ast`` to extract real import statements,
    ignoring comments, strings, and partial-name matches that trip up regex.
-2. JS/TS files still use string matching (require/import patterns).
+2. JS/TS files are parsed with a comment/string-stripping regex pipeline
+   followed by import/require/export pattern matching — catches ESM imports,
+   CommonJS require(), dynamic import(), and re-exports while ignoring
+   package names that only appear inside comments or string literals.
 3. If vulnerable_functions are known, check if any of those specific functions
    appear in the source (string search — conservative).
 4. Only mark as unreachable if we're confident the package/function isn't used.
@@ -158,6 +161,141 @@ def _regex_py_imports(text: str, import_name: str) -> bool:
     return bool(pattern.search(text))
 
 
+def _strip_js_comments_and_strings(source: str) -> str:
+    """Remove comments and string literals from JS/TS source.
+
+    Strips:
+    - Single-line comments (// ...)
+    - Multi-line comments (/* ... */)
+    - Template literals (`...`)
+    - Double-quoted strings ("...")
+    - Single-quoted strings ('...')
+
+    This lets us run import patterns on what remains without false positives
+    from package names that appear only inside comments or strings.
+    """
+    return re.sub(
+        r"//[^\n]*"  # single-line comment
+        r"|/\*[\s\S]*?\*/"  # multi-line comment
+        r"|`(?:[^`\\]|\\.)*`"  # template literal
+        r"|\"(?:[^\"\\]|\\.)*\""  # double-quoted string
+        r"|'(?:[^'\\]|\\.)*'",  # single-quoted string
+        " ",
+        source,
+    )
+
+
+def _strip_js_comments(source: str) -> str:
+    """Remove only comments from JS/TS source, preserving strings.
+
+    We strip comments so that ``// import x from 'x'`` and block-commented
+    imports are ignored.  String literals are kept intact because the import
+    regex patterns need the specifier strings (``'lodash'``) to extract the
+    package name.  The import-specific regexes are narrow enough that a bare
+    string mention like ``"uses lodash"`` won't false-positive.
+
+    A full ``import … from 'pkg'`` inside a string *will* match — that is
+    the conservative choice (treating it as reachable is safe).
+    """
+    return re.sub(
+        r"//[^\n]*"  # single-line comment
+        r"|/\*[\s\S]*?\*/",  # multi-line comment
+        " ",
+        source,
+    )
+
+
+def _js_extract_imports(source: str) -> set[str]:
+    """Extract package names from JS/TS source using regex on stripped code.
+
+    Handles:
+    - ESM: import X from 'pkg', import {a} from 'pkg', import 'pkg'
+    - CommonJS: require('pkg'), require("pkg")
+    - Dynamic: import('pkg')
+    - Re-exports: export {a} from 'pkg', export * from 'pkg'
+
+    Returns the set of top-level package names (for scoped packages like
+    ``@scope/name``, returns ``@scope/name``).
+    """
+    stripped = _strip_js_comments(source)
+
+    names: set[str] = set()
+
+    # ESM import: import ... from 'pkg' / import 'pkg' (side-effect)
+    for m in re.finditer(
+        r"""\bimport\s+"""
+        r"""(?:"""
+        r"""(?:[\w*{}\s,]+)\s+from\s+"""  # import X from 'pkg'
+        r"""|"""  # OR
+        r""")"""  # import 'pkg' (side-effect)
+        r"""["']([^"']+)["']""",
+        stripped,
+    ):
+        names.add(_js_package_name(m.group(1)))
+
+    # CommonJS require: require('pkg') or require("pkg")
+    for m in re.finditer(r"""\brequire\s*\(\s*["']([^"']+)["']\s*\)""", stripped):
+        names.add(_js_package_name(m.group(1)))
+
+    # Dynamic import: import('pkg')
+    for m in re.finditer(r"""\bimport\s*\(\s*["']([^"']+)["']\s*\)""", stripped):
+        names.add(_js_package_name(m.group(1)))
+
+    # Re-exports: export ... from 'pkg'
+    for m in re.finditer(
+        r"""\bexport\s+(?:[\w*{}\s,]+)\s+from\s+["']([^"']+)["']""",
+        stripped,
+    ):
+        names.add(_js_package_name(m.group(1)))
+
+    return names
+
+
+def _js_package_name(specifier: str) -> str:
+    """Extract the package name from a JS import specifier.
+
+    - ``lodash`` → ``lodash``
+    - ``lodash/merge`` → ``lodash``
+    - ``@scope/name`` → ``@scope/name``
+    - ``@scope/name/sub`` → ``@scope/name``
+    - ``./local`` → ``./local`` (relative, won't match any package)
+    """
+    if specifier.startswith(".") or specifier.startswith("/"):
+        return specifier  # relative/absolute — never matches a package name
+    if specifier.startswith("@"):
+        # Scoped package: @scope/name(/subpath)?
+        parts = specifier.split("/")
+        return "/".join(parts[:2]) if len(parts) >= 2 else specifier
+    # Unscoped: name(/subpath)?
+    return specifier.split("/")[0]
+
+
+def _js_imports_package(files: list[Path], package: str) -> bool:
+    """Check whether any JS/TS file imports the given package.
+
+    Uses comment/string stripping + regex for proper import detection —
+    immune to false positives from package names in comments or strings.
+    """
+    for f in files:
+        try:
+            text = f.read_text(errors="replace")
+        except OSError:
+            continue
+        imports = _js_extract_imports(text)
+        if package in imports:
+            return True
+    return False
+
+
+def _js_file_imports_package(f: Path, package: str) -> bool:
+    """Check whether a single JS/TS file imports the given package."""
+    try:
+        text = f.read_text(errors="replace")
+    except OSError:
+        return False
+    return package in _js_extract_imports(text)
+
+
 def _py_file_imports_package(f: Path, package: str) -> bool:
     """Check whether a single Python file imports the given package."""
     import_name = package.replace("-", "_")
@@ -212,8 +350,8 @@ class ReachabilityFilter:
                 return False
             return all(not _file_mentions(all_files, func) for func in vuln.vulnerable_functions)
 
-        # Check JS files for package name (require/import patterns)
-        if self.js_files and _file_mentions(self.js_files, pkg):
+        # Check JS/TS files for actual import/require statements
+        if self.js_files and _js_imports_package(self.js_files, pkg):
             return False
 
         # Check Python files for actual import statements (AST-based)
@@ -230,8 +368,10 @@ class ReachabilityFilter:
         """
         results: list[str] = []
         pkg = vuln.package
-        # Check JS files by name mention
-        results.extend(_file_mentions(self.js_files, pkg))
+        # Check JS/TS files by import/require detection
+        for f in self.js_files:
+            if _js_file_imports_package(f, pkg):
+                results.append(str(f))
         # Check Python files by AST-based import detection
         for f in self.py_files:
             if _py_file_imports_package(f, pkg):
