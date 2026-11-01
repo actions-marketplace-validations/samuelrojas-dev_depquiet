@@ -7,11 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-01
+
 ### Added
 
 - **Grype parser**: triage Anchore Grype output via `grype dir:. -o json | depquiet --stdin` — auto-detects `matches` array, deduplicates CVE+package, maps artifact types to depquiet ecosystems, handles both modern and legacy fix formats
 - **Dependabot parser**: triage GitHub Dependabot alerts via `gh api /repos/OWNER/REPO/dependabot/alerts --paginate | depquiet --stdin` — auto-detects JSON arrays, processes only open alerts, deduplicates CVE+package, handles GHSA-only advisories
 - **Dependabot example** in `examples/dependabot-alerts/` with sample alerts and expected verdicts
+- **Benchmark suite**: reproducible filter-rate measurement across 4 scenarios — **89% noise reduction** proven across npm, pip, trivy, and grype
 
 ### Changed
 
@@ -19,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Mixed-project reachability**: `check()` now searches both JS and Python files instead of picking one ecosystem, so mixed-language projects triage correctly
 - trivy.py test coverage raised from 84% to 100%
 - Test suite expanded from 156 to 234 tests
-- Coverage raised from 98% to **100%** across all 19 source files (869/869 statements)
+- Coverage maintained at **100%** across all 19 source files (869/869 statements)
 
 ## [0.2.0] - 2026-11-01
 
@@ -68,6 +71,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/samuelrojas-dev/depquiet/releases/tag/v0.1.0
