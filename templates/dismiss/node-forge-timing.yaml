@@ -1,0 +1,8 @@
+id: node-forge-timing-attack
+reason: "Timing attack in node-forge signature verification requires network-level timing measurement. Not exploitable in most application contexts."
+author: "@depquiet"
+cves:
+  - CVE-2022-24771
+  - CVE-2022-24772
+  - CVE-2022-24773
+package: node-forge

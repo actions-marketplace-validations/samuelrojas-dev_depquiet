@@ -1,0 +1,6 @@
+id: glob-parent-redos
+reason: "ReDoS in glob-parent only triggers with attacker-controlled glob patterns. Build tools using hardcoded globs are not affected."
+author: "@depquiet"
+cves:
+  - CVE-2020-28469
+package: glob-parent

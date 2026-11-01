@@ -1,0 +1,6 @@
+id: semver-redos
+reason: "ReDoS in semver only triggers with extremely long, attacker-crafted version strings. Normal version strings from package registries are not affected."
+author: "@depquiet"
+cves:
+  - CVE-2022-25883
+package: semver

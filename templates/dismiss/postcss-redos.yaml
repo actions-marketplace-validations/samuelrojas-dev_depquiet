@@ -1,0 +1,8 @@
+id: postcss-redos
+reason: "ReDoS in postcss only triggers when parsing attacker-controlled CSS. Build-time usage with trusted stylesheets is not affected."
+author: "@depquiet"
+cves:
+  - CVE-2023-44270
+  - CVE-2021-23382
+  - CVE-2021-23368
+package: postcss

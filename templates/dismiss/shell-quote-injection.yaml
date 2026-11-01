@@ -1,0 +1,6 @@
+id: shell-quote-injection
+reason: "Command injection in shell-quote only affects code that passes untrusted input to shell-quote for escaping. If you shell-quote only hardcoded or developer-controlled strings, this is safe."
+author: "@depquiet"
+cves:
+  - CVE-2021-42740
+package: shell-quote

@@ -1,0 +1,6 @@
+id: nth-check-redos
+reason: "ReDoS in nth-check only triggers with attacker-controlled CSS selectors. If you don't pass untrusted input to CSS selector parsers, this is unexploitable."
+author: "@depquiet"
+cves:
+  - CVE-2021-3803
+package: nth-check

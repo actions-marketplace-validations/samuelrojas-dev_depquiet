@@ -1,0 +1,6 @@
+id: word-wrap-redos
+reason: "ReDoS in word-wrap only triggers with very long strings containing no spaces. Normal text wrapping usage is not affected."
+author: "@depquiet"
+cves:
+  - CVE-2023-26115
+package: word-wrap
