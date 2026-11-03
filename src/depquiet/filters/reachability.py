@@ -4,7 +4,7 @@ This is the highest-value filter. 60-80% of CVEs flagged by scanners affect
 functions that the project never calls. A prototype pollution in lodash.merge()
 doesn't matter if you only use lodash.get().
 
-Strategy (v4 — multi-language import analysis, conservative):
+Strategy (v5 — multi-language import analysis, conservative):
 1. Python files are parsed with ``ast`` to extract real import statements,
    ignoring comments, strings, and partial-name matches that trip up regex.
 2. JS/TS files are parsed with a comment/string-stripping regex pipeline
@@ -15,9 +15,10 @@ Strategy (v4 — multi-language import analysis, conservative):
 4. Rust files are parsed for ``use``/``extern crate`` with hyphen normalization.
 5. Java/Kotlin files are parsed for ``import`` statements with Maven group ID
    matching (``groupId:artifactId`` coordinates).
-6. If vulnerable_functions are known, check if any of those specific functions
+6. C# files are parsed for ``using`` directives with NuGet namespace matching.
+7. If vulnerable_functions are known, check if any of those specific functions
    appear in the source (string search — conservative).
-7. Only mark as unreachable if we're confident the package/function isn't used.
+8. Only mark as unreachable if we're confident the package/function isn't used.
 
 Conservative by design: we'd rather let a false positive through than dismiss
 a real vulnerability. Files that fail to parse are treated as *possibly*
@@ -39,8 +40,10 @@ _PY_EXTENSIONS = {".py"}
 _GO_EXTENSIONS = {".go"}
 _RS_EXTENSIONS = {".rs"}
 _JAVA_EXTENSIONS = {".java", ".kt", ".kts"}
+_CS_EXTENSIONS = {".cs"}
 _ALL_EXTENSIONS = (
-    _JS_EXTENSIONS | _PY_EXTENSIONS | _GO_EXTENSIONS | _RS_EXTENSIONS | _JAVA_EXTENSIONS
+    _JS_EXTENSIONS | _PY_EXTENSIONS | _GO_EXTENSIONS | _RS_EXTENSIONS
+    | _JAVA_EXTENSIONS | _CS_EXTENSIONS
 )
 
 # Directories to skip
@@ -599,6 +602,87 @@ def _java_file_imports_package(f: Path, package: str) -> bool:
     )
 
 
+# ---------------------------------------------------------------------------
+# C# (.cs)
+# ---------------------------------------------------------------------------
+
+
+def _strip_cs_comments(source: str) -> str:
+    """Remove ``//`` and ``/* */`` comments from C# source.
+
+    Same strategy as Java/Kotlin — we strip conservatively rather than
+    parsing full syntax.  String literals containing ``//`` will also be
+    stripped, which is safe (may only add false negatives, never false
+    positives).
+    """
+    text = re.sub(r"/\*.*?\*/", " ", source, flags=re.DOTALL)
+    return re.sub(r"//[^\n]*", "", text)
+
+
+def _cs_extract_namespaces(source: str) -> set[str]:
+    r"""Return the set of namespace prefixes found in ``using`` directives.
+
+    Handles:
+    - ``using System.IO;``
+    - ``using static System.Math;``
+    - ``using Alias = Full.Namespace;``
+    - Global usings: ``global using System.Linq;``
+
+    Returns the *full namespace* from each ``using`` (the part before the
+    last ``.``-separated segment if it starts uppercase — matching C#
+    convention where the final segment is a type name for ``using static``
+    and alias forms).  For plain namespace imports we keep the whole thing.
+    """
+    stripped = _strip_cs_comments(source)
+    namespaces: set[str] = set()
+
+    for m in re.finditer(
+        r"\b(?:global\s+)?using\s+(?:static\s+)?"
+        r"(?:[A-Za-z_]\w*\s*=\s*)?"
+        r"([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)\s*;",
+        stripped,
+    ):
+        full = m.group(1)  # e.g. "Newtonsoft.Json.JsonConvert"
+        namespaces.add(full)
+        # Also add parent namespace(s) so prefix matching works
+        parts = full.split(".")
+        for i in range(1, len(parts)):
+            namespaces.add(".".join(parts[:i]))
+
+    return namespaces
+
+
+def _cs_imports_package(files: list[Path], package: str) -> bool:
+    """Check whether any C# file uses a namespace matching *package*.
+
+    NuGet package names typically match the root namespace (e.g. the
+    ``Newtonsoft.Json`` package provides ``Newtonsoft.Json.*`` namespaces).
+    We match when any using directive's namespace equals or starts with the
+    package name.
+    """
+    for f in files:
+        try:
+            text = f.read_text(errors="replace")
+        except OSError:
+            continue
+        for ns in _cs_extract_namespaces(text):
+            if ns == package or ns.startswith(package + "."):
+                return True
+    return False
+
+
+def _cs_file_imports_package(f: Path, package: str) -> bool:
+    """Check whether a single C# file uses a namespace matching the package."""
+    try:
+        text = f.read_text(errors="replace")
+    except OSError:
+        return False
+    return any(
+        ns == package or ns.startswith(package + ".")
+        for ns in _cs_extract_namespaces(text)
+    )
+
+
 class ReachabilityFilter:
     """Check whether a vulnerable package/function is imported in the project."""
 
@@ -611,6 +695,7 @@ class ReachabilityFilter:
         self._go_files: list[Path] | None = None
         self._rs_files: list[Path] | None = None
         self._java_files: list[Path] | None = None
+        self._cs_files: list[Path] | None = None
 
     @property
     def js_files(self) -> list[Path]:
@@ -642,6 +727,12 @@ class ReachabilityFilter:
             self._java_files = _source_files(self._project, _JAVA_EXTENSIONS)
         return self._java_files
 
+    @property
+    def cs_files(self) -> list[Path]:
+        if self._cs_files is None:
+            self._cs_files = _source_files(self._project, _CS_EXTENSIONS)
+        return self._cs_files
+
     def check(self, vuln: Vulnerability) -> bool:
         """Return True if the vulnerable code is unreachable (safe to filter).
 
@@ -655,7 +746,8 @@ class ReachabilityFilter:
         # across all source files
         if vuln.vulnerable_functions:
             all_files = (
-                self.js_files + self.py_files + self.go_files + self.rs_files + self.java_files
+                self.js_files + self.py_files + self.go_files
+                + self.rs_files + self.java_files + self.cs_files
             )
             if not all_files:
                 return False
@@ -681,6 +773,10 @@ class ReachabilityFilter:
         if self.java_files and _java_imports_package(self.java_files, pkg):
             return False
 
+        # Check C# files for using directives
+        if self.cs_files and _cs_imports_package(self.cs_files, pkg):
+            return False
+
         # Only filter if we had files to check
         return bool(
             self.js_files
@@ -688,6 +784,7 @@ class ReachabilityFilter:
             or self.go_files
             or self.rs_files
             or self.java_files
+            or self.cs_files
         )
 
     def find_imports(self, vuln: Vulnerability) -> list[str]:
@@ -716,5 +813,9 @@ class ReachabilityFilter:
         # Check Java/Kotlin files by import detection
         for f in self.java_files:
             if _java_file_imports_package(f, pkg):
+                results.append(str(f))
+        # Check C# files by using-directive detection
+        for f in self.cs_files:
+            if _cs_file_imports_package(f, pkg):
                 results.append(str(f))
         return results
