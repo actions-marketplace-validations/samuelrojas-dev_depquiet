@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "depquiet"
-version = "0.8.0"
+version = "0.9.0"
 description = "Cut through vulnerability alert noise. Tells you which CVEs actually matter."
 readme = "README.md"
 license = "MIT"
@@ -29,6 +29,7 @@ keywords = [
     "supply-chain",
     "sbom",
     "cyclonedx",
+    "policy-as-code",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",

@@ -36,6 +36,7 @@ from depquiet.parsers.pip import PipAuditParser
 from depquiet.parsers.sarif import SarifParser
 from depquiet.parsers.snyk import SnykParser
 from depquiet.parsers.trivy import TrivyParser
+from depquiet.policy import Policy
 
 
 class _Parser(Protocol):
@@ -79,6 +80,7 @@ def scan(
     template_dirs: list[Path] | None = None,
     audit_json: dict[str, Any] | None = None,
     always_flag: list[str] | None = None,
+    policy: Policy | None = None,
 ) -> ScanResult:
     """Run a full triage scan on a project.
 
@@ -211,6 +213,21 @@ def scan(
             verdict = Verdict.REVIEW
         else:
             verdict = Verdict.ACTION
+
+        # Apply policy override (first matching rule wins)
+        policy_id = None
+        if policy is not None:
+            # Create a temporary TriageResult for policy matching
+            _temp = TriageResult(
+                vuln=vuln,
+                verdict=verdict,
+                reasons=reasons,
+                epss_score=epss_score,
+                epss_percentile=epss_percentile,
+            )
+            policy_verdict, policy_id = policy.apply(_temp)
+            if policy_id is not None:
+                verdict = policy_verdict
 
         # For ACTION items, find where the package is imported
         reachable_imports = []

@@ -23,6 +23,7 @@ from depquiet.config import load_config
 from depquiet.engine import scan
 from depquiet.models import ScanResult
 from depquiet.output import print_scan_result
+from depquiet.policy import load_policy
 from depquiet.sarif import write_sarif
 from depquiet.sbom import write_sbom
 
@@ -92,6 +93,12 @@ def main(argv: list[str] | None = None) -> int:
         help="SBOM format: json (default) or xml. Inferred from --sbom extension if omitted.",
     )
     parser.add_argument(
+        "--policy",
+        type=Path,
+        metavar="FILE",
+        help="Path to policy file (default: .depquiet-policy.yaml in project root)",
+    )
+    parser.add_argument(
         "--config",
         type=Path,
         metavar="FILE",
@@ -131,6 +138,9 @@ def main(argv: list[str] | None = None) -> int:
         # Dependabot exports are JSON arrays — wrap for the engine
         audit_json = {"alerts": raw} if isinstance(raw, list) else raw
 
+    # Load policy
+    policy = load_policy(args.path, policy_path=args.policy)
+
     # Run scan
     result = scan(
         project=args.path,
@@ -139,6 +149,7 @@ def main(argv: list[str] | None = None) -> int:
         template_dirs=merged.template_dirs or None,
         audit_json=audit_json,
         always_flag=merged.always_flag or None,
+        policy=policy,
     )
 
     # Output

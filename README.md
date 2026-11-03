@@ -344,6 +344,59 @@ offline: false
 
 CLI flags override config values. `template_dirs` from both sources are merged.
 
+## Policy engine
+
+Commit security policies alongside your code. Rules match on vulnerability attributes and override
+the default triage verdict — first matching rule wins.
+
+Create `.depquiet-policy.yaml` in your project root (or pass `--policy path/to/policy.yaml`):
+
+```yaml
+rules:
+  # Always block critical CVEs, even if filters would dismiss them
+  - id: block-critical
+    action: action
+    severity: critical
+
+  # Dismiss low-EPSS noise in dev dependencies
+  - id: dismiss-low-epss-dev
+    action: filter
+    is_dev: true
+    epss_below: 0.01
+
+  # Always flag these core packages
+  - id: block-core-packages
+    action: action
+    packages: [express, lodash]
+
+  # Specific CVE override
+  - id: accept-cve-1234
+    action: filter
+    cves: [CVE-2024-1234]
+```
+
+### Match conditions
+
+All conditions on a rule must match (AND logic):
+
+| Condition | Type | Description |
+|-----------|------|-------------|
+| `severity` | string or list | `critical`, `high`, `medium`, `low`, `info` |
+| `packages` | string or list | Package names to match |
+| `epss_below` | float | EPSS score below this threshold |
+| `epss_above` | float | EPSS score above this threshold |
+| `is_dev` | bool | Match dev dependencies only |
+| `has_fix` | bool | Match vulnerabilities with a known fix |
+| `cves` | string or list | Specific CVE IDs |
+
+### Actions
+
+| Action | Aliases | Effect |
+|--------|---------|--------|
+| `action` | `block` | Escalate to ACTION REQUIRED |
+| `review` | | Mark for review |
+| `filter` | `filtered`, `dismiss`, `ignore` | Filter out |
+
 ## Benchmarks
 
 Tested against realistic audit output from popular project types (offline mode, all filters active):
