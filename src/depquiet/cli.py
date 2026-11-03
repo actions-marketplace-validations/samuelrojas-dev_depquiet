@@ -24,6 +24,7 @@ from depquiet.engine import scan
 from depquiet.models import ScanResult
 from depquiet.output import print_scan_result
 from depquiet.sarif import write_sarif
+from depquiet.sbom import write_sbom
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -76,6 +77,19 @@ def main(argv: list[str] | None = None) -> int:
         action="append",
         metavar="DIR",
         help="Extra directory of community templates (can be repeated)",
+    )
+    parser.add_argument(
+        "--sbom",
+        type=Path,
+        metavar="FILE",
+        help="Write CycloneDX 1.5 SBOM to FILE (.json or .xml)",
+    )
+    parser.add_argument(
+        "--sbom-format",
+        choices=["json", "xml"],
+        default=None,
+        metavar="FMT",
+        help="SBOM format: json (default) or xml. Inferred from --sbom extension if omitted.",
     )
     parser.add_argument(
         "--config",
@@ -135,6 +149,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.sarif:
         write_sarif(result, args.sarif)
+
+    if args.sbom:
+        sbom_fmt = args.sbom_format
+        if sbom_fmt is None:
+            sbom_fmt = "xml" if args.sbom.suffix.lower() == ".xml" else "json"
+        write_sbom(result, args.sbom, fmt=sbom_fmt)
 
     # Exit code: 1 if any ACTION items, 0 otherwise
     # This makes `depquiet` usable as a CI gate

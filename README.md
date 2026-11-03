@@ -95,6 +95,23 @@ When no scanner output is piped in and no native package manager is detected, de
 
 Multiple lockfiles in the same project are merged and deduplicated. The OSV.dev batch API handles up to 1000 packages per request, so even large monorepos need only one or two HTTP calls. Use `--offline` to skip OSV.dev queries entirely.
 
+### CycloneDX SBOM generation
+
+depquiet generates **CycloneDX 1.5** Software Bill of Materials (SBOM) — the OWASP standard required by US Executive Order 14028 for federal supply chain security and increasingly by enterprise procurement:
+
+```bash
+depquiet --sbom sbom.json              # CycloneDX 1.5 JSON
+depquiet --sbom sbom.xml               # XML (auto-detected from extension)
+depquiet --sbom out.cdx --sbom-format xml  # Explicit format
+```
+
+The SBOM includes:
+- **Full component inventory** — every package from detected lockfiles with Package URLs (purl)
+- **Vulnerability analysis** — each CVE with depquiet's triage verdict mapped to CycloneDX analysis states (`exploitable`, `in_triage`, `false_positive`, `not_affected`)
+- **Tool metadata** — identifies depquiet as the SBOM creator with version info
+
+SBOM output works alongside all other flags — combine `--sbom` with `--sarif` to generate both in one pass.
+
 ### Reachability analysis in depth
 
 The reachability filter is where depquiet eliminates the most noise (40-60% of alerts). It works differently for each language:
@@ -212,6 +229,10 @@ depquiet --offline
 
 # SARIF output for GitHub Code Scanning
 depquiet --sarif results.sarif
+
+# CycloneDX SBOM (EO 14028 compliance)
+depquiet --sbom sbom.json
+depquiet --sbom sbom.xml --sbom-format xml
 
 # JSON output for scripting
 depquiet --json
@@ -351,7 +372,7 @@ Run the benchmarks yourself: `python -I benchmarks/run_benchmark.py`
 | Snyk | SaaS, paid | $100K+/year for reachability |
 | GitHub Dependabot Reachability | AST analysis (Oct 2026) | JS/TS only, Enterprise Cloud ($21/user/mo), preview |
 | Mend / Black Duck | SaaS, paid | Enterprise pricing, vendor lock-in |
-| **depquiet** | Standalone lockfile scanner (OSV.dev), AST reachability (10 languages), SARIF input (any scanner), deterministic triage, community templates | Free, offline-capable, works everywhere |
+| **depquiet** | Standalone lockfile scanner (OSV.dev), AST reachability (10 languages), SARIF input (any scanner), CycloneDX SBOM, deterministic triage, community templates | Free, offline-capable, works everywhere |
 
 ## License
 
