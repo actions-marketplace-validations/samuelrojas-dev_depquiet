@@ -33,7 +33,8 @@ from depquiet.models import FilterReason, Vulnerability
 _JS_EXTENSIONS = {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"}
 _PY_EXTENSIONS = {".py"}
 _GO_EXTENSIONS = {".go"}
-_ALL_EXTENSIONS = _JS_EXTENSIONS | _PY_EXTENSIONS | _GO_EXTENSIONS
+_RS_EXTENSIONS = {".rs"}
+_ALL_EXTENSIONS = _JS_EXTENSIONS | _PY_EXTENSIONS | _GO_EXTENSIONS | _RS_EXTENSIONS
 
 # Directories to skip
 _SKIP_DIRS = {
@@ -48,6 +49,7 @@ _SKIP_DIRS = {
     ".nuxt",
     "coverage",
     "vendor",
+    "target",
 }
 
 
@@ -415,6 +417,81 @@ def _go_file_imports_package(f: Path, package: str) -> bool:
     return False
 
 
+def _strip_rust_comments(source: str) -> str:
+    """Remove comments from Rust source, preserving string literals.
+
+    Rust uses ``//`` for line comments and ``/* */`` for block comments
+    (which can nest, but we don't handle nesting — conservative: a nested
+    comment left partly in is safe, just potentially noisy).
+    """
+    return re.sub(
+        r"//[^\n]*"  # single-line comment
+        r"|/\*[\s\S]*?\*/",  # multi-line comment (non-nested)
+        " ",
+        source,
+    )
+
+
+def _rs_extract_imports(source: str) -> set[str]:
+    """Extract crate names from Rust source using regex on stripped code.
+
+    Handles:
+    - ``use crate_name::...``
+    - ``use crate_name;`` (re-export of whole crate)
+    - ``extern crate crate_name;``
+    - ``extern crate crate_name as alias;``
+    - Nested use: ``use crate_name::{a, b};``
+
+    Returns the set of top-level crate names (e.g. ``serde``, ``tokio``).
+    Skips Rust keywords used as path roots: ``self``, ``super``, ``crate``.
+    """
+    stripped = _strip_rust_comments(source)
+    names: set[str] = set()
+    _skip = {"self", "super", "crate", "std", "core", "alloc"}
+
+    # use crate_name::... or use crate_name;
+    for m in re.finditer(r"\buse\s+([a-zA-Z_]\w*)", stripped):
+        name = m.group(1)
+        if name not in _skip:
+            names.add(name)
+
+    # extern crate crate_name [as alias];
+    for m in re.finditer(r"\bextern\s+crate\s+([a-zA-Z_]\w*)", stripped):
+        name = m.group(1)
+        if name not in _skip:
+            names.add(name)
+
+    return names
+
+
+def _rs_imports_package(files: list[Path], package: str) -> bool:
+    """Check whether any Rust file imports the given crate.
+
+    Crate names in Cargo.toml use hyphens but Rust source uses underscores,
+    so we normalize: ``my-crate`` becomes ``my_crate``.
+    """
+    crate_name = package.replace("-", "_")
+    for f in files:
+        try:
+            text = f.read_text(errors="replace")
+        except OSError:
+            continue
+        imports = _rs_extract_imports(text)
+        if crate_name in imports:
+            return True
+    return False
+
+
+def _rs_file_imports_package(f: Path, package: str) -> bool:
+    """Check whether a single Rust file imports the given crate."""
+    crate_name = package.replace("-", "_")
+    try:
+        text = f.read_text(errors="replace")
+    except OSError:
+        return False
+    return crate_name in _rs_extract_imports(text)
+
+
 class ReachabilityFilter:
     """Check whether a vulnerable package/function is imported in the project."""
 
@@ -425,6 +502,7 @@ class ReachabilityFilter:
         self._js_files: list[Path] | None = None
         self._py_files: list[Path] | None = None
         self._go_files: list[Path] | None = None
+        self._rs_files: list[Path] | None = None
 
     @property
     def js_files(self) -> list[Path]:
@@ -444,6 +522,12 @@ class ReachabilityFilter:
             self._go_files = _source_files(self._project, _GO_EXTENSIONS)
         return self._go_files
 
+    @property
+    def rs_files(self) -> list[Path]:
+        if self._rs_files is None:
+            self._rs_files = _source_files(self._project, _RS_EXTENSIONS)
+        return self._rs_files
+
     def check(self, vuln: Vulnerability) -> bool:
         """Return True if the vulnerable code is unreachable (safe to filter).
 
@@ -456,7 +540,7 @@ class ReachabilityFilter:
         # If we know which specific functions are vulnerable, check those
         # across all source files
         if vuln.vulnerable_functions:
-            all_files = self.js_files + self.py_files + self.go_files
+            all_files = self.js_files + self.py_files + self.go_files + self.rs_files
             if not all_files:
                 return False
             return all(not _file_mentions(all_files, func) for func in vuln.vulnerable_functions)
@@ -473,13 +557,17 @@ class ReachabilityFilter:
         if self.go_files and _go_imports_package(self.go_files, pkg):
             return False
 
+        # Check Rust files for use/extern crate statements
+        if self.rs_files and _rs_imports_package(self.rs_files, pkg):
+            return False
+
         # Only filter if we had files to check
-        return bool(self.js_files or self.py_files or self.go_files)
+        return bool(self.js_files or self.py_files or self.go_files or self.rs_files)
 
     def find_imports(self, vuln: Vulnerability) -> list[str]:
         """Return list of files where the vulnerable package is imported.
 
-        Uses AST for Python files, import-pattern regex for JS/TS and Go files.
+        Uses AST for Python files, import-pattern regex for JS/TS, Go, and Rust files.
         """
         results: list[str] = []
         pkg = vuln.package
@@ -494,5 +582,9 @@ class ReachabilityFilter:
         # Check Go files by import detection
         for f in self.go_files:
             if _go_file_imports_package(f, pkg):
+                results.append(str(f))
+        # Check Rust files by import detection
+        for f in self.rs_files:
+            if _rs_file_imports_package(f, pkg):
                 results.append(str(f))
         return results
