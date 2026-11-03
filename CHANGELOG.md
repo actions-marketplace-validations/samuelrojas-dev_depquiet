@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-11-03
+
+### Added
+
+- **GitHub Actions Job Summary** — rich Markdown report rendered directly in PR checks via `$GITHUB_STEP_SUMMARY`. Shows action items table with severity badges, EPSS scores, and fix versions; review items (auto-collapsed when >5); and filtered breakdown by reason
+- `--summary` CLI flag to write GitHub-flavored Markdown summary to any file
+- `ignore` input for the GitHub Action — pass a custom `.depquiet-ignore` path
+- `license` input for the GitHub Action — run license compliance in CI
+- `review` output from the GitHub Action — number of review-level items
+- 18 tests for the summary module covering all verdict combinations, table rendering, severity badges, collapsing, and file output
+
 ## [0.12.0] - 2026-11-03
 
 ### Added
@@ -158,7 +169,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.9.0...v0.10.0

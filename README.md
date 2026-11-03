@@ -257,6 +257,9 @@ depquiet   # reads .depquiet-ignore if present
 
 # Explicit ignore file
 depquiet --ignore ./custom-ignore.yaml
+
+# Write GitHub-flavored Markdown summary (for CI)
+depquiet --summary report.md
 ```
 
 ### Auto-remediation (`--fix`)
@@ -392,7 +395,9 @@ Place `.depquiet-ignore` in the project root (auto-detected) or pass `--ignore p
 
 The action installs depquiet, runs it, uploads SARIF to GitHub Code Scanning, uploads the SBOM as a build artifact, and fails the build if ACTION items are found.
 
-**Action inputs:** `path`, `epss-threshold`, `offline`, `sarif`, `templates`, `policy`, `sbom`, `sbom-format`, `fail-on-action`, `python-version`.
+The action automatically writes a **Job Summary** to the PR checks page with severity badges, EPSS scores, fix versions, and a filtered breakdown.
+
+**Action inputs:** `path`, `epss-threshold`, `offline`, `sarif`, `templates`, `policy`, `sbom`, `sbom-format`, `ignore`, `license`, `fail-on-action`, `python-version`.
 
 ### GitHub Actions (manual)
 

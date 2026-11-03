@@ -29,6 +29,7 @@ from depquiet.output import print_scan_result
 from depquiet.policy import load_policy
 from depquiet.sarif import write_sarif
 from depquiet.sbom import write_sbom
+from depquiet.summary import write_summary
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -129,6 +130,12 @@ def main(argv: list[str] | None = None) -> int:
         metavar="FILE",
         help="Path to ignore file (default: .depquiet-ignore in project root)",
     )
+    parser.add_argument(
+        "--summary",
+        type=Path,
+        metavar="FILE",
+        help="Write GitHub-flavored Markdown summary to FILE (for $GITHUB_STEP_SUMMARY)",
+    )
 
     args = parser.parse_args(argv)
 
@@ -197,6 +204,9 @@ def main(argv: list[str] | None = None) -> int:
         if sbom_fmt is None:
             sbom_fmt = "xml" if args.sbom.suffix.lower() == ".xml" else "json"
         write_sbom(result, args.sbom, fmt=sbom_fmt)
+
+    if args.summary:
+        write_summary(result, args.summary)
 
     # License compliance
     if args.license_scan:
