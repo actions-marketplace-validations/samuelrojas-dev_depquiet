@@ -59,7 +59,7 @@ depquiet applies four deterministic filters to separate signal from noise:
 
 ### Zero false negatives by design
 
-depquiet is **conservative**: it would rather let a false positive through than dismiss a real vulnerability. Python, JS/TS, Go, Rust, Java/Kotlin, C#, PHP, Ruby, and Swift reachability all use proper import analysis — no string matching, no regex against raw source. Only filter when there are **zero real references** to the package in your source code.
+depquiet is **conservative**: it would rather let a false positive through than dismiss a real vulnerability. Python, JS/TS, Go, Rust, Java/Kotlin, C#, PHP, Ruby, Swift, and Dart reachability all use proper import analysis — no string matching, no regex against raw source. Only filter when there are **zero real references** to the package in your source code.
 
 ### Reachability analysis in depth
 
@@ -134,7 +134,15 @@ The reachability filter is where depquiet eliminates the most noise (40-60% of a
 - Top-level module name extraction from dotted imports
 - Skips `.build/` directory
 
-All nine analyzers map aliased package names (e.g., `my-package` → `my_package` for Python, `@scope/name/sub` → `@scope/name` for JS, `github.com/user/repo/sub` → `github.com/user/repo` for Go, `my-crate` → `my_crate` for Rust, `com.fasterxml.jackson.core:jackson-databind` → `com.fasterxml.jackson.core` for Java, `Newtonsoft.Json.Linq` → `Newtonsoft.Json` for C#, `Monolog\Logger\Handler` → `monolog/logger` for PHP, `aws-sdk-s3` → matches `require 'aws/sdk/s3'` for Ruby, `swift-argument-parser` → `swift_argument_parser` for Swift) and check all source files in the project, skipping `node_modules`, `.git`, `__pycache__`, `dist`, `build`, `.build`, `vendor`, `target`, and other vendored directories.
+**Dart / Flutter** — Import statement parsing with comment stripping. Handles:
+- Package imports: `import 'package:name/file.dart';`
+- Subpath imports: `import 'package:name/src/sub.dart';` → extracts `name`
+- `dart:` SDK imports skipped (SDK-internal)
+- Relative imports skipped (project-internal)
+- Hyphen-to-underscore normalization for scanners that report with hyphens
+- Skips `.dart_tool/` directory
+
+All ten analyzers map aliased package names (e.g., `my-package` → `my_package` for Python, `@scope/name/sub` → `@scope/name` for JS, `github.com/user/repo/sub` → `github.com/user/repo` for Go, `my-crate` → `my_crate` for Rust, `com.fasterxml.jackson.core:jackson-databind` → `com.fasterxml.jackson.core` for Java, `Newtonsoft.Json.Linq` → `Newtonsoft.Json` for C#, `Monolog\Logger\Handler` → `monolog/logger` for PHP, `aws-sdk-s3` → matches `require 'aws/sdk/s3'` for Ruby, `swift-argument-parser` → `swift_argument_parser` for Swift, `flutter-bloc` → `flutter_bloc` for Dart) and check all source files in the project, skipping `node_modules`, `.git`, `__pycache__`, `dist`, `build`, `.build`, `.dart_tool`, `vendor`, `target`, and other vendored directories.
 
 ## Install
 
@@ -303,7 +311,7 @@ Run the benchmarks yourself: `python -I benchmarks/run_benchmark.py`
 | Snyk | SaaS, paid | $100K+/year for reachability |
 | GitHub Dependabot Reachability | AST analysis (Oct 2026) | JS/TS only, Enterprise Cloud ($21/user/mo), preview |
 | Mend / Black Duck | SaaS, paid | Enterprise pricing, vendor lock-in |
-| **depquiet** | AST reachability (Python, JS/TS, Go, Rust, Java/Kotlin, C#, PHP, Ruby, Swift), deterministic triage, community templates | Free, offline, works everywhere |
+| **depquiet** | AST reachability (Python, JS/TS, Go, Rust, Java/Kotlin, C#, PHP, Ruby, Swift, Dart), deterministic triage, community templates | Free, offline, works everywhere |
 
 ## License
 

@@ -4,7 +4,7 @@ This is the highest-value filter. 60-80% of CVEs flagged by scanners affect
 functions that the project never calls. A prototype pollution in lodash.merge()
 doesn't matter if you only use lodash.get().
 
-Strategy (v6 — multi-language import analysis, conservative):
+Strategy (v7 — multi-language import analysis, conservative):
 1. Python files are parsed with ``ast`` to extract real import statements,
    ignoring comments, strings, and partial-name matches that trip up regex.
 2. JS/TS files are parsed with a comment/string-stripping regex pipeline
@@ -21,9 +21,11 @@ Strategy (v6 — multi-language import analysis, conservative):
    (hyphen-to-slash convention for hyphenated gems).
 9. Swift files are parsed for ``import`` statements with SwiftPM package-to-module
    mapping (hyphen-to-underscore convention).
-10. If vulnerable_functions are known, check if any of those specific functions
+10. Dart files are parsed for ``import 'package:name/...'`` statements with
+    pub.dev package name matching.
+11. If vulnerable_functions are known, check if any of those specific functions
     appear in the source (string search — conservative).
-11. Only mark as unreachable if we're confident the package/function isn't used.
+12. Only mark as unreachable if we're confident the package/function isn't used.
 
 Conservative by design: we'd rather let a false positive through than dismiss
 a real vulnerability. Files that fail to parse are treated as *possibly*
@@ -49,10 +51,11 @@ _CS_EXTENSIONS = {".cs"}
 _PHP_EXTENSIONS = {".php"}
 _RB_EXTENSIONS = {".rb"}
 _SWIFT_EXTENSIONS = {".swift"}
+_DART_EXTENSIONS = {".dart"}
 _ALL_EXTENSIONS = (
     _JS_EXTENSIONS | _PY_EXTENSIONS | _GO_EXTENSIONS | _RS_EXTENSIONS
     | _JAVA_EXTENSIONS | _CS_EXTENSIONS | _PHP_EXTENSIONS | _RB_EXTENSIONS
-    | _SWIFT_EXTENSIONS
+    | _SWIFT_EXTENSIONS | _DART_EXTENSIONS
 )
 
 # Directories to skip
@@ -70,6 +73,7 @@ _SKIP_DIRS = {
     "vendor",
     "target",
     ".build",
+    ".dart_tool",
 }
 
 
@@ -930,6 +934,67 @@ def _swift_file_imports_package(f: Path, package: str) -> bool:
     return bool({package, _swift_module_name(package)} & _swift_extract_imports(text))
 
 
+# ---------------------------------------------------------------------------
+# Dart / Flutter
+# ---------------------------------------------------------------------------
+
+def _strip_dart_comments(source: str) -> str:
+    r"""Remove Dart comments from source (conservative).
+
+    Handles single-line ``//`` comments and multi-line ``/* */`` comments.
+    Does not track string boundaries — conservative.
+    """
+    text = re.sub(r"/\*.*?\*/", " ", source, flags=re.DOTALL)
+    return re.sub(r"//[^\n]*", "", text)
+
+
+def _dart_extract_imports(source: str) -> set[str]:
+    r"""Return package names from Dart ``import`` statements.
+
+    Handles:
+    - ``import 'package:name/file.dart';``
+    - ``import 'package:name/src/sub.dart';``
+    - ``import 'dart:core';`` → skipped (SDK library)
+
+    Returns the package name (first path segment after ``package:``).
+    Skips ``dart:`` imports (SDK-internal) and relative imports.
+    """
+    stripped = _strip_dart_comments(source)
+    packages: set[str] = set()
+
+    for m in re.finditer(
+        r"""\bimport\s+['"]package:([^/'"]+)""",
+        stripped,
+    ):
+        packages.add(m.group(1))
+
+    return packages
+
+
+def _dart_imports_package(files: list[Path], package: str) -> bool:
+    """Check whether any Dart file imports *package*."""
+    # Dart pub packages use underscores; hyphens aren't allowed in package names
+    # but some tools may report with hyphens
+    names = {package, package.replace("-", "_")}
+    for f in files:
+        try:
+            text = f.read_text(errors="replace")
+        except OSError:
+            continue
+        if names & _dart_extract_imports(text):
+            return True
+    return False
+
+
+def _dart_file_imports_package(f: Path, package: str) -> bool:
+    """Check whether a single Dart file imports the package."""
+    try:
+        text = f.read_text(errors="replace")
+    except OSError:
+        return False
+    return bool({package, package.replace("-", "_")} & _dart_extract_imports(text))
+
+
 class ReachabilityFilter:
     """Check whether a vulnerable package/function is imported in the project."""
 
@@ -946,6 +1011,7 @@ class ReachabilityFilter:
         self._php_files: list[Path] | None = None
         self._rb_files: list[Path] | None = None
         self._swift_files: list[Path] | None = None
+        self._dart_files: list[Path] | None = None
 
     @property
     def js_files(self) -> list[Path]:
@@ -1001,6 +1067,12 @@ class ReachabilityFilter:
             self._swift_files = _source_files(self._project, _SWIFT_EXTENSIONS)
         return self._swift_files
 
+    @property
+    def dart_files(self) -> list[Path]:
+        if self._dart_files is None:
+            self._dart_files = _source_files(self._project, _DART_EXTENSIONS)
+        return self._dart_files
+
     def check(self, vuln: Vulnerability) -> bool:
         """Return True if the vulnerable code is unreachable (safe to filter).
 
@@ -1017,6 +1089,7 @@ class ReachabilityFilter:
                 self.js_files + self.py_files + self.go_files
                 + self.rs_files + self.java_files + self.cs_files
                 + self.php_files + self.rb_files + self.swift_files
+                + self.dart_files
             )
             if not all_files:
                 return False
@@ -1058,6 +1131,10 @@ class ReachabilityFilter:
         if self.swift_files and _swift_imports_package(self.swift_files, pkg):
             return False
 
+        # Check Dart files for import statements
+        if self.dart_files and _dart_imports_package(self.dart_files, pkg):
+            return False
+
         # Only filter if we had files to check
         return bool(
             self.js_files
@@ -1069,6 +1146,7 @@ class ReachabilityFilter:
             or self.php_files
             or self.rb_files
             or self.swift_files
+            or self.dart_files
         )
 
     def find_imports(self, vuln: Vulnerability) -> list[str]:
@@ -1113,5 +1191,9 @@ class ReachabilityFilter:
         # Check Swift files by import detection
         for f in self.swift_files:
             if _swift_file_imports_package(f, pkg):
+                results.append(str(f))
+        # Check Dart files by import detection
+        for f in self.dart_files:
+            if _dart_file_imports_package(f, pkg):
                 results.append(str(f))
         return results
