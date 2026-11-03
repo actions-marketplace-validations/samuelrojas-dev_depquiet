@@ -260,6 +260,15 @@ depquiet --ignore ./custom-ignore.yaml
 
 # Write GitHub-flavored Markdown summary (for CI)
 depquiet --summary report.md
+
+# Configurable CI gate — fail only on critical findings
+depquiet --fail-on critical
+
+# Fail on high and above (skip moderate/low)
+depquiet --fail-on high
+
+# Never fail on findings (informational mode)
+depquiet --fail-on none
 ```
 
 ### Auto-remediation (`--fix`)
@@ -374,12 +383,35 @@ Place `.depquiet-ignore` in the project root (auto-detected) or pass `--ignore p
 
 **Audit trail:** The `reason` field (recommended) explains why the risk was accepted. The `author` field records who made the decision.
 
+### Configurable CI gate (`--fail-on`)
+
+By default, depquiet exits `1` whenever any ACTION item exists — just like Snyk's `--severity-threshold`. The `--fail-on` flag lets you control the minimum severity that fails the build:
+
+| `--fail-on` value | Fails on |
+|---|---|
+| (default) | Any ACTION item, regardless of severity |
+| `critical` | Critical only |
+| `high` | High + Critical |
+| `moderate` | Moderate + High + Critical |
+| `low` | Low + Moderate + High + Critical |
+| `none` | Never fails on findings (informational mode) |
+
+This is useful for gradual adoption: start with `--fail-on critical` to block only the most dangerous vulnerabilities, then tighten the threshold as the team addresses lower-severity items.
+
+```bash
+# Block only critical and high vulnerabilities in CI
+depquiet --fail-on high
+
+# Informational mode — report everything, block nothing
+depquiet --fail-on none --summary $GITHUB_STEP_SUMMARY
+```
+
 ## CI Integration
 
 ### Exit codes
 
-- `0` — No ACTION items (safe to pass)
-- `1` — ACTION items found (fail the build)
+- `0` — No ACTION items at or above the `--fail-on` threshold (safe to pass)
+- `1` — ACTION items found at or above the threshold (fail the build)
 
 ### GitHub Actions (Marketplace)
 
@@ -397,7 +429,9 @@ The action installs depquiet, runs it, uploads SARIF to GitHub Code Scanning, up
 
 The action automatically writes a **Job Summary** to the PR checks page with severity badges, EPSS scores, fix versions, and a filtered breakdown.
 
-**Action inputs:** `path`, `epss-threshold`, `offline`, `sarif`, `templates`, `policy`, `sbom`, `sbom-format`, `ignore`, `license`, `fail-on-action`, `python-version`.
+**Action inputs:** `path`, `epss-threshold`, `offline`, `sarif`, `templates`, `policy`, `sbom`, `sbom-format`, `ignore`, `license`, `fail-on-action`, `fail-on`, `python-version`.
+
+> **Note:** `fail-on` (severity-based) supersedes `fail-on-action` (boolean). When `fail-on` is set, `fail-on-action` is ignored.
 
 ### GitHub Actions (manual)
 

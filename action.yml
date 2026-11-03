@@ -48,9 +48,13 @@ inputs:
     required: false
     default: "false"
   fail-on-action:
-    description: "Fail the workflow if ACTION items are found"
+    description: "Fail the workflow if ACTION items are found (deprecated: use fail-on)"
     required: false
     default: "true"
+  fail-on:
+    description: "Minimum severity to fail the build: critical, high, moderate, low, none. Overrides fail-on-action when set."
+    required: false
+    default: ""
   python-version:
     description: "Python version to use"
     required: false
@@ -103,6 +107,7 @@ runs:
         INPUT_IGNORE: ${{ inputs.ignore }}
         INPUT_LICENSE: ${{ inputs.license }}
         INPUT_FAIL_ON_ACTION: ${{ inputs.fail-on-action }}
+        INPUT_FAIL_ON: ${{ inputs.fail-on }}
       run: |
         ARGS="--path $INPUT_PATH --epss-threshold $INPUT_EPSS_THRESHOLD --json"
 
@@ -140,6 +145,10 @@ runs:
           ARGS="$ARGS --license"
         fi
 
+        if [ -n "$INPUT_FAIL_ON" ]; then
+          ARGS="$ARGS --fail-on $INPUT_FAIL_ON"
+        fi
+
         # Job summary — always write when GITHUB_STEP_SUMMARY is available
         if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
           ARGS="$ARGS --summary $GITHUB_STEP_SUMMARY"
@@ -163,7 +172,13 @@ runs:
         echo "action=$ACTION" >> "$GITHUB_OUTPUT"
         echo "review=$REVIEW" >> "$GITHUB_OUTPUT"
 
-        if [ "$INPUT_FAIL_ON_ACTION" = "true" ] && [ "$EXIT_CODE" -ne 0 ]; then
+        # Determine failure behavior: --fail-on overrides fail-on-action
+        if [ -n "$INPUT_FAIL_ON" ]; then
+          # Explicit --fail-on: always pass to CLI, let depquiet decide exit code
+          if [ "$EXIT_CODE" -ne 0 ]; then
+            exit 1
+          fi
+        elif [ "$INPUT_FAIL_ON_ACTION" = "true" ] && [ "$EXIT_CODE" -ne 0 ]; then
           exit 1
         fi
 

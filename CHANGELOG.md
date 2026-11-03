@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-11-03
+
+### Added
+
+- **Configurable CI gate (`--fail-on`)** — exit 1 only when ACTION items at or above a severity threshold exist. Options: `critical`, `high`, `moderate`, `low`, `none`
+- `fail-on` input for the GitHub Action — overrides the boolean `fail-on-action` with severity-based control
+- 15 tests for the fail-on module covering threshold logic, mixed severities, edge cases, and CLI integration
+
 ## [0.13.0] - 2026-11-03
 
 ### Added
@@ -169,7 +177,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.10.0...v0.11.0

@@ -136,6 +136,16 @@ def main(argv: list[str] | None = None) -> int:
         metavar="FILE",
         help="Write GitHub-flavored Markdown summary to FILE (for $GITHUB_STEP_SUMMARY)",
     )
+    parser.add_argument(
+        "--fail-on",
+        choices=["critical", "high", "moderate", "low", "none"],
+        default=None,
+        metavar="SEVERITY",
+        help=(
+            "Exit 1 only when ACTION items at or above SEVERITY exist "
+            "(critical, high, moderate, low, none). Default: low (any ACTION fails)."
+        ),
+    )
 
     args = parser.parse_args(argv)
 
@@ -228,11 +238,46 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         return 0
 
-    # Exit code: 1 if any ACTION items, 0 otherwise
-    # This makes `depquiet` usable as a CI gate
-    if result.action:
+    # Exit code: 1 if ACTION items meet the severity threshold
+    # --fail-on controls the minimum severity that triggers failure
+    if _should_fail(result, args.fail_on):
         return 1
     return 0
+
+
+# Severity ordering: critical > high > moderate > low > info
+_SEVERITY_RANK: dict[str, int] = {
+    "critical": 4,
+    "high": 3,
+    "moderate": 2,
+    "low": 1,
+    "info": 0,
+}
+
+
+def _should_fail(result: ScanResult, fail_on: str | None) -> bool:
+    """Check whether any ACTION items meet the severity threshold.
+
+    When fail_on is None (default), any ACTION item triggers failure.
+    When fail_on is "none", the build never fails on findings.
+    Otherwise, only ACTION items at or above the specified severity count.
+    """
+    if fail_on == "none":
+        return False
+
+    if not result.action:
+        return False
+
+    if fail_on is None:
+        # Default: any ACTION item triggers failure
+        return True
+
+    threshold = _SEVERITY_RANK.get(fail_on, 1)
+    for tr in result.action:
+        rank = _SEVERITY_RANK.get(tr.vuln.severity.value, 0)
+        if rank >= threshold:
+            return True
+    return False
 
 
 def _print_json(result: ScanResult) -> None:
