@@ -32,6 +32,7 @@ from depquiet.parsers.dependabot import DependabotParser
 from depquiet.parsers.grype import GrypeParser
 from depquiet.parsers.npm import NpmAuditParser
 from depquiet.parsers.pip import PipAuditParser
+from depquiet.parsers.sarif import SarifParser
 from depquiet.parsers.snyk import SnykParser
 from depquiet.parsers.trivy import TrivyParser
 
@@ -105,7 +106,11 @@ def scan(
         # Use provided JSON (piped input or testing)
         # Auto-detect format: Trivy has "Results", pip has "dependencies",
         # npm has "vulnerabilities"
-        if "Results" in audit_json:
+        if "runs" in audit_json and (
+            "$schema" in audit_json or audit_json.get("version") == "2.1.0"
+        ):
+            vulns = SarifParser.parse(audit_json, project)
+        elif "Results" in audit_json:
             vulns = TrivyParser.parse(audit_json, project)
         elif "matches" in audit_json:
             vulns = GrypeParser.parse(audit_json, project)

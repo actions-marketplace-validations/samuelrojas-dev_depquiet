@@ -61,6 +61,22 @@ depquiet applies four deterministic filters to separate signal from noise:
 
 depquiet is **conservative**: it would rather let a false positive through than dismiss a real vulnerability. Python, JS/TS, Go, Rust, Java/Kotlin, C#, PHP, Ruby, Swift, and Dart reachability all use proper import analysis — no string matching, no regex against raw source. Only filter when there are **zero real references** to the package in your source code.
 
+### Supported inputs
+
+depquiet accepts output from any vulnerability scanner — natively or via SARIF:
+
+| Scanner | Format | Input method |
+|---|---|---|
+| npm audit | JSON | `npm audit --json \| depquiet --stdin` |
+| pip-audit | JSON | `pip-audit --format json \| depquiet --stdin` |
+| Trivy | JSON or SARIF | `trivy fs --format json . \| depquiet --stdin` |
+| Grype | JSON | `grype dir:. -o json \| depquiet --stdin` |
+| Snyk | JSON | `snyk test --json \| depquiet --stdin` |
+| Dependabot | API JSON | `gh api /repos/O/R/dependabot/alerts \| depquiet --stdin` |
+| **Any SARIF scanner** | **SARIF v2.1.0** | `<scanner> --sarif \| depquiet --stdin` |
+
+The SARIF parser handles output from CodeQL, Semgrep, Trivy SARIF, Grype SARIF, Snyk SARIF, Checkmarx, Fortify, and any other tool that emits SARIF v2.1.0. CVE, package name, severity (CVSS or level-based), and fix version are extracted automatically from the standard SARIF fields and common scanner-specific properties.
+
 ### Reachability analysis in depth
 
 The reachability filter is where depquiet eliminates the most noise (40-60% of alerts). It works differently for each language:
@@ -166,6 +182,12 @@ trivy fs --format json . | depquiet --stdin
 grype dir:. -o json | depquiet --stdin
 snyk test --json | depquiet --stdin
 gh api /repos/OWNER/REPO/dependabot/alerts --paginate | depquiet --stdin
+
+# SARIF input — any scanner that emits SARIF works
+semgrep --sarif . | depquiet --stdin
+codeql database analyze db --format=sarif-latest | depquiet --stdin
+trivy fs --format sarif . | depquiet --stdin
+checkmarx-cli scan --output-format sarif | depquiet --stdin
 
 # Fully offline (skip EPSS API)
 depquiet --offline
@@ -311,7 +333,7 @@ Run the benchmarks yourself: `python -I benchmarks/run_benchmark.py`
 | Snyk | SaaS, paid | $100K+/year for reachability |
 | GitHub Dependabot Reachability | AST analysis (Oct 2026) | JS/TS only, Enterprise Cloud ($21/user/mo), preview |
 | Mend / Black Duck | SaaS, paid | Enterprise pricing, vendor lock-in |
-| **depquiet** | AST reachability (Python, JS/TS, Go, Rust, Java/Kotlin, C#, PHP, Ruby, Swift, Dart), deterministic triage, community templates | Free, offline, works everywhere |
+| **depquiet** | AST reachability (Python, JS/TS, Go, Rust, Java/Kotlin, C#, PHP, Ruby, Swift, Dart), SARIF input (any scanner), deterministic triage, community templates | Free, offline, works everywhere |
 
 ## License
 
