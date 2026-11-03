@@ -17,9 +17,11 @@ Strategy (v5 — multi-language import analysis, conservative):
    matching (``groupId:artifactId`` coordinates).
 6. C# files are parsed for ``using`` directives with NuGet namespace matching.
 7. PHP files are parsed for ``use`` statements with Composer package matching.
-8. If vulnerable_functions are known, check if any of those specific functions
+8. Ruby files are parsed for ``require`` statements with gem name matching
+   (hyphen-to-slash convention for hyphenated gems).
+9. If vulnerable_functions are known, check if any of those specific functions
    appear in the source (string search — conservative).
-9. Only mark as unreachable if we're confident the package/function isn't used.
+10. Only mark as unreachable if we're confident the package/function isn't used.
 
 Conservative by design: we'd rather let a false positive through than dismiss
 a real vulnerability. Files that fail to parse are treated as *possibly*
@@ -43,9 +45,10 @@ _RS_EXTENSIONS = {".rs"}
 _JAVA_EXTENSIONS = {".java", ".kt", ".kts"}
 _CS_EXTENSIONS = {".cs"}
 _PHP_EXTENSIONS = {".php"}
+_RB_EXTENSIONS = {".rb"}
 _ALL_EXTENSIONS = (
     _JS_EXTENSIONS | _PY_EXTENSIONS | _GO_EXTENSIONS | _RS_EXTENSIONS
-    | _JAVA_EXTENSIONS | _CS_EXTENSIONS | _PHP_EXTENSIONS
+    | _JAVA_EXTENSIONS | _CS_EXTENSIONS | _PHP_EXTENSIONS | _RB_EXTENSIONS
 )
 
 # Directories to skip
@@ -759,6 +762,93 @@ def _php_file_imports_package(f: Path, package: str) -> bool:
     return package.lower() in _php_extract_uses(text)
 
 
+# ---------------------------------------------------------------------------
+# Ruby
+# ---------------------------------------------------------------------------
+
+def _strip_rb_comments(source: str) -> str:
+    r"""Remove Ruby comments from source (conservative).
+
+    Handles single-line ``#`` comments and multi-line ``=begin``/``=end``
+    heredoc-style comments.  Does not track string boundaries — a ``#``
+    inside a string is stripped too, which is safe (conservative).
+    """
+    # Remove =begin...=end blocks (must start at column 0)
+    text = re.sub(r"(?m)^=begin\b.*?^=end\b[^\n]*", " ", source, flags=re.DOTALL)
+    return re.sub(r"#[^\n]*", "", text)
+
+
+def _rb_extract_requires(source: str) -> set[str]:
+    r"""Return gem names from Ruby ``require`` / ``require_relative`` statements.
+
+    Handles:
+    - ``require 'gem_name'``
+    - ``require "gem_name"``
+    - ``require "gem_name/sub"`` → extracts ``gem_name``
+    - Skips ``require_relative`` (project-internal)
+
+    Returns the top-level gem name (first path segment of the required string).
+    Gem names with hyphens stay as-is (e.g., ``require 'aws-sdk-s3'`` → ``aws-sdk-s3``).
+    """
+    stripped = _strip_rb_comments(source)
+    gems: set[str] = set()
+
+    for m in re.finditer(
+        r"""\brequire\s+(?!_relative\b)['"]([^'"]+)['"]""",
+        stripped,
+    ):
+        required = m.group(1)  # e.g. "nokogiri" or "aws-sdk-s3/client"
+        # Keep the full required path for slash-form matching
+        gems.add(required)
+        # Top-level gem name is the first path segment
+        top = required.split("/")[0]
+        if top:
+            gems.add(top)
+
+    return gems
+
+
+def _rb_gem_require_names(gem_name: str) -> set[str]:
+    """Return the set of require names a gem might use.
+
+    Most gems: ``require 'gem_name'``.
+    Hyphenated gems also try slash form: ``my-gem`` → ``my/gem``.
+    This is conservative — we check both variants.
+    """
+    names = {gem_name}
+    if "-" in gem_name:
+        # Hyphen convention: activesupport/core_ext for active-support, etc.
+        names.add(gem_name.replace("-", "/"))
+    return names
+
+
+def _rb_imports_package(files: list[Path], package: str) -> bool:
+    """Check whether any Ruby file requires *package*.
+
+    Matches when the required string (top-level segment) matches the gem
+    name or its hyphen-to-slash variant.
+    """
+    require_names = _rb_gem_require_names(package)
+    for f in files:
+        try:
+            text = f.read_text(errors="replace")
+        except OSError:
+            continue
+        extracted = _rb_extract_requires(text)
+        if require_names & extracted:
+            return True
+    return False
+
+
+def _rb_file_imports_package(f: Path, package: str) -> bool:
+    """Check whether a single Ruby file requires the package."""
+    try:
+        text = f.read_text(errors="replace")
+    except OSError:
+        return False
+    return bool(_rb_gem_require_names(package) & _rb_extract_requires(text))
+
+
 class ReachabilityFilter:
     """Check whether a vulnerable package/function is imported in the project."""
 
@@ -773,6 +863,7 @@ class ReachabilityFilter:
         self._java_files: list[Path] | None = None
         self._cs_files: list[Path] | None = None
         self._php_files: list[Path] | None = None
+        self._rb_files: list[Path] | None = None
 
     @property
     def js_files(self) -> list[Path]:
@@ -816,6 +907,12 @@ class ReachabilityFilter:
             self._php_files = _source_files(self._project, _PHP_EXTENSIONS)
         return self._php_files
 
+    @property
+    def rb_files(self) -> list[Path]:
+        if self._rb_files is None:
+            self._rb_files = _source_files(self._project, _RB_EXTENSIONS)
+        return self._rb_files
+
     def check(self, vuln: Vulnerability) -> bool:
         """Return True if the vulnerable code is unreachable (safe to filter).
 
@@ -831,7 +928,7 @@ class ReachabilityFilter:
             all_files = (
                 self.js_files + self.py_files + self.go_files
                 + self.rs_files + self.java_files + self.cs_files
-                + self.php_files
+                + self.php_files + self.rb_files
             )
             if not all_files:
                 return False
@@ -865,6 +962,10 @@ class ReachabilityFilter:
         if self.php_files and _php_imports_package(self.php_files, pkg):
             return False
 
+        # Check Ruby files for require statements
+        if self.rb_files and _rb_imports_package(self.rb_files, pkg):
+            return False
+
         # Only filter if we had files to check
         return bool(
             self.js_files
@@ -874,6 +975,7 @@ class ReachabilityFilter:
             or self.java_files
             or self.cs_files
             or self.php_files
+            or self.rb_files
         )
 
     def find_imports(self, vuln: Vulnerability) -> list[str]:
@@ -910,5 +1012,9 @@ class ReachabilityFilter:
         # Check PHP files by use-statement detection
         for f in self.php_files:
             if _php_file_imports_package(f, pkg):
+                results.append(str(f))
+        # Check Ruby files by require detection
+        for f in self.rb_files:
+            if _rb_file_imports_package(f, pkg):
                 results.append(str(f))
         return results

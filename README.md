@@ -59,7 +59,7 @@ depquiet applies four deterministic filters to separate signal from noise:
 
 ### Zero false negatives by design
 
-depquiet is **conservative**: it would rather let a false positive through than dismiss a real vulnerability. Python, JS/TS, Go, Rust, Java/Kotlin, C#, and PHP reachability all use proper import analysis — no string matching, no regex against raw source. Only filter when there are **zero real references** to the package in your source code.
+depquiet is **conservative**: it would rather let a false positive through than dismiss a real vulnerability. Python, JS/TS, Go, Rust, Java/Kotlin, C#, PHP, and Ruby reachability all use proper import analysis — no string matching, no regex against raw source. Only filter when there are **zero real references** to the package in your source code.
 
 ### Reachability analysis in depth
 
@@ -118,7 +118,15 @@ The reachability filter is where depquiet eliminates the most noise (40-60% of a
 - Strips `//`, `#`, and `/* */` comments
 - Skips `vendor/` directory
 
-All seven analyzers map aliased package names (e.g., `my-package` → `my_package` for Python, `@scope/name/sub` → `@scope/name` for JS, `github.com/user/repo/sub` → `github.com/user/repo` for Go, `my-crate` → `my_crate` for Rust, `com.fasterxml.jackson.core:jackson-databind` → `com.fasterxml.jackson.core` for Java, `Newtonsoft.Json.Linq` → `Newtonsoft.Json` for C#, `Monolog\Logger\Handler` → `monolog/logger` for PHP) and check all source files in the project, skipping `node_modules`, `.git`, `__pycache__`, `dist`, `build`, `vendor`, `target`, and other vendored directories.
+**Ruby** — Require statement parsing with comment stripping. Handles:
+- `require 'gem_name'` (single and double quotes)
+- `require 'gem_name/sub'` → extracts top-level `gem_name`
+- `require_relative` skipped (project-internal files)
+- Hyphenated gem convention: `aws-sdk-s3` matches both `require 'aws-sdk-s3'` and `require 'aws/sdk/s3'`
+- Strips `#` and `=begin`/`=end` comments
+- Skips `vendor/` directory
+
+All eight analyzers map aliased package names (e.g., `my-package` → `my_package` for Python, `@scope/name/sub` → `@scope/name` for JS, `github.com/user/repo/sub` → `github.com/user/repo` for Go, `my-crate` → `my_crate` for Rust, `com.fasterxml.jackson.core:jackson-databind` → `com.fasterxml.jackson.core` for Java, `Newtonsoft.Json.Linq` → `Newtonsoft.Json` for C#, `Monolog\Logger\Handler` → `monolog/logger` for PHP, `aws-sdk-s3` → matches `require 'aws/sdk/s3'` for Ruby) and check all source files in the project, skipping `node_modules`, `.git`, `__pycache__`, `dist`, `build`, `vendor`, `target`, and other vendored directories.
 
 ## Install
 
@@ -287,7 +295,7 @@ Run the benchmarks yourself: `python -I benchmarks/run_benchmark.py`
 | Snyk | SaaS, paid | $100K+/year for reachability |
 | GitHub Dependabot Reachability | AST analysis (Oct 2026) | JS/TS only, Enterprise Cloud ($21/user/mo), preview |
 | Mend / Black Duck | SaaS, paid | Enterprise pricing, vendor lock-in |
-| **depquiet** | AST reachability (Python, JS/TS, Go, Rust, Java/Kotlin, C#, PHP), deterministic triage, community templates | Free, offline, works everywhere |
+| **depquiet** | AST reachability (Python, JS/TS, Go, Rust, Java/Kotlin, C#, PHP, Ruby), deterministic triage, community templates | Free, offline, works everywhere |
 
 ## License
 
