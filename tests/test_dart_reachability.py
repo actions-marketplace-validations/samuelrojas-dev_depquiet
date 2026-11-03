@@ -261,8 +261,7 @@ class TestReachabilityDartIntegration:
     def test_dart_vulnerable_functions(self, tmp_path: Path) -> None:
         f = tmp_path / "main.dart"
         f.write_text(
-            "import 'package:http/http.dart';\n"
-            "final response = await http.get(Uri.parse(url));\n"
+            "import 'package:http/http.dart';\nfinal response = await http.get(Uri.parse(url));\n"
         )
         rf = ReachabilityFilter(tmp_path)
         vuln = Vulnerability(
@@ -277,8 +276,7 @@ class TestReachabilityDartIntegration:
     def test_dart_vulnerable_functions_not_present(self, tmp_path: Path) -> None:
         f = tmp_path / "main.dart"
         f.write_text(
-            "import 'package:http/http.dart';\n"
-            "final response = await http.post(Uri.parse(url));\n"
+            "import 'package:http/http.dart';\nfinal response = await http.post(Uri.parse(url));\n"
         )
         rf = ReachabilityFilter(tmp_path)
         vuln = Vulnerability(

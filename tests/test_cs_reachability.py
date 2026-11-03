@@ -216,10 +216,7 @@ class TestReachabilityCsIntegration:
 
     def test_cs_package_imported_not_filtered(self, tmp_path: Path) -> None:
         f = tmp_path / "Program.cs"
-        f.write_text(
-            "using Newtonsoft.Json;\n"
-            "class Program { static void Main() {} }\n"
-        )
+        f.write_text("using Newtonsoft.Json;\nclass Program { static void Main() {} }\n")
         rf = ReachabilityFilter(tmp_path)
         vuln = Vulnerability(
             cve="CVE-2024-1234",

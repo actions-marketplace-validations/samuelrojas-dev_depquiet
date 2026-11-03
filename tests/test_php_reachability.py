@@ -294,10 +294,7 @@ class TestReachabilityPhpIntegration:
 
     def test_php_vulnerable_functions_not_present(self, tmp_path: Path) -> None:
         f = tmp_path / "index.php"
-        f.write_text(
-            "<?php\nuse Monolog\\Logger;\n"
-            "$logger = new Logger('app');\n"
-        )
+        f.write_text("<?php\nuse Monolog\\Logger;\n$logger = new Logger('app');\n")
         rf = ReachabilityFilter(tmp_path)
         vuln = Vulnerability(
             cve="CVE-2024-1234",

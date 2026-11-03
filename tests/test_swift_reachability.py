@@ -283,10 +283,7 @@ class TestReachabilitySwiftIntegration:
 
     def test_swift_vulnerable_functions(self, tmp_path: Path) -> None:
         f = tmp_path / "App.swift"
-        f.write_text(
-            "import Alamofire\n"
-            "AF.request(url).responseJSON { response in }\n"
-        )
+        f.write_text("import Alamofire\nAF.request(url).responseJSON { response in }\n")
         rf = ReachabilityFilter(tmp_path)
         vuln = Vulnerability(
             cve="CVE-2024-1234",
@@ -300,8 +297,7 @@ class TestReachabilitySwiftIntegration:
     def test_swift_vulnerable_functions_not_present(self, tmp_path: Path) -> None:
         f = tmp_path / "App.swift"
         f.write_text(
-            "import Alamofire\n"
-            "AF.request(url).responseDecodable(of: MyType.self) { response in }\n"
+            "import Alamofire\nAF.request(url).responseDecodable(of: MyType.self) { response in }\n"
         )
         rf = ReachabilityFilter(tmp_path)
         vuln = Vulnerability(

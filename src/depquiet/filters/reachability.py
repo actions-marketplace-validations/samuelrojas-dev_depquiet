@@ -53,9 +53,16 @@ _RB_EXTENSIONS = {".rb"}
 _SWIFT_EXTENSIONS = {".swift"}
 _DART_EXTENSIONS = {".dart"}
 _ALL_EXTENSIONS = (
-    _JS_EXTENSIONS | _PY_EXTENSIONS | _GO_EXTENSIONS | _RS_EXTENSIONS
-    | _JAVA_EXTENSIONS | _CS_EXTENSIONS | _PHP_EXTENSIONS | _RB_EXTENSIONS
-    | _SWIFT_EXTENSIONS | _DART_EXTENSIONS
+    _JS_EXTENSIONS
+    | _PY_EXTENSIONS
+    | _GO_EXTENSIONS
+    | _RS_EXTENSIONS
+    | _JAVA_EXTENSIONS
+    | _CS_EXTENSIONS
+    | _PHP_EXTENSIONS
+    | _RB_EXTENSIONS
+    | _SWIFT_EXTENSIONS
+    | _DART_EXTENSIONS
 )
 
 # Directories to skip
@@ -611,9 +618,7 @@ def _java_file_imports_package(f: Path, package: str) -> bool:
         text = f.read_text(errors="replace")
     except OSError:
         return False
-    return any(
-        imp == group or imp.startswith(group + ".") for imp in _java_extract_imports(text)
-    )
+    return any(imp == group or imp.startswith(group + ".") for imp in _java_extract_imports(text))
 
 
 # ---------------------------------------------------------------------------
@@ -691,10 +696,7 @@ def _cs_file_imports_package(f: Path, package: str) -> bool:
         text = f.read_text(errors="replace")
     except OSError:
         return False
-    return any(
-        ns == package or ns.startswith(package + ".")
-        for ns in _cs_extract_namespaces(text)
-    )
+    return any(ns == package or ns.startswith(package + ".") for ns in _cs_extract_namespaces(text))
 
 
 # ---------------------------------------------------------------------------
@@ -774,6 +776,7 @@ def _php_file_imports_package(f: Path, package: str) -> bool:
 # ---------------------------------------------------------------------------
 # Ruby
 # ---------------------------------------------------------------------------
+
 
 def _strip_rb_comments(source: str) -> str:
     r"""Remove Ruby comments from source (conservative).
@@ -862,6 +865,7 @@ def _rb_file_imports_package(f: Path, package: str) -> bool:
 # Swift
 # ---------------------------------------------------------------------------
 
+
 def _strip_swift_comments(source: str) -> str:
     r"""Remove Swift comments from source (conservative).
 
@@ -937,6 +941,7 @@ def _swift_file_imports_package(f: Path, package: str) -> bool:
 # ---------------------------------------------------------------------------
 # Dart / Flutter
 # ---------------------------------------------------------------------------
+
 
 def _strip_dart_comments(source: str) -> str:
     r"""Remove Dart comments from source (conservative).
@@ -1086,9 +1091,15 @@ class ReachabilityFilter:
         # across all source files
         if vuln.vulnerable_functions:
             all_files = (
-                self.js_files + self.py_files + self.go_files
-                + self.rs_files + self.java_files + self.cs_files
-                + self.php_files + self.rb_files + self.swift_files
+                self.js_files
+                + self.py_files
+                + self.go_files
+                + self.rs_files
+                + self.java_files
+                + self.cs_files
+                + self.php_files
+                + self.rb_files
+                + self.swift_files
                 + self.dart_files
             )
             if not all_files:

@@ -174,13 +174,9 @@ class TestJavaImportsPackage:
         """Maven coordinate: group matches import package prefix."""
         f = tmp_path / "Main.java"
         f.write_text(
-            "package com.myapp;\n\n"
-            "import org.apache.commons.lang3.StringUtils;\n\n"
-            "class Main {}\n"
+            "package com.myapp;\n\nimport org.apache.commons.lang3.StringUtils;\n\nclass Main {}\n"
         )
-        assert _java_imports_package(
-            [f], "org.apache.commons:commons-lang3"
-        )
+        assert _java_imports_package([f], "org.apache.commons:commons-lang3")
 
     def test_subpackage_matches(self, tmp_path: Path) -> None:
         """import com.fasterxml.jackson.databind starts with com.fasterxml.jackson."""
@@ -246,9 +242,7 @@ class TestReachabilityJavaIntegration:
     def test_java_package_imported_not_filtered(self, tmp_path: Path) -> None:
         f = tmp_path / "Main.java"
         f.write_text(
-            "package com.myapp;\n"
-            "import org.apache.commons.lang3.StringUtils;\n"
-            "class Main {}\n"
+            "package com.myapp;\nimport org.apache.commons.lang3.StringUtils;\nclass Main {}\n"
         )
         rf = ReachabilityFilter(tmp_path)
         vuln = Vulnerability(
@@ -261,9 +255,7 @@ class TestReachabilityJavaIntegration:
 
     def test_java_package_not_imported_filtered(self, tmp_path: Path) -> None:
         f = tmp_path / "Main.java"
-        f.write_text(
-            "package com.myapp;\nimport com.example.Foo;\nclass Main {}\n"
-        )
+        f.write_text("package com.myapp;\nimport com.example.Foo;\nclass Main {}\n")
         rf = ReachabilityFilter(tmp_path)
         vuln = Vulnerability(
             cve="CVE-2024-1234",
@@ -313,9 +305,7 @@ class TestReachabilityJavaIntegration:
         """Files under build/ should be skipped."""
         build = tmp_path / "build" / "classes"
         build.mkdir(parents=True)
-        (build / "Main.java").write_text(
-            "import com.fasterxml.jackson.databind.ObjectMapper;\n"
-        )
+        (build / "Main.java").write_text("import com.fasterxml.jackson.databind.ObjectMapper;\n")
         f = tmp_path / "src" / "Main.java"
         f.parent.mkdir()
         f.write_text("import com.example.Foo;\n")

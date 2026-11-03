@@ -74,11 +74,7 @@ class TestRbExtractRequires:
         assert "aws-sdk-s3" in result
 
     def test_multiple_requires(self) -> None:
-        src = (
-            "require 'nokogiri'\n"
-            "require 'rails'\n"
-            "require 'sinatra'\n"
-        )
+        src = "require 'nokogiri'\nrequire 'rails'\nrequire 'sinatra'\n"
         result = _rb_extract_requires(src)
         assert "nokogiri" in result
         assert "rails" in result
@@ -279,10 +275,7 @@ class TestReachabilityRbIntegration:
 
     def test_rb_vulnerable_functions(self, tmp_path: Path) -> None:
         f = tmp_path / "app.rb"
-        f.write_text(
-            "require 'nokogiri'\n"
-            "doc = Nokogiri::XML(xml_string)\n"
-        )
+        f.write_text("require 'nokogiri'\ndoc = Nokogiri::XML(xml_string)\n")
         rf = ReachabilityFilter(tmp_path)
         vuln = Vulnerability(
             cve="CVE-2024-1234",
@@ -295,10 +288,7 @@ class TestReachabilityRbIntegration:
 
     def test_rb_vulnerable_functions_not_present(self, tmp_path: Path) -> None:
         f = tmp_path / "app.rb"
-        f.write_text(
-            "require 'nokogiri'\n"
-            "doc = Nokogiri::HTML(html_string)\n"
-        )
+        f.write_text("require 'nokogiri'\ndoc = Nokogiri::HTML(html_string)\n")
         rf = ReachabilityFilter(tmp_path)
         vuln = Vulnerability(
             cve="CVE-2024-1234",
