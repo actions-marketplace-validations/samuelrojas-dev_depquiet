@@ -4,7 +4,7 @@ This is the highest-value filter. 60-80% of CVEs flagged by scanners affect
 functions that the project never calls. A prototype pollution in lodash.merge()
 doesn't matter if you only use lodash.get().
 
-Strategy (v5 — multi-language import analysis, conservative):
+Strategy (v6 — multi-language import analysis, conservative):
 1. Python files are parsed with ``ast`` to extract real import statements,
    ignoring comments, strings, and partial-name matches that trip up regex.
 2. JS/TS files are parsed with a comment/string-stripping regex pipeline
@@ -19,9 +19,11 @@ Strategy (v5 — multi-language import analysis, conservative):
 7. PHP files are parsed for ``use`` statements with Composer package matching.
 8. Ruby files are parsed for ``require`` statements with gem name matching
    (hyphen-to-slash convention for hyphenated gems).
-9. If vulnerable_functions are known, check if any of those specific functions
-   appear in the source (string search — conservative).
-10. Only mark as unreachable if we're confident the package/function isn't used.
+9. Swift files are parsed for ``import`` statements with SwiftPM package-to-module
+   mapping (hyphen-to-underscore convention).
+10. If vulnerable_functions are known, check if any of those specific functions
+    appear in the source (string search — conservative).
+11. Only mark as unreachable if we're confident the package/function isn't used.
 
 Conservative by design: we'd rather let a false positive through than dismiss
 a real vulnerability. Files that fail to parse are treated as *possibly*
@@ -46,9 +48,11 @@ _JAVA_EXTENSIONS = {".java", ".kt", ".kts"}
 _CS_EXTENSIONS = {".cs"}
 _PHP_EXTENSIONS = {".php"}
 _RB_EXTENSIONS = {".rb"}
+_SWIFT_EXTENSIONS = {".swift"}
 _ALL_EXTENSIONS = (
     _JS_EXTENSIONS | _PY_EXTENSIONS | _GO_EXTENSIONS | _RS_EXTENSIONS
     | _JAVA_EXTENSIONS | _CS_EXTENSIONS | _PHP_EXTENSIONS | _RB_EXTENSIONS
+    | _SWIFT_EXTENSIONS
 )
 
 # Directories to skip
@@ -65,6 +69,7 @@ _SKIP_DIRS = {
     "coverage",
     "vendor",
     "target",
+    ".build",
 }
 
 
@@ -849,6 +854,82 @@ def _rb_file_imports_package(f: Path, package: str) -> bool:
     return bool(_rb_gem_require_names(package) & _rb_extract_requires(text))
 
 
+# ---------------------------------------------------------------------------
+# Swift
+# ---------------------------------------------------------------------------
+
+def _strip_swift_comments(source: str) -> str:
+    r"""Remove Swift comments from source (conservative).
+
+    Handles single-line ``//`` comments and multi-line ``/* */`` comments.
+    Does not track string boundaries — conservative.
+    """
+    text = re.sub(r"/\*.*?\*/", " ", source, flags=re.DOTALL)
+    return re.sub(r"//[^\n]*", "", text)
+
+
+def _swift_extract_imports(source: str) -> set[str]:
+    r"""Return module names from Swift ``import`` statements.
+
+    Handles:
+    - ``import ModuleName``
+    - ``import struct ModuleName.StructName``
+    - ``import class ModuleName.ClassName``
+    - ``import func ModuleName.funcName``
+    - ``@testable import ModuleName``
+
+    Returns the top-level module name (first dot-separated segment).
+    """
+    stripped = _strip_swift_comments(source)
+    modules: set[str] = set()
+
+    for m in re.finditer(
+        r"(?:@\w+\s+)*\bimport\s+"
+        r"(?:(?:struct|class|enum|protocol|typealias|func|var|let)\s+)?"
+        r"([A-Za-z_]\w*)",
+        stripped,
+    ):
+        modules.add(m.group(1))
+
+    return modules
+
+
+def _swift_module_name(package: str) -> str:
+    """Derive the Swift module name from a SwiftPM package name.
+
+    SwiftPM convention: hyphens in package names become underscores in module
+    names (e.g., ``swift-argument-parser`` → ``ArgumentParser`` is the actual
+    module, but we can't guess CamelCase).  We do the safe transform:
+    ``my-pkg`` → ``my_pkg``, and also keep the original.
+    """
+    return package.replace("-", "_")
+
+
+def _swift_imports_package(files: list[Path], package: str) -> bool:
+    """Check whether any Swift file imports *package*.
+
+    Matches the package name and its hyphen-to-underscore variant.
+    """
+    names = {package, _swift_module_name(package)}
+    for f in files:
+        try:
+            text = f.read_text(errors="replace")
+        except OSError:
+            continue
+        if names & _swift_extract_imports(text):
+            return True
+    return False
+
+
+def _swift_file_imports_package(f: Path, package: str) -> bool:
+    """Check whether a single Swift file imports the package."""
+    try:
+        text = f.read_text(errors="replace")
+    except OSError:
+        return False
+    return bool({package, _swift_module_name(package)} & _swift_extract_imports(text))
+
+
 class ReachabilityFilter:
     """Check whether a vulnerable package/function is imported in the project."""
 
@@ -864,6 +945,7 @@ class ReachabilityFilter:
         self._cs_files: list[Path] | None = None
         self._php_files: list[Path] | None = None
         self._rb_files: list[Path] | None = None
+        self._swift_files: list[Path] | None = None
 
     @property
     def js_files(self) -> list[Path]:
@@ -913,6 +995,12 @@ class ReachabilityFilter:
             self._rb_files = _source_files(self._project, _RB_EXTENSIONS)
         return self._rb_files
 
+    @property
+    def swift_files(self) -> list[Path]:
+        if self._swift_files is None:
+            self._swift_files = _source_files(self._project, _SWIFT_EXTENSIONS)
+        return self._swift_files
+
     def check(self, vuln: Vulnerability) -> bool:
         """Return True if the vulnerable code is unreachable (safe to filter).
 
@@ -928,7 +1016,7 @@ class ReachabilityFilter:
             all_files = (
                 self.js_files + self.py_files + self.go_files
                 + self.rs_files + self.java_files + self.cs_files
-                + self.php_files + self.rb_files
+                + self.php_files + self.rb_files + self.swift_files
             )
             if not all_files:
                 return False
@@ -966,6 +1054,10 @@ class ReachabilityFilter:
         if self.rb_files and _rb_imports_package(self.rb_files, pkg):
             return False
 
+        # Check Swift files for import statements
+        if self.swift_files and _swift_imports_package(self.swift_files, pkg):
+            return False
+
         # Only filter if we had files to check
         return bool(
             self.js_files
@@ -976,6 +1068,7 @@ class ReachabilityFilter:
             or self.cs_files
             or self.php_files
             or self.rb_files
+            or self.swift_files
         )
 
     def find_imports(self, vuln: Vulnerability) -> list[str]:
@@ -1016,5 +1109,9 @@ class ReachabilityFilter:
         # Check Ruby files by require detection
         for f in self.rb_files:
             if _rb_file_imports_package(f, pkg):
+                results.append(str(f))
+        # Check Swift files by import detection
+        for f in self.swift_files:
+            if _swift_file_imports_package(f, pkg):
                 results.append(str(f))
         return results
