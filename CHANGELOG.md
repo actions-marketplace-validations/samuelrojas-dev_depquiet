@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-03
+
+### Added
+
+- **Policy engine** — commit security policies alongside code (`.depquiet-policy.yaml`). Rules match on severity, EPSS, package, dev status, CVE IDs; first matching rule wins.
+- `--policy` CLI flag and `policy` input for the GitHub Action
+- Action aliases: `block` → ACTION, `dismiss`/`ignore`/`filtered` → FILTERED
+- Custom lightweight YAML parser — no PyYAML dependency required
+
+## [0.8.0] - 2026-11-03
+
+### Added
+
+- **CycloneDX 1.5 SBOM generation** — JSON and XML output formats compliant with OWASP CycloneDX 1.5 (EO 14028 ready)
+- `--sbom` and `--sbom-format` CLI flags; format auto-detected from file extension
+- `sbom`, `sbom-format` inputs for the GitHub Action; SBOM auto-uploaded as build artifact
+- Package URL (purl) generation for 9 ecosystems: npm, PyPI, Go, crates.io, Maven, NuGet, Packagist, RubyGems, Pub
+
+## [0.7.0] - 2026-11-03
+
+### Added
+
+- **SARIF v2.1.0 input parser** — pipe SARIF output from any scanner into depquiet via `--stdin`
+- **Standalone lockfile scanning** via the OSV.dev API — no external scanner required; auto-detects lockfiles when no native scanner is found
+
+## [0.6.0] - 2026-11-02
+
+### Added
+
+- **Reachability analysis for 10 languages**: Python (AST), JavaScript/TypeScript (AST), Go, Rust, Java/Kotlin, C#, PHP, Ruby, Swift, Dart/Flutter
+- Each analyzer detects ecosystem-specific import patterns and build directory exclusions
+
+## [0.5.0] - 2026-11-02
+
+### Added
+
+- **JavaScript/TypeScript AST-based reachability** — detects `require()`, `import` statements, and dynamic imports using `acorn`-style parsing
+- **Go reachability analysis** — scans `.go` files for `import` blocks
+
 ## [0.4.0] - 2026-11-01
 
 ### Added
@@ -85,7 +124,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.8.0...v0.9.0
+[0.8.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.7.0...v0.8.0
+[0.7.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.1.0...v0.2.0
