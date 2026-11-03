@@ -259,9 +259,13 @@ depquiet --config ./ci-config.yaml
   with:
     sarif: results.sarif
     epss-threshold: "0.1"
+    policy: .depquiet-policy.yaml
+    sbom: sbom.cdx.json
 ```
 
-The action installs depquiet, runs it, uploads SARIF to GitHub Code Scanning, and fails the build if ACTION items are found.
+The action installs depquiet, runs it, uploads SARIF to GitHub Code Scanning, uploads the SBOM as a build artifact, and fails the build if ACTION items are found.
+
+**Action inputs:** `path`, `epss-threshold`, `offline`, `sarif`, `templates`, `policy`, `sbom`, `sbom-format`, `fail-on-action`, `python-version`.
 
 ### GitHub Actions (manual)
 
