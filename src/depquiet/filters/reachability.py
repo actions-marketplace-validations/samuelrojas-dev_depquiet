@@ -32,7 +32,8 @@ from depquiet.models import FilterReason, Vulnerability
 # File extensions to search for imports
 _JS_EXTENSIONS = {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"}
 _PY_EXTENSIONS = {".py"}
-_ALL_EXTENSIONS = _JS_EXTENSIONS | _PY_EXTENSIONS
+_GO_EXTENSIONS = {".go"}
+_ALL_EXTENSIONS = _JS_EXTENSIONS | _PY_EXTENSIONS | _GO_EXTENSIONS
 
 # Directories to skip
 _SKIP_DIRS = {
@@ -46,6 +47,7 @@ _SKIP_DIRS = {
     ".next",
     ".nuxt",
     "coverage",
+    "vendor",
 }
 
 
@@ -311,6 +313,108 @@ def _py_file_imports_package(f: Path, package: str) -> bool:
     return import_name in imports
 
 
+def _strip_go_comments(source: str) -> str:
+    """Remove comments from Go source, preserving string literals.
+
+    Go comments use the same ``//`` and ``/* */`` syntax as JS/TS.
+    We preserve string literals (double-quoted and backtick raw strings)
+    so the import path strings remain intact.
+    """
+    return re.sub(
+        r"//[^\n]*"  # single-line comment
+        r"|/\*[\s\S]*?\*/",  # multi-line comment
+        " ",
+        source,
+    )
+
+
+def _go_extract_imports(source: str) -> set[str]:
+    """Extract Go module paths from import statements.
+
+    Handles:
+    - Single: ``import "fmt"``
+    - Grouped: ``import ( "fmt" ; "net/http" )``
+    - Aliased: ``import m "github.com/user/pkg"``
+    - Dot import: ``import . "pkg"``
+    - Blank import: ``import _ "pkg"``
+
+    Returns the full import path for each (e.g. ``github.com/user/repo/sub``).
+    """
+    stripped = _strip_go_comments(source)
+    names: set[str] = set()
+
+    # Grouped imports: import ( ... )
+    for m in re.finditer(r"\bimport\s*\(([^)]*)\)", stripped):
+        block = m.group(1)
+        # Each import inside the parens: optional alias + quoted path
+        for line_m in re.finditer(r'(?:[\w._]+\s+)?"([^"]+)"', block):
+            names.add(line_m.group(1))
+
+    # Single imports: import "pkg" or import alias "pkg"
+    for m in re.finditer(r'\bimport\s+(?:[\w._]+\s+)?"([^"]+)"', stripped):
+        names.add(m.group(1))
+
+    return names
+
+
+def _go_module_name(import_path: str) -> str:
+    """Extract the module name from a Go import path.
+
+    Go modules typically have 3 path segments (host/user/repo).
+    Standard library packages have 1-2 segments (fmt, net/http).
+    Sub-packages extend the module path (github.com/user/repo/sub).
+
+    For vulnerability matching, we need the module root:
+    - ``github.com/user/repo/sub`` → ``github.com/user/repo``
+    - ``golang.org/x/crypto/ssh`` → ``golang.org/x/crypto``
+    - ``fmt`` → ``fmt``
+    - ``net/http`` → ``net/http``
+
+    We return up to the first 3 segments for hosted modules, or the
+    full path for stdlib.
+    """
+    parts = import_path.split("/")
+    # Standard library: no dots in first segment
+    if "." not in parts[0]:
+        return import_path
+    # Hosted module: typically host/user/repo, take first 3 parts
+    return "/".join(parts[:3]) if len(parts) >= 3 else import_path
+
+
+def _go_imports_package(files: list[Path], package: str) -> bool:
+    """Check whether any Go file imports the given package/module.
+
+    Matches if the package name equals any imported module root or if the
+    package is a prefix of any import path (module + sub-package).
+    """
+    for f in files:
+        try:
+            text = f.read_text(errors="replace")
+        except OSError:
+            continue
+        imports = _go_extract_imports(text)
+        for imp in imports:
+            # Exact match or the import is a sub-package of the vulnerable module
+            module = _go_module_name(imp)
+            if module == package or imp == package or imp.startswith(package + "/"):
+                return True
+    return False
+
+
+def _go_file_imports_package(f: Path, package: str) -> bool:
+    """Check whether a single Go file imports the given package."""
+    try:
+        text = f.read_text(errors="replace")
+    except OSError:
+        return False
+    imports = _go_extract_imports(text)
+    for imp in imports:
+        module = _go_module_name(imp)
+        if module == package or imp == package or imp.startswith(package + "/"):
+            return True
+    return False
+
+
 class ReachabilityFilter:
     """Check whether a vulnerable package/function is imported in the project."""
 
@@ -320,6 +424,7 @@ class ReachabilityFilter:
         self._project = project
         self._js_files: list[Path] | None = None
         self._py_files: list[Path] | None = None
+        self._go_files: list[Path] | None = None
 
     @property
     def js_files(self) -> list[Path]:
@@ -333,6 +438,12 @@ class ReachabilityFilter:
             self._py_files = _source_files(self._project, _PY_EXTENSIONS)
         return self._py_files
 
+    @property
+    def go_files(self) -> list[Path]:
+        if self._go_files is None:
+            self._go_files = _source_files(self._project, _GO_EXTENSIONS)
+        return self._go_files
+
     def check(self, vuln: Vulnerability) -> bool:
         """Return True if the vulnerable code is unreachable (safe to filter).
 
@@ -345,7 +456,7 @@ class ReachabilityFilter:
         # If we know which specific functions are vulnerable, check those
         # across all source files
         if vuln.vulnerable_functions:
-            all_files = self.js_files + self.py_files
+            all_files = self.js_files + self.py_files + self.go_files
             if not all_files:
                 return False
             return all(not _file_mentions(all_files, func) for func in vuln.vulnerable_functions)
@@ -358,13 +469,17 @@ class ReachabilityFilter:
         if self.py_files and _py_imports_package(self.py_files, pkg):
             return False
 
+        # Check Go files for import statements
+        if self.go_files and _go_imports_package(self.go_files, pkg):
+            return False
+
         # Only filter if we had files to check
-        return bool(self.js_files or self.py_files)
+        return bool(self.js_files or self.py_files or self.go_files)
 
     def find_imports(self, vuln: Vulnerability) -> list[str]:
         """Return list of files where the vulnerable package is imported.
 
-        Uses AST for Python files, string matching for JS files.
+        Uses AST for Python files, import-pattern regex for JS/TS and Go files.
         """
         results: list[str] = []
         pkg = vuln.package
@@ -375,5 +490,9 @@ class ReachabilityFilter:
         # Check Python files by AST-based import detection
         for f in self.py_files:
             if _py_file_imports_package(f, pkg):
+                results.append(str(f))
+        # Check Go files by import detection
+        for f in self.go_files:
+            if _go_file_imports_package(f, pkg):
                 results.append(str(f))
         return results

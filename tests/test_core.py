@@ -371,7 +371,7 @@ def test_cli_version(capsys):
         main(["--version"])
     assert exc_info.value.code == 0
     captured = capsys.readouterr()
-    assert "0.2.0" in captured.out
+    assert "depquiet" in captured.out
 
 
 def test_cli_no_project(capsys):

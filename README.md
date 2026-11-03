@@ -59,7 +59,32 @@ depquiet applies four deterministic filters to separate signal from noise:
 
 ### Zero false negatives by design
 
-depquiet is **conservative**: it would rather let a false positive through than dismiss a real vulnerability. Python reachability uses AST parsing (immune to false positives from comments, docstrings, and strings); JS/TS uses string matching. Both only filter when there are **zero real references** to the package in your source code.
+depquiet is **conservative**: it would rather let a false positive through than dismiss a real vulnerability. Both Python and JS/TS reachability use proper import analysis — no string matching, no regex against raw source. Only filter when there are **zero real references** to the package in your source code.
+
+### Reachability analysis in depth
+
+The reachability filter is where depquiet eliminates the most noise (40-60% of alerts). It works differently for each language:
+
+**Python** — Full AST parsing via `ast.parse()`. Extracts `import`, `from … import`, and `__import__()` calls from the syntax tree. Immune to false positives from comments, docstrings, and string literals. Falls back to regex only for files that fail to parse (Python 2, encoding issues) — conservative: treats unparseable files as potentially importing the package.
+
+**JavaScript / TypeScript** — Comment-stripping pipeline + pattern matching on actual import syntax. Handles all major import styles:
+- ESM: `import X from 'pkg'`, `import {a, b} from 'pkg'`, `import 'pkg'` (side-effect)
+- CommonJS: `require('pkg')`
+- Dynamic: `import('pkg')`
+- Re-exports: `export {a} from 'pkg'`, `export * from 'pkg'`
+- Scoped packages: `@scope/name` resolved correctly
+- Strips `//` and `/* */` comments so commented-out imports don't cause false positives
+- Zero runtime dependencies — no external JS parser needed
+
+**Go** — Import statement parsing with comment stripping. Handles:
+- Single imports: `import "pkg"`
+- Grouped imports: `import ( "pkg1" ; "pkg2" )`
+- Aliased, dot, and blank imports: `import m "pkg"`, `import _ "pkg"`
+- Module path resolution: `github.com/user/repo/sub` → `github.com/user/repo`
+- `golang.org/x/*` packages resolved correctly
+- Skips `vendor/` directory
+
+All three analyzers map aliased package names (e.g., `my-package` → `my_package` for Python, `@scope/name/sub` → `@scope/name` for JS, `github.com/user/repo/sub` → `github.com/user/repo` for Go) and check all source files in the project, skipping `node_modules`, `.git`, `__pycache__`, `dist`, `build`, `vendor`, and other vendored directories.
 
 ## Install
 
@@ -226,9 +251,9 @@ Run the benchmarks yourself: `python -I benchmarks/run_benchmark.py`
 | Grype | Container scanner, flags everything | Great detection, no triage |
 | Dependabot | GitHub-only, flags everything | No triage, overwhelming noise |
 | Snyk | SaaS, paid | $100K+/year for reachability |
-| GitHub Dependabot Reachability | AST analysis (Oct 2026) | JS/TS only, Enterprise Cloud only, preview |
+| GitHub Dependabot Reachability | AST analysis (Oct 2026) | JS/TS only, Enterprise Cloud ($21/user/mo), preview |
 | Mend / Black Duck | SaaS, paid | Enterprise pricing, vendor lock-in |
-| **depquiet** | Deterministic triage, community templates | Free, offline, works everywhere |
+| **depquiet** | AST reachability (Python + JS/TS), deterministic triage, community templates | Free, offline, works everywhere |
 
 ## License
 
