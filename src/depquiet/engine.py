@@ -31,6 +31,7 @@ from depquiet.models import (
 from depquiet.parsers.dependabot import DependabotParser
 from depquiet.parsers.grype import GrypeParser
 from depquiet.parsers.npm import NpmAuditParser
+from depquiet.parsers.osv import OsvScanner
 from depquiet.parsers.pip import PipAuditParser
 from depquiet.parsers.sarif import SarifParser
 from depquiet.parsers.snyk import SnykParser
@@ -94,12 +95,16 @@ def scan(
     # Step 1: Detect and parse
     pm = detect_package_manager(project)
     if pm is None and audit_json is None:
-        return ScanResult(
-            project_path=str(project),
-            package_manager="unknown",
-            total_dependencies=0,
-            results=[],
-        )
+        # No native scanner detected — try OSV.dev lockfile scanning
+        if not skip_epss and OsvScanner.detect(project):
+            pm = "osv"
+        else:
+            return ScanResult(
+                project_path=str(project),
+                package_manager="unknown",
+                total_dependencies=0,
+                results=[],
+            )
 
     vulns: list[Vulnerability] = []
     if audit_json is not None:
@@ -123,10 +128,13 @@ def scan(
         else:
             vulns = NpmAuditParser.parse(audit_json, project)
     else:
-        for parser in _PARSERS:
-            if parser.name == pm:
-                vulns = parser.scan(project)
-                break
+        if pm == "osv":
+            vulns = OsvScanner.scan(project)
+        elif pm:
+            for parser in _PARSERS:
+                if parser.name == pm:
+                    vulns = parser.scan(project)
+                    break
 
     if not vulns:
         return ScanResult(

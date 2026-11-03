@@ -8,7 +8,7 @@
 
 **Cut through vulnerability alert noise. Surface the signal.**
 
-`depquiet` triages your `npm audit` / `pip-audit` / `trivy` / `grype` / Dependabot / Snyk alerts and tells you which CVEs actually matter — in seconds, not hours.
+`depquiet` triages your `npm audit` / `pip-audit` / `trivy` / `grype` / Dependabot / Snyk alerts and tells you which CVEs actually matter — in seconds, not hours. It can also **scan lockfiles directly** using the [OSV.dev](https://osv.dev) API — no external scanner required.
 
 ```
 $ depquiet
@@ -67,6 +67,7 @@ depquiet accepts output from any vulnerability scanner — natively or via SARIF
 
 | Scanner | Format | Input method |
 |---|---|---|
+| **None (standalone)** | **Lockfiles** | **`depquiet` (auto-detects lockfiles, queries OSV.dev)** |
 | npm audit | JSON | `npm audit --json \| depquiet --stdin` |
 | pip-audit | JSON | `pip-audit --format json \| depquiet --stdin` |
 | Trivy | JSON or SARIF | `trivy fs --format json . \| depquiet --stdin` |
@@ -76,6 +77,23 @@ depquiet accepts output from any vulnerability scanner — natively or via SARIF
 | **Any SARIF scanner** | **SARIF v2.1.0** | `<scanner> --sarif \| depquiet --stdin` |
 
 The SARIF parser handles output from CodeQL, Semgrep, Trivy SARIF, Grype SARIF, Snyk SARIF, Checkmarx, Fortify, and any other tool that emits SARIF v2.1.0. CVE, package name, severity (CVSS or level-based), and fix version are extracted automatically from the standard SARIF fields and common scanner-specific properties.
+
+### Standalone scanning with OSV.dev
+
+When no scanner output is piped in and no native package manager is detected, depquiet falls back to **lockfile scanning via [OSV.dev](https://osv.dev)** — Google's open, free vulnerability database. Just run `depquiet` in any project with a lockfile:
+
+| Lockfile | Ecosystem |
+|---|---|
+| `package-lock.json` / `yarn.lock` | npm |
+| `requirements.txt` / `Pipfile.lock` | PyPI |
+| `go.sum` | Go |
+| `Cargo.lock` | crates.io |
+| `pubspec.lock` | Pub (Dart/Flutter) |
+| `Gemfile.lock` | RubyGems |
+| `composer.lock` | Packagist (PHP) |
+| `packages.lock.json` | NuGet (C#) |
+
+Multiple lockfiles in the same project are merged and deduplicated. The OSV.dev batch API handles up to 1000 packages per request, so even large monorepos need only one or two HTTP calls. Use `--offline` to skip OSV.dev queries entirely.
 
 ### Reachability analysis in depth
 
@@ -169,7 +187,7 @@ pip install depquiet
 ## Usage
 
 ```bash
-# Auto-detect package manager and scan
+# Auto-detect lockfiles and scan (no scanner needed — uses OSV.dev)
 depquiet
 
 # Scan a specific directory
@@ -333,7 +351,7 @@ Run the benchmarks yourself: `python -I benchmarks/run_benchmark.py`
 | Snyk | SaaS, paid | $100K+/year for reachability |
 | GitHub Dependabot Reachability | AST analysis (Oct 2026) | JS/TS only, Enterprise Cloud ($21/user/mo), preview |
 | Mend / Black Duck | SaaS, paid | Enterprise pricing, vendor lock-in |
-| **depquiet** | AST reachability (Python, JS/TS, Go, Rust, Java/Kotlin, C#, PHP, Ruby, Swift, Dart), SARIF input (any scanner), deterministic triage, community templates | Free, offline, works everywhere |
+| **depquiet** | Standalone lockfile scanner (OSV.dev), AST reachability (10 languages), SARIF input (any scanner), deterministic triage, community templates | Free, offline-capable, works everywhere |
 
 ## License
 
