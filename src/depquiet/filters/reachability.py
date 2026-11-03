@@ -16,9 +16,10 @@ Strategy (v5 — multi-language import analysis, conservative):
 5. Java/Kotlin files are parsed for ``import`` statements with Maven group ID
    matching (``groupId:artifactId`` coordinates).
 6. C# files are parsed for ``using`` directives with NuGet namespace matching.
-7. If vulnerable_functions are known, check if any of those specific functions
+7. PHP files are parsed for ``use`` statements with Composer package matching.
+8. If vulnerable_functions are known, check if any of those specific functions
    appear in the source (string search — conservative).
-8. Only mark as unreachable if we're confident the package/function isn't used.
+9. Only mark as unreachable if we're confident the package/function isn't used.
 
 Conservative by design: we'd rather let a false positive through than dismiss
 a real vulnerability. Files that fail to parse are treated as *possibly*
@@ -41,9 +42,10 @@ _GO_EXTENSIONS = {".go"}
 _RS_EXTENSIONS = {".rs"}
 _JAVA_EXTENSIONS = {".java", ".kt", ".kts"}
 _CS_EXTENSIONS = {".cs"}
+_PHP_EXTENSIONS = {".php"}
 _ALL_EXTENSIONS = (
     _JS_EXTENSIONS | _PY_EXTENSIONS | _GO_EXTENSIONS | _RS_EXTENSIONS
-    | _JAVA_EXTENSIONS | _CS_EXTENSIONS
+    | _JAVA_EXTENSIONS | _CS_EXTENSIONS | _PHP_EXTENSIONS
 )
 
 # Directories to skip
@@ -683,6 +685,80 @@ def _cs_file_imports_package(f: Path, package: str) -> bool:
     )
 
 
+# ---------------------------------------------------------------------------
+# PHP (.php)
+# ---------------------------------------------------------------------------
+
+
+def _strip_php_comments(source: str) -> str:
+    """Remove ``//``, ``#`` and ``/* */`` comments from PHP source.
+
+    PHP uses three comment styles: C-style ``/* */``, C++ ``//``, and
+    shell-style ``#``.  We strip all three conservatively — string literals
+    containing comment tokens are also stripped, which is safe (may only add
+    false negatives, never false positives).
+    """
+    text = re.sub(r"/\*.*?\*/", " ", source, flags=re.DOTALL)
+    return re.sub(r"(?://|#)[^\n]*", "", text)
+
+
+def _php_extract_uses(source: str) -> set[str]:
+    r"""Return Composer-style vendor/package names from PHP ``use`` statements.
+
+    Handles:
+    - ``use Vendor\Package\Class;``
+    - ``use Vendor\Package\{ClassA, ClassB};`` (group use)
+    - ``use function Vendor\Package\func;``
+    - ``use const Vendor\Package\CONST;``
+
+    Returns ``vendor/package`` style names (first two namespace segments,
+    lowercased, joined with ``/``), which matches Composer package naming
+    convention (e.g. ``monolog/monolog``, ``symfony/http-foundation``).
+    """
+    stripped = _strip_php_comments(source)
+    packages: set[str] = set()
+
+    for m in re.finditer(
+        r"\buse\s+(?:function\s+|const\s+)?"
+        r"([A-Za-z_]\w*(?:\\[A-Za-z_]\w*)*)",
+        stripped,
+    ):
+        full = m.group(1)  # e.g. "Monolog\Logger\Handler"
+        parts = full.split("\\")
+        if len(parts) >= 2:
+            # Composer convention: vendor/package from first two namespace parts
+            packages.add(parts[0].lower() + "/" + parts[1].lower())
+
+    return packages
+
+
+def _php_imports_package(files: list[Path], package: str) -> bool:
+    """Check whether any PHP file uses a namespace matching *package*.
+
+    *package* should be in Composer format (``vendor/package``).  We match
+    when any ``use`` statement's first two namespace segments, lowercased
+    and joined with ``/``, equal the package name.
+    """
+    pkg_lower = package.lower()
+    for f in files:
+        try:
+            text = f.read_text(errors="replace")
+        except OSError:
+            continue
+        if pkg_lower in _php_extract_uses(text):
+            return True
+    return False
+
+
+def _php_file_imports_package(f: Path, package: str) -> bool:
+    """Check whether a single PHP file uses a namespace matching the package."""
+    try:
+        text = f.read_text(errors="replace")
+    except OSError:
+        return False
+    return package.lower() in _php_extract_uses(text)
+
+
 class ReachabilityFilter:
     """Check whether a vulnerable package/function is imported in the project."""
 
@@ -696,6 +772,7 @@ class ReachabilityFilter:
         self._rs_files: list[Path] | None = None
         self._java_files: list[Path] | None = None
         self._cs_files: list[Path] | None = None
+        self._php_files: list[Path] | None = None
 
     @property
     def js_files(self) -> list[Path]:
@@ -733,6 +810,12 @@ class ReachabilityFilter:
             self._cs_files = _source_files(self._project, _CS_EXTENSIONS)
         return self._cs_files
 
+    @property
+    def php_files(self) -> list[Path]:
+        if self._php_files is None:
+            self._php_files = _source_files(self._project, _PHP_EXTENSIONS)
+        return self._php_files
+
     def check(self, vuln: Vulnerability) -> bool:
         """Return True if the vulnerable code is unreachable (safe to filter).
 
@@ -748,6 +831,7 @@ class ReachabilityFilter:
             all_files = (
                 self.js_files + self.py_files + self.go_files
                 + self.rs_files + self.java_files + self.cs_files
+                + self.php_files
             )
             if not all_files:
                 return False
@@ -777,6 +861,10 @@ class ReachabilityFilter:
         if self.cs_files and _cs_imports_package(self.cs_files, pkg):
             return False
 
+        # Check PHP files for use statements
+        if self.php_files and _php_imports_package(self.php_files, pkg):
+            return False
+
         # Only filter if we had files to check
         return bool(
             self.js_files
@@ -785,6 +873,7 @@ class ReachabilityFilter:
             or self.rs_files
             or self.java_files
             or self.cs_files
+            or self.php_files
         )
 
     def find_imports(self, vuln: Vulnerability) -> list[str]:
@@ -817,5 +906,9 @@ class ReachabilityFilter:
         # Check C# files by using-directive detection
         for f in self.cs_files:
             if _cs_file_imports_package(f, pkg):
+                results.append(str(f))
+        # Check PHP files by use-statement detection
+        for f in self.php_files:
+            if _php_file_imports_package(f, pkg):
                 results.append(str(f))
         return results
