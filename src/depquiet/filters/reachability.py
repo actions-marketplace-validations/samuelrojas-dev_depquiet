@@ -4,16 +4,20 @@ This is the highest-value filter. 60-80% of CVEs flagged by scanners affect
 functions that the project never calls. A prototype pollution in lodash.merge()
 doesn't matter if you only use lodash.get().
 
-Strategy (v3 — AST-based for Python AND JS/TS, conservative):
+Strategy (v4 — multi-language import analysis, conservative):
 1. Python files are parsed with ``ast`` to extract real import statements,
    ignoring comments, strings, and partial-name matches that trip up regex.
 2. JS/TS files are parsed with a comment/string-stripping regex pipeline
    followed by import/require/export pattern matching — catches ESM imports,
    CommonJS require(), dynamic import(), and re-exports while ignoring
    package names that only appear inside comments or string literals.
-3. If vulnerable_functions are known, check if any of those specific functions
+3. Go files are parsed for ``import`` statements with module path resolution.
+4. Rust files are parsed for ``use``/``extern crate`` with hyphen normalization.
+5. Java/Kotlin files are parsed for ``import`` statements with Maven group ID
+   matching (``groupId:artifactId`` coordinates).
+6. If vulnerable_functions are known, check if any of those specific functions
    appear in the source (string search — conservative).
-4. Only mark as unreachable if we're confident the package/function isn't used.
+7. Only mark as unreachable if we're confident the package/function isn't used.
 
 Conservative by design: we'd rather let a false positive through than dismiss
 a real vulnerability. Files that fail to parse are treated as *possibly*
@@ -34,7 +38,10 @@ _JS_EXTENSIONS = {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"}
 _PY_EXTENSIONS = {".py"}
 _GO_EXTENSIONS = {".go"}
 _RS_EXTENSIONS = {".rs"}
-_ALL_EXTENSIONS = _JS_EXTENSIONS | _PY_EXTENSIONS | _GO_EXTENSIONS | _RS_EXTENSIONS
+_JAVA_EXTENSIONS = {".java", ".kt", ".kts"}
+_ALL_EXTENSIONS = (
+    _JS_EXTENSIONS | _PY_EXTENSIONS | _GO_EXTENSIONS | _RS_EXTENSIONS | _JAVA_EXTENSIONS
+)
 
 # Directories to skip
 _SKIP_DIRS = {
@@ -492,6 +499,106 @@ def _rs_file_imports_package(f: Path, package: str) -> bool:
     return crate_name in _rs_extract_imports(text)
 
 
+# ---------------------------------------------------------------------------
+# Java / Kotlin helpers
+# ---------------------------------------------------------------------------
+
+
+def _strip_java_comments(source: str) -> str:
+    """Remove comments from Java/Kotlin source.
+
+    Java and Kotlin both use ``//`` for line comments and ``/* */`` for block
+    comments.  Like the Go/Rust strippers this is regex-based and may strip
+    ``//`` inside string literals — conservative and safe.
+    """
+    return re.sub(
+        r"//[^\n]*"  # single-line comment
+        r"|/\*[\s\S]*?\*/",  # multi-line comment
+        " ",
+        source,
+    )
+
+
+def _java_extract_imports(source: str) -> set[str]:
+    """Extract package prefixes from Java/Kotlin import statements.
+
+    Handles:
+    - ``import com.example.Foo;``         → ``com.example``
+    - ``import com.example.*;``           → ``com.example``
+    - ``import static com.example.Foo.*;``→ ``com.example``
+    - Kotlin: ``import com.example.Foo``  (no semicolon required)
+
+    Returns a set of *group IDs* — the first two or three dot-separated
+    segments, which is what Maven/Gradle dependency coordinates look like
+    (``groupId:artifactId``).  For example, ``import com.fasterxml.jackson.databind.ObjectMapper``
+    yields ``com.fasterxml.jackson``.
+
+    The heuristic: take segments until we hit one that starts with an uppercase
+    letter (a class name) or ``*``.  This mirrors Maven convention where package
+    segments are lowercase and class names are CamelCase.
+    """
+    stripped = _strip_java_comments(source)
+    packages: set[str] = set()
+
+    for m in re.finditer(
+        r"\bimport\s+(?:static\s+)?([a-zA-Z_][\w]*(?:\.[a-zA-Z_][\w]*)*(?:\.\*)?)\s*;?",
+        stripped,
+    ):
+        full_path = m.group(1)  # e.g. "com.fasterxml.jackson.databind.ObjectMapper"
+        parts = full_path.split(".")
+        # Walk until we hit an uppercase-starting segment (class name) or *
+        pkg_parts: list[str] = []
+        for part in parts:
+            if part == "*" or (part[0].isupper() if part else False):
+                break
+            pkg_parts.append(part)
+        if pkg_parts:
+            packages.add(".".join(pkg_parts))
+
+    return packages
+
+
+def _java_group_id(package: str) -> str:
+    """Normalise a Maven/Gradle coordinate to a group ID prefix.
+
+    Scanner output typically uses ``groupId:artifactId`` (e.g.
+    ``com.fasterxml.jackson.core:jackson-databind``) or just the group ID.
+    We keep only the group ID (before ``:``) for matching.
+    """
+    return package.split(":")[0]
+
+
+def _java_imports_package(files: list[Path], package: str) -> bool:
+    """Check whether any Java/Kotlin file imports something from *package*.
+
+    *package* can be a Maven coordinate (``group:artifact``) or a plain
+    group ID.  We match when any import's package prefix starts with the
+    group ID.
+    """
+    group = _java_group_id(package)
+    for f in files:
+        try:
+            text = f.read_text(errors="replace")
+        except OSError:
+            continue
+        for imp in _java_extract_imports(text):
+            if imp == group or imp.startswith(group + "."):
+                return True
+    return False
+
+
+def _java_file_imports_package(f: Path, package: str) -> bool:
+    """Check whether a single Java/Kotlin file imports the given package."""
+    group = _java_group_id(package)
+    try:
+        text = f.read_text(errors="replace")
+    except OSError:
+        return False
+    return any(
+        imp == group or imp.startswith(group + ".") for imp in _java_extract_imports(text)
+    )
+
+
 class ReachabilityFilter:
     """Check whether a vulnerable package/function is imported in the project."""
 
@@ -503,6 +610,7 @@ class ReachabilityFilter:
         self._py_files: list[Path] | None = None
         self._go_files: list[Path] | None = None
         self._rs_files: list[Path] | None = None
+        self._java_files: list[Path] | None = None
 
     @property
     def js_files(self) -> list[Path]:
@@ -528,6 +636,12 @@ class ReachabilityFilter:
             self._rs_files = _source_files(self._project, _RS_EXTENSIONS)
         return self._rs_files
 
+    @property
+    def java_files(self) -> list[Path]:
+        if self._java_files is None:
+            self._java_files = _source_files(self._project, _JAVA_EXTENSIONS)
+        return self._java_files
+
     def check(self, vuln: Vulnerability) -> bool:
         """Return True if the vulnerable code is unreachable (safe to filter).
 
@@ -540,7 +654,9 @@ class ReachabilityFilter:
         # If we know which specific functions are vulnerable, check those
         # across all source files
         if vuln.vulnerable_functions:
-            all_files = self.js_files + self.py_files + self.go_files + self.rs_files
+            all_files = (
+                self.js_files + self.py_files + self.go_files + self.rs_files + self.java_files
+            )
             if not all_files:
                 return False
             return all(not _file_mentions(all_files, func) for func in vuln.vulnerable_functions)
@@ -561,8 +677,18 @@ class ReachabilityFilter:
         if self.rs_files and _rs_imports_package(self.rs_files, pkg):
             return False
 
+        # Check Java/Kotlin files for import statements
+        if self.java_files and _java_imports_package(self.java_files, pkg):
+            return False
+
         # Only filter if we had files to check
-        return bool(self.js_files or self.py_files or self.go_files or self.rs_files)
+        return bool(
+            self.js_files
+            or self.py_files
+            or self.go_files
+            or self.rs_files
+            or self.java_files
+        )
 
     def find_imports(self, vuln: Vulnerability) -> list[str]:
         """Return list of files where the vulnerable package is imported.
@@ -586,5 +712,9 @@ class ReachabilityFilter:
         # Check Rust files by import detection
         for f in self.rs_files:
             if _rs_file_imports_package(f, pkg):
+                results.append(str(f))
+        # Check Java/Kotlin files by import detection
+        for f in self.java_files:
+            if _java_file_imports_package(f, pkg):
                 results.append(str(f))
         return results
