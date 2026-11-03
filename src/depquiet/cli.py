@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from depquiet import __version__
+from depquiet.baseline import apply_baseline, load_baseline
 from depquiet.config import load_config
 from depquiet.engine import scan
 from depquiet.fix import apply_fixes, print_fix_report
@@ -137,6 +138,15 @@ def main(argv: list[str] | None = None) -> int:
         help="Write GitHub-flavored Markdown summary to FILE (for $GITHUB_STEP_SUMMARY)",
     )
     parser.add_argument(
+        "--baseline",
+        type=Path,
+        metavar="FILE",
+        help=(
+            "Path to a previous depquiet --json output. "
+            "Only NEW findings not in the baseline trigger ACTION/REVIEW verdicts."
+        ),
+    )
+    parser.add_argument(
         "--fail-on",
         choices=["critical", "high", "moderate", "low", "none"],
         default=None,
@@ -199,6 +209,16 @@ def main(argv: list[str] | None = None) -> int:
     if ignore_file is not None:
         apply_ignores(result, ignore_file)
         print_ignore_warnings(ignore_file)
+
+    # Apply baseline — demote known findings to FILTERED
+    if args.baseline:
+        baseline_keys = load_baseline(args.baseline)
+        bl = apply_baseline(result, baseline_keys)
+        if not args.json_output:
+            print(
+                f"\n📊 Baseline: {bl.known_findings} known findings suppressed, "
+                f"{bl.new_findings} new findings remain\n"
+            )
 
     # Output
     if args.json_output:

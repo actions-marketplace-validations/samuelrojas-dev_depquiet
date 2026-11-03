@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-11-03
+
+### Added
+
+- **Baseline diffing (`--baseline`)** — only fail on NEW vulnerabilities not in a previous scan. Enables gradual adoption on existing codebases with tech debt
+- `baseline` input for the GitHub Action
+- Baseline identifies findings by `cve:package` key; known findings are demoted to FILTERED
+- Works with `--fail-on` for layered control: baseline suppresses known, threshold gates new
+- 16 tests for the baseline module covering load, apply, edge cases, and CLI integration
+
 ## [0.14.0] - 2026-11-03
 
 ### Added
@@ -177,7 +187,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.11.0...v0.12.0

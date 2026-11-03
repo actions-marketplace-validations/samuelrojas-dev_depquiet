@@ -383,6 +383,36 @@ Place `.depquiet-ignore` in the project root (auto-detected) or pass `--ignore p
 
 **Audit trail:** The `reason` field (recommended) explains why the risk was accepted. The `author` field records who made the decision.
 
+### Baseline diffing (`--baseline`)
+
+Adopting depquiet on an existing codebase? The `--baseline` flag lets you accept the current state and only fail on **new** vulnerabilities — just like Snyk's `--new-only` or Trivy's `--ignore-unfixed`.
+
+```bash
+# Step 1: Save current state as baseline
+depquiet --json > .depquiet-baseline.json
+
+# Step 2: In CI, only fail on NEW findings
+depquiet --baseline .depquiet-baseline.json
+```
+
+How it works: each finding is identified by its `CVE:package` key. Findings that exist in the baseline are demoted from ACTION/REVIEW to FILTERED. Only genuinely new vulnerabilities trigger failure.
+
+Combine with `--fail-on` for layered control:
+
+```bash
+# Accept known debt, fail only on new critical/high findings
+depquiet --baseline .depquiet-baseline.json --fail-on high
+```
+
+**Updating the baseline:** periodically regenerate it as the team fixes existing debt:
+
+```bash
+# After fixing some findings, update the baseline
+depquiet --json > .depquiet-baseline.json
+git add .depquiet-baseline.json
+git commit -m "chore: update depquiet baseline"
+```
+
 ### Configurable CI gate (`--fail-on`)
 
 By default, depquiet exits `1` whenever any ACTION item exists — just like Snyk's `--severity-threshold`. The `--fail-on` flag lets you control the minimum severity that fails the build:
@@ -429,7 +459,7 @@ The action installs depquiet, runs it, uploads SARIF to GitHub Code Scanning, up
 
 The action automatically writes a **Job Summary** to the PR checks page with severity badges, EPSS scores, fix versions, and a filtered breakdown.
 
-**Action inputs:** `path`, `epss-threshold`, `offline`, `sarif`, `templates`, `policy`, `sbom`, `sbom-format`, `ignore`, `license`, `fail-on-action`, `fail-on`, `python-version`.
+**Action inputs:** `path`, `epss-threshold`, `offline`, `sarif`, `templates`, `policy`, `sbom`, `sbom-format`, `ignore`, `license`, `baseline`, `fail-on-action`, `fail-on`, `python-version`.
 
 > **Note:** `fail-on` (severity-based) supersedes `fail-on-action` (boolean). When `fail-on` is set, `fail-on-action` is ignored.
 

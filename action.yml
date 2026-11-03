@@ -47,6 +47,10 @@ inputs:
     description: "Run license compliance analysis"
     required: false
     default: "false"
+  baseline:
+    description: "Path to a previous depquiet --json output. Only NEW findings trigger failure."
+    required: false
+    default: ""
   fail-on-action:
     description: "Fail the workflow if ACTION items are found (deprecated: use fail-on)"
     required: false
@@ -108,6 +112,7 @@ runs:
         INPUT_LICENSE: ${{ inputs.license }}
         INPUT_FAIL_ON_ACTION: ${{ inputs.fail-on-action }}
         INPUT_FAIL_ON: ${{ inputs.fail-on }}
+        INPUT_BASELINE: ${{ inputs.baseline }}
       run: |
         ARGS="--path $INPUT_PATH --epss-threshold $INPUT_EPSS_THRESHOLD --json"
 
@@ -147,6 +152,10 @@ runs:
 
         if [ -n "$INPUT_FAIL_ON" ]; then
           ARGS="$ARGS --fail-on $INPUT_FAIL_ON"
+        fi
+
+        if [ -n "$INPUT_BASELINE" ]; then
+          ARGS="$ARGS --baseline $INPUT_BASELINE"
         fi
 
         # Job summary — always write when GITHUB_STEP_SUMMARY is available
