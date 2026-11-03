@@ -21,6 +21,7 @@ from typing import Any
 from depquiet import __version__
 from depquiet.config import load_config
 from depquiet.engine import scan
+from depquiet.fix import apply_fixes, print_fix_report
 from depquiet.models import ScanResult
 from depquiet.output import print_scan_result
 from depquiet.policy import load_policy
@@ -104,6 +105,16 @@ def main(argv: list[str] | None = None) -> int:
         metavar="FILE",
         help="Path to config file (default: .depquiet.yaml in project root)",
     )
+    parser.add_argument(
+        "--fix",
+        action="store_true",
+        help="Auto-fix ACTION items that have a known fix version",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what --fix would do without changing anything",
+    )
 
     args = parser.parse_args(argv)
 
@@ -166,6 +177,16 @@ def main(argv: list[str] | None = None) -> int:
         if sbom_fmt is None:
             sbom_fmt = "xml" if args.sbom.suffix.lower() == ".xml" else "json"
         write_sbom(result, args.sbom, fmt=sbom_fmt)
+
+    # Auto-fix
+    if args.fix or args.dry_run:
+        fix_report = apply_fixes(result, args.path, dry_run=args.dry_run)
+        print_fix_report(fix_report, dry_run=args.dry_run)
+        # After fixing, only fail if there are still unfixed ACTION items
+        remaining = len(fix_report.failed) + len(fix_report.skipped)
+        if remaining > 0:
+            return 1
+        return 0
 
     # Exit code: 1 if any ACTION items, 0 otherwise
     # This makes `depquiet` usable as a CI gate

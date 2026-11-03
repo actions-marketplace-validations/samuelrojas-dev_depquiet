@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-03
+
+### Added
+
+- **Auto-remediation (`--fix`)** — automatically upgrade vulnerable packages with known fix versions. Runs `npm install pkg@ver` or `pip install pkg==ver` for ACTION items that have a `fix_version`.
+- `--dry-run` flag — preview what `--fix` would do without changing `node_modules` or `site-packages`
+- `FixResult` and `FixReport` dataclasses for programmatic fix tracking
+- 17 tests for the fix module covering dry-run, success, failure, timeout, and edge cases
+
 ## [0.9.0] - 2026-11-03
 
 ### Added
@@ -124,7 +133,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.6.0...v0.7.0

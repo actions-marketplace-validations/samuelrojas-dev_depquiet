@@ -242,7 +242,44 @@ depquiet --epss-threshold 0.05
 
 # Use a custom config file
 depquiet --config ./ci-config.yaml
+
+# Auto-fix ACTION items that have a known fix version
+depquiet --fix
+
+# See what --fix would do without changing anything
+depquiet --fix --dry-run
 ```
+
+### Auto-remediation (`--fix`)
+
+`depquiet --fix` upgrades packages that have ACTION verdicts **and** a known fix version.
+It runs `npm install <pkg>@<ver>` or `pip install <pkg>==<ver>` under the hood.
+
+```
+$ depquiet --fix
+
+depquiet scan — npm (847 packages)
+...
+
+✅ Fixed 2 vulnerabilities:
+   CVE-2024-4068  braces 3.0.2 → 3.0.3
+   CVE-2024-33883  ejs 3.1.9 → 3.1.10
+
+⚠️  1 ACTION items have no fix available:
+   CVE-2024-21538  semver 7.5.4
+```
+
+Use `--dry-run` to preview changes without touching `node_modules` or `site-packages`:
+
+```
+$ depquiet --fix --dry-run
+
+[dry-run] ✅ Fixed 2 vulnerabilities:
+   CVE-2024-4068  braces 3.0.2 → 3.0.3   Would run: npm install braces@3.0.3
+   CVE-2024-33883  ejs 3.1.9 → 3.1.10    Would run: npm install ejs@3.1.10
+```
+
+**Exit codes with `--fix`:** returns `0` when every ACTION item is resolved; returns `1` when any remain unfixed (no fix version, or the upgrade command failed).
 
 ## CI Integration
 

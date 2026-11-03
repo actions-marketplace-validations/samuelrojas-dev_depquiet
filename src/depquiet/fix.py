@@ -1,0 +1,211 @@
+"""Auto-remediation — upgrade vulnerable packages to their fix versions.
+
+Examines ACTION triage results that have a known ``fix_version`` and runs
+the appropriate package manager command to upgrade them. Only touches
+packages where the verdict is ACTION (not REVIEW or FILTERED) and a fix
+is available, so the blast radius is minimal.
+
+Usage::
+
+    depquiet --fix              # scan + auto-fix ACTION items
+    depquiet --fix --dry-run    # show what would be fixed without changing anything
+"""
+
+from __future__ import annotations
+
+import subprocess
+import sys
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from depquiet.models import ScanResult, TriageResult, Verdict
+
+
+@dataclass
+class FixResult:
+    """Outcome of a single package fix attempt."""
+
+    package: str
+    from_version: str
+    to_version: str
+    cve: str
+    success: bool
+    message: str = ""
+
+
+@dataclass
+class FixReport:
+    """Summary of all fix attempts."""
+
+    fixed: list[FixResult] = field(default_factory=list)
+    skipped: list[FixResult] = field(default_factory=list)
+    failed: list[FixResult] = field(default_factory=list)
+
+    @property
+    def total_fixable(self) -> int:
+        return len(self.fixed) + len(self.failed)
+
+
+def find_fixable(scan_result: ScanResult) -> list[TriageResult]:
+    """Return ACTION results that have a known fix version."""
+    seen: set[str] = set()
+    fixable: list[TriageResult] = []
+    for tr in scan_result.results:
+        if tr.verdict != Verdict.ACTION:
+            continue
+        if not tr.vuln.fix_version:
+            continue
+        key = f"{tr.vuln.package}@{tr.vuln.fix_version}"
+        if key in seen:
+            continue
+        seen.add(key)
+        fixable.append(tr)
+    return fixable
+
+
+def apply_fixes(
+    scan_result: ScanResult,
+    project: Path,
+    *,
+    dry_run: bool = False,
+) -> FixReport:
+    """Apply fixes for ACTION items with known fix versions.
+
+    Args:
+        scan_result: Result of a depquiet scan.
+        project: Path to the project root.
+        dry_run: If True, report what would be fixed without running commands.
+
+    Returns:
+        FixReport with results of each fix attempt.
+    """
+    fixable = find_fixable(scan_result)
+    report = FixReport()
+    pm = scan_result.package_manager
+
+    for tr in fixable:
+        pkg = tr.vuln.package
+        fix_ver = tr.vuln.fix_version
+        from_ver = tr.vuln.version
+        cve = tr.vuln.cve
+
+        if dry_run:
+            cmd_str = _build_command_str(pm, pkg, fix_ver)
+            report.fixed.append(
+                FixResult(
+                    package=pkg,
+                    from_version=from_ver,
+                    to_version=fix_ver,
+                    cve=cve,
+                    success=True,
+                    message=f"Would run: {cmd_str}",
+                )
+            )
+            continue
+
+        result = _run_fix(pm, pkg, fix_ver, project)
+        if result.success:
+            report.fixed.append(
+                FixResult(
+                    package=pkg,
+                    from_version=from_ver,
+                    to_version=fix_ver,
+                    cve=cve,
+                    success=True,
+                    message=result.message,
+                )
+            )
+        else:
+            report.failed.append(
+                FixResult(
+                    package=pkg,
+                    from_version=from_ver,
+                    to_version=fix_ver,
+                    cve=cve,
+                    success=False,
+                    message=result.message,
+                )
+            )
+
+    # Report ACTION items without a fix version
+    for tr in scan_result.action:
+        if not tr.vuln.fix_version:
+            report.skipped.append(
+                FixResult(
+                    package=tr.vuln.package,
+                    from_version=tr.vuln.version,
+                    to_version="",
+                    cve=tr.vuln.cve,
+                    success=False,
+                    message="No fix version available",
+                )
+            )
+
+    return report
+
+
+def _build_command_str(pm: str, package: str, fix_version: str) -> str:
+    """Build the shell command string for display."""
+    if pm == "pip":
+        return f"pip install {package}=={fix_version}"
+    # Default to npm-style
+    return f"npm install {package}@{fix_version}"
+
+
+@dataclass
+class _CmdResult:
+    success: bool
+    message: str
+
+
+def _run_fix(pm: str, package: str, fix_version: str, project: Path) -> _CmdResult:
+    """Run the package manager command to fix a vulnerability."""
+    if pm == "pip":
+        cmd = [sys.executable, "-m", "pip", "install", f"{package}=={fix_version}"]
+    else:
+        cmd = ["npm", "install", f"{package}@{fix_version}"]
+
+    try:
+        result = subprocess.run(
+            cmd,
+            cwd=project,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if result.returncode == 0:
+            return _CmdResult(success=True, message=f"Updated {package} to {fix_version}")
+        return _CmdResult(
+            success=False,
+            message=f"Command failed (exit {result.returncode}): {result.stderr.strip()[:200]}",
+        )
+    except FileNotFoundError:
+        return _CmdResult(success=False, message=f"Command not found: {cmd[0]}")
+    except subprocess.TimeoutExpired:
+        return _CmdResult(success=False, message="Command timed out after 120s")
+
+
+def print_fix_report(report: FixReport, *, dry_run: bool = False) -> None:
+    """Print a human-readable fix report to stderr."""
+    prefix = "[dry-run] " if dry_run else ""
+
+    if report.fixed:
+        print(f"\n{prefix}✅ Fixed {len(report.fixed)} vulnerabilities:", file=sys.stderr)
+        for r in report.fixed:
+            print(
+                f"   {r.cve}  {r.package} {r.from_version} → {r.to_version}",
+                file=sys.stderr,
+            )
+
+    if report.failed:
+        print(f"\n{prefix}❌ Failed to fix {len(report.failed)}:", file=sys.stderr)
+        for r in report.failed:
+            print(f"   {r.cve}  {r.package}: {r.message}", file=sys.stderr)
+
+    if report.skipped:
+        print(
+            f"\n{prefix}⚠️  {len(report.skipped)} ACTION items have no fix available:",
+            file=sys.stderr,
+        )
+        for r in report.skipped:
+            print(f"   {r.cve}  {r.package} {r.from_version}", file=sys.stderr)
