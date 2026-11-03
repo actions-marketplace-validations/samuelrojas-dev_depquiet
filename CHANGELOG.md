@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-03
+
+### Added
+
+- **License compliance analysis (`--license`)** — scan all dependencies for license risk. Classifies ~60 SPDX license IDs into LOW / MEDIUM / HIGH / CRITICAL / UNKNOWN risk levels.
+- Copyleft detection: flags GPL, AGPL, SSPL, BUSL and other restrictive licenses that may contaminate proprietary code
+- SPDX expression support: `OR` picks the most permissive option, `AND` picks the most restrictive
+- Common alias normalization: `"Apache License 2.0"` → `Apache-2.0`, `"GPLv3"` → `GPL-3.0`, etc.
+- npm scanner: reads `license` / `licenses` fields from every `node_modules/*/package.json` (including scoped packages)
+- pip scanner: uses `pip list` + `importlib.metadata` classifiers to resolve license IDs
+- `--license --json` for machine-readable license output
+- 33 tests for the license module covering classification, npm/pip scanning, report output, and edge cases
+
 ## [0.10.0] - 2026-11-03
 
 ### Added
@@ -133,7 +146,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.7.0...v0.8.0

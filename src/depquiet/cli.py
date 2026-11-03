@@ -22,6 +22,7 @@ from depquiet import __version__
 from depquiet.config import load_config
 from depquiet.engine import scan
 from depquiet.fix import apply_fixes, print_fix_report
+from depquiet.license import LicenseReport, print_license_report, scan_licenses
 from depquiet.models import ScanResult
 from depquiet.output import print_scan_result
 from depquiet.policy import load_policy
@@ -115,6 +116,12 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Show what --fix would do without changing anything",
     )
+    parser.add_argument(
+        "--license",
+        action="store_true",
+        dest="license_scan",
+        help="Run license compliance analysis on all dependencies",
+    )
 
     args = parser.parse_args(argv)
 
@@ -178,6 +185,16 @@ def main(argv: list[str] | None = None) -> int:
             sbom_fmt = "xml" if args.sbom.suffix.lower() == ".xml" else "json"
         write_sbom(result, args.sbom, fmt=sbom_fmt)
 
+    # License compliance
+    if args.license_scan:
+        license_report = scan_licenses(args.path, package_manager=result.package_manager)
+        if args.json_output:
+            _print_license_json(license_report)
+        else:
+            print_license_report(license_report)
+        if license_report.has_issues:
+            return 1
+
     # Auto-fix
     if args.fix or args.dry_run:
         fix_report = apply_fixes(result, args.path, dry_run=args.dry_run)
@@ -229,3 +246,32 @@ def _print_json(result: ScanResult) -> None:
 
     json.dump(out, sys.stdout, indent=2)
     print()  # trailing newline
+
+
+def _print_license_json(report: LicenseReport) -> None:
+    """Print machine-readable license JSON to stdout."""
+    out: dict[str, Any] = {
+        "project": report.project_path,
+        "package_manager": report.package_manager,
+        "total": len(report.packages),
+        "summary": {
+            "low": len(report.low),
+            "medium": len(report.medium),
+            "high": len(report.high),
+            "critical": len(report.critical),
+            "unknown": len(report.unknown),
+        },
+        "issues": [
+            {
+                "package": p.package,
+                "version": p.version,
+                "license": p.license_id,
+                "license_raw": p.license_raw,
+                "risk": p.risk.value,
+            }
+            for p in report.packages
+            if p.risk.value in ("high", "critical", "unknown")
+        ],
+    }
+    json.dump(out, sys.stdout, indent=2)
+    print()

@@ -248,6 +248,9 @@ depquiet --fix
 
 # See what --fix would do without changing anything
 depquiet --fix --dry-run
+
+# License compliance scan
+depquiet --license
 ```
 
 ### Auto-remediation (`--fix`)
@@ -280,6 +283,56 @@ $ depquiet --fix --dry-run
 ```
 
 **Exit codes with `--fix`:** returns `0` when every ACTION item is resolved; returns `1` when any remain unfixed (no fix version, or the upgrade command failed).
+
+### License compliance (`--license`)
+
+`depquiet --license` scans every installed dependency for license risk — copyleft contamination, unknown licenses, and restrictive terms that could block enterprise adoption or open-source distribution.
+
+```
+$ depquiet --license
+
+depquiet license scan — npm (847 packages)
+
+LOW (permissive):  812 packages
+   MIT, Apache-2.0, BSD-2-Clause, ISC, ...
+
+MEDIUM (weak copyleft):  4 packages
+   LGPL-2.1   libfoo 3.2.1
+   MPL-2.0    bar-utils 1.0.0
+   ...
+
+🔴 HIGH (copyleft):  2 packages
+   GPL-3.0    gpl-thing 1.0.0
+   GPL-2.0    another-gpl 2.1.0
+
+🔴 CRITICAL (network copyleft / non-OSS):  1 package
+   AGPL-3.0   agpl-server 0.5.0
+
+⚠️  UNKNOWN:  1 package
+   ???        mystery-pkg 1.2.3
+
+License scan: FAIL — 4 packages need review
+```
+
+Risk levels:
+
+| Level | Licenses | Meaning |
+|-------|----------|---------|
+| **LOW** | MIT, BSD, Apache-2.0, ISC, Unlicense, ... | Permissive — safe for any use |
+| **MEDIUM** | LGPL-2.1, LGPL-3.0, MPL-2.0, EPL-2.0 | Weak copyleft — check linking requirements |
+| **HIGH** | GPL-2.0, GPL-3.0 | Strong copyleft — derivative works must be GPL |
+| **CRITICAL** | AGPL-3.0, SSPL-1.0, BUSL-1.1 | Network copyleft or non-OSS — high legal risk |
+| **UNKNOWN** | Unrecognized or missing | Needs manual review |
+
+SPDX expressions are handled automatically: `MIT OR GPL-3.0` picks the most permissive (MIT → LOW), `MIT AND GPL-3.0` picks the most restrictive (GPL-3.0 → HIGH). Common non-SPDX strings like `"Apache License 2.0"` and `"GPLv3"` are normalized to their SPDX IDs.
+
+**Exit codes with `--license`:** returns `0` when all dependencies are LOW or MEDIUM; returns `1` when any HIGH, CRITICAL, or UNKNOWN licenses are found.
+
+Combine with JSON output for CI integration:
+
+```bash
+depquiet --license --json
+```
 
 ## CI Integration
 
