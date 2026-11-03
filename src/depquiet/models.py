@@ -33,6 +33,7 @@ class FilterReason(Enum):
     DEV_DEPENDENCY = "dev_dependency"
     LOW_EPSS = "low_epss"
     COMMUNITY_TEMPLATE = "community_template"
+    IGNORED = "ignored"
 
 
 @dataclass

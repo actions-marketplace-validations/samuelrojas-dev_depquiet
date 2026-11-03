@@ -251,6 +251,12 @@ depquiet --fix --dry-run
 
 # License compliance scan
 depquiet --license
+
+# Use a suppression file (auto-detected from project root)
+depquiet   # reads .depquiet-ignore if present
+
+# Explicit ignore file
+depquiet --ignore ./custom-ignore.yaml
 ```
 
 ### Auto-remediation (`--fix`)
@@ -333,6 +339,37 @@ Combine with JSON output for CI integration:
 ```bash
 depquiet --license --json
 ```
+
+### Suppression file (`.depquiet-ignore`)
+
+Teams need a way to acknowledge accepted risk without disabling the tool. The `.depquiet-ignore` file provides per-CVE and per-package suppressions with accountability:
+
+```yaml
+ignores:
+  # Suppress a specific CVE (any package)
+  - cve: CVE-2024-1234
+    reason: "Mitigated by WAF rule WR-123"
+    expires: 2025-06-01
+    author: alice
+
+  # Suppress a CVE only for a specific package
+  - cve: CVE-2024-5678
+    package: lodash
+    reason: "Only used in tests, no production exposure"
+
+  # Suppress all CVEs for a package (migration planned)
+  - package: deprecated-pkg
+    reason: "Migration to replacement-pkg planned for Q2"
+    expires: 2025-07-01
+```
+
+Place `.depquiet-ignore` in the project root (auto-detected) or pass `--ignore path/to/file.yaml`.
+
+**Match priority:** CVE+package > CVE-only > package-only. Only ACTION and REVIEW items are suppressed — already-filtered items are left as-is.
+
+**Expiry dates:** When an entry's `expires` date passes, it stops suppressing and depquiet prints a warning. This prevents suppressions from rotting forever — teams must re-evaluate periodically.
+
+**Audit trail:** The `reason` field (recommended) explains why the risk was accepted. The `author` field records who made the decision.
 
 ## CI Integration
 

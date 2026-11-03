@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-11-03
+
+### Added
+
+- **Suppression file (`.depquiet-ignore`)** — per-CVE and per-package suppressions with required reason, optional expiry dates, and author tracking for audit trails
+- Match priority: CVE+package > CVE-only > package-only
+- Expired entries print warnings instead of silently suppressing
+- `--ignore` CLI flag for custom ignore file path
+- Auto-detection of `.depquiet-ignore`, `.depquiet-ignore.yaml`, `.depquiet-ignore.yml` in the project root
+- New `FilterReason.IGNORED` for suppressed items
+- 45 tests for the ignore module covering parsing, matching, expiry, apply_ignores, and edge cases
+
 ## [0.11.0] - 2026-11-03
 
 ### Added
@@ -146,7 +158,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.8.0...v0.9.0

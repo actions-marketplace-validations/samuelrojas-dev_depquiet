@@ -22,6 +22,7 @@ from depquiet import __version__
 from depquiet.config import load_config
 from depquiet.engine import scan
 from depquiet.fix import apply_fixes, print_fix_report
+from depquiet.ignore import apply_ignores, load_ignore, print_ignore_warnings
 from depquiet.license import LicenseReport, print_license_report, scan_licenses
 from depquiet.models import ScanResult
 from depquiet.output import print_scan_result
@@ -122,6 +123,12 @@ def main(argv: list[str] | None = None) -> int:
         dest="license_scan",
         help="Run license compliance analysis on all dependencies",
     )
+    parser.add_argument(
+        "--ignore",
+        type=Path,
+        metavar="FILE",
+        help="Path to ignore file (default: .depquiet-ignore in project root)",
+    )
 
     args = parser.parse_args(argv)
 
@@ -169,6 +176,12 @@ def main(argv: list[str] | None = None) -> int:
         always_flag=merged.always_flag or None,
         policy=policy,
     )
+
+    # Apply suppressions
+    ignore_file = load_ignore(args.path, ignore_path=args.ignore)
+    if ignore_file is not None:
+        apply_ignores(result, ignore_file)
+        print_ignore_warnings(ignore_file)
 
     # Output
     if args.json_output:
