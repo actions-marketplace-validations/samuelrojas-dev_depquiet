@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+- "You just saved ~N minutes of triage time" from the scan output. The number was
+  filtered alerts × 2 minutes, an assumption presented as a measurement.
+
 ## [0.28.0] - 2026-11-04
 
 ### Fixed

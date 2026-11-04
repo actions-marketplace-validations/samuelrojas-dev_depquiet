@@ -1073,7 +1073,7 @@ class TestOutputEdgeCases:
         captured = capsys.readouterr()
         assert "FILTERED" in captured.out
 
-    def test_output_time_saved(self, capsys):
+    def test_output_has_no_time_saved_estimate(self, capsys):
         """Time-saved message appears when items are filtered."""
         v = Vulnerability(
             cve="CVE-1",
@@ -1095,7 +1095,9 @@ class TestOutputEdgeCases:
         )
         print_scan_result(sr)
         captured = capsys.readouterr()
-        assert "minutes of triage time" in captured.out
+        assert "1 filtered" in captured.out
+        # No made-up time-saved estimate in the output.
+        assert "minutes" not in captured.out
 
 
 # ── Models edge cases ─────────────────────────────────────────────────

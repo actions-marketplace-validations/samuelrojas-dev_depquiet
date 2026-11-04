@@ -122,7 +122,4 @@ def print_scan_result(result: ScanResult) -> None:
         parts.append(_c(_GREEN, f"{len(filtered)} filtered"))
 
     print(f"Total: {total} alerts — {' | '.join(parts)}")
-
-    if filtered:
-        print(_c(_DIM, f"You just saved ~{len(filtered) * 2} minutes of triage time."))
     print()
