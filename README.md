@@ -706,26 +706,43 @@ Templates are the growth engine: each contribution helps every depquiet user.
 
 ## Configuration
 
-Create `.depquiet.yaml` in your project root (or pass `--config path/to/config.yaml`):
+Create `.depquiet.yaml` in your project root (or pass `--config path/to/config.yaml`).
+Every key is optional — add only what you need:
 
 ```yaml
-# EPSS threshold (default: 0.1 = 10%)
-epss_threshold: 0.05
-
-# Extra template directories
-template_dirs:
-  - ./my-templates
-
-# Packages to always flag (never filter)
-always_flag:
+# Triage tuning
+epss_threshold: 0.05          # EPSS score cutoff (default: 0.1)
+offline: false                # skip EPSS API (default: false)
+always_flag:                  # packages that must never be filtered
   - lodash
   - express
+template_dirs:                # extra template directories
+  - ./my-templates
 
-# Skip EPSS API (fully offline)
-offline: false
+# CI gate
+fail_on: high                 # severity threshold: critical | high | moderate | low | none
+
+# Integrations
+kev: true                     # check CISA KEV catalog
+kev_file: data/kev.json       # local KEV catalog (air-gapped)
+license: true                 # run license compliance analysis
+
+# Input paths (relative to project root)
+policy: .depquiet-policy.yaml
+ignore: .depquiet-ignore
+baseline: reports/baseline.json
+
+# Output files (relative to project root)
+sarif: reports/depquiet.sarif
+html: reports/depquiet.html
+summary: reports/summary.md
+sbom: reports/sbom.cdx.json
+sbom_format: json             # json | xml | spdx
+vex: reports/vex.json
+annotations: reports/annotations.json
 ```
 
-CLI flags override config values. `template_dirs` from both sources are merged.
+CLI flags always override config values when explicitly passed. `template_dirs` from both sources are merged. This enables zero-flag CI — just run `depquiet` and the config drives everything.
 
 ## Policy engine
 

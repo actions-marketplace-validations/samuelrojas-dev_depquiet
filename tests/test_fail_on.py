@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import patch
 
 from depquiet.cli import _should_fail, main
+from depquiet.config import Config
 from depquiet.models import (
     ScanResult,
     Severity,
@@ -105,15 +106,10 @@ def _mock_cli(tmp_path, fail_on: str, severities: list[Severity]) -> int:
     mock_result = _result(severities)
     with (
         patch("depquiet.cli.scan", return_value=mock_result),
-        patch("depquiet.cli.load_config") as mock_config,
+        patch("depquiet.cli.load_config", return_value=Config()),
         patch("depquiet.cli.load_policy", return_value=None),
         patch("depquiet.cli.load_ignore", return_value=None),
     ):
-        mock_config.return_value.merge_cli.return_value = mock_config.return_value
-        mock_config.return_value.epss_threshold = 0.1
-        mock_config.return_value.offline = False
-        mock_config.return_value.template_dirs = None
-        mock_config.return_value.always_flag = None
         return main(["--path", str(tmp_path), "--json", "--fail-on", fail_on])
 
 

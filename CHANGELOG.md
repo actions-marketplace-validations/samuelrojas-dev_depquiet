@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-11-04
+
+### Added
+
+- **Expanded project configuration (`.depquiet.yaml`)** — every major CLI flag now has a config-file equivalent, enabling zero-flag CI runs from a single committed config file
+- New config keys: `fail_on`, `kev`, `kev_file`, `license`, `policy`, `ignore`, `baseline`, `sarif`, `html`, `summary`, `sbom`, `sbom_format`, `vex`, `annotations`
+- CLI flags always override config values when explicitly passed; config values serve as project defaults
+- Output paths in config are resolved relative to the project root
+- Enum validation for `fail_on` (critical/high/moderate/low/none) and `sbom_format` (json/xml/spdx) with warnings on invalid values
+- Case-insensitive parsing for enum values and boolean yes/no/true/false
+- 46 tests covering config defaults, key parsing, CLI-config merge semantics, validation, and edge cases
+
+### Changed
+
+- `Config.merge_cli()` now accepts all new keys with consistent override semantics: `None`/`False` means "not set on CLI, fall through to config"; explicit values win
+- CLI internals refactored to detect which flags were explicitly passed (vs argparse defaults) so config values aren't silently overridden
+
 ## [0.23.0] - 2026-11-04
 
 ### Added

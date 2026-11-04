@@ -295,10 +295,28 @@ def main(argv: list[str] | None = None) -> int:
     elif "--epss-threshold" in sys.argv:
         cli_threshold = args.epss_threshold
 
+    # Detect which CLI flags were explicitly passed (vs argparse defaults)
+    _raw = argv if argv is not None else sys.argv[1:]
+    _has = lambda flag: flag in _raw  # noqa: E731
+
     merged = config.merge_cli(
         epss_threshold=cli_threshold,
         template_dirs=args.templates,
         offline=args.offline,
+        fail_on=args.fail_on if _has("--fail-on") else None,
+        kev=args.kev if _has("--kev") else False,
+        kev_file=args.kev_file if _has("--kev-file") else None,
+        license_scan=args.license_scan if _has("--license") else False,
+        policy=args.policy if _has("--policy") else None,
+        ignore=args.ignore if _has("--ignore") else None,
+        baseline=args.baseline if _has("--baseline") else None,
+        sarif=args.sarif if _has("--sarif") else None,
+        html=args.html if _has("--html") else None,
+        summary=args.summary if _has("--summary") else None,
+        sbom=args.sbom if _has("--sbom") else None,
+        sbom_format=args.sbom_format if _has("--sbom-format") else None,
+        vex=args.vex if _has("--vex") else None,
+        annotations=args.annotations if _has("--annotations") else None,
     )
 
     # Read piped input or SBOM file
@@ -321,8 +339,8 @@ def main(argv: list[str] | None = None) -> int:
         # Dependabot exports are JSON arrays — wrap for the engine
         audit_json = {"alerts": raw} if isinstance(raw, list) else raw
 
-    # Load policy
-    policy = load_policy(args.path, policy_path=args.policy)
+    # Load policy (from CLI, config, or project default)
+    policy = load_policy(args.path, policy_path=merged.policy)
 
     # Run scan
     result = scan(
@@ -335,15 +353,15 @@ def main(argv: list[str] | None = None) -> int:
         policy=policy,
     )
 
-    # Apply suppressions
-    ignore_file = load_ignore(args.path, ignore_path=args.ignore)
+    # Apply suppressions (from CLI, config, or project default)
+    ignore_file = load_ignore(args.path, ignore_path=merged.ignore)
     if ignore_file is not None:
         apply_ignores(result, ignore_file)
         print_ignore_warnings(ignore_file)
 
     # Apply baseline — demote known findings to FILTERED
-    if args.baseline:
-        baseline_keys = load_baseline(args.baseline)
+    if merged.baseline:
+        baseline_keys = load_baseline(merged.baseline)
         bl = apply_baseline(result, baseline_keys)
         if not args.json_output:
             print(
@@ -352,10 +370,10 @@ def main(argv: list[str] | None = None) -> int:
             )
 
     # Apply KEV escalation — auto-escalate actively exploited CVEs
-    if args.kev or args.kev_file:
+    if merged.kev or merged.kev_file:
         kev_catalog: KevCatalog | None
-        if args.kev_file:
-            kev_catalog = load_kev_from_file(args.kev_file)
+        if merged.kev_file:
+            kev_catalog = load_kev_from_file(merged.kev_file)
         else:
             kev_catalog = fetch_kev_catalog(offline=merged.offline)
         if kev_catalog is not None:
@@ -375,37 +393,37 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print_scan_result(result)
 
-    if args.sarif:
-        write_sarif(result, args.sarif)
+    if merged.sarif:
+        write_sarif(result, merged.sarif)
 
-    if args.sbom:
-        sbom_fmt = args.sbom_format
+    if merged.sbom:
+        sbom_fmt = merged.sbom_format
         if sbom_fmt is None:
-            name_lower = args.sbom.name.lower()
+            name_lower = merged.sbom.name.lower()
             if name_lower.endswith(".spdx.json") or name_lower.endswith(".spdx"):
                 sbom_fmt = "spdx"
-            elif args.sbom.suffix.lower() == ".xml":
+            elif merged.sbom.suffix.lower() == ".xml":
                 sbom_fmt = "xml"
             else:
                 sbom_fmt = "json"
-        write_sbom(result, args.sbom, fmt=sbom_fmt)
+        write_sbom(result, merged.sbom, fmt=sbom_fmt)
 
-    if args.summary:
-        write_summary(result, args.summary)
+    if merged.summary:
+        write_summary(result, merged.summary)
 
-    if args.html:
-        write_html(result, args.html)
+    if merged.html:
+        write_html(result, merged.html)
 
-    if args.annotations:
+    if merged.annotations:
         ann_report = build_annotations(result)
-        write_annotations(ann_report, args.annotations)
+        write_annotations(ann_report, merged.annotations)
 
-    if args.vex:
+    if merged.vex:
         vex_doc = build_vex(result)
-        write_vex(vex_doc, args.vex)
+        write_vex(vex_doc, merged.vex)
 
-    # License compliance
-    if args.license_scan:
+    # License compliance (from CLI or config)
+    if merged.license or args.license_scan:
         license_report = scan_licenses(args.path, package_manager=result.package_manager)
         if args.json_output:
             _print_license_json(license_report)
@@ -425,8 +443,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     # Exit code: 1 if ACTION items meet the severity threshold
-    # --fail-on controls the minimum severity that triggers failure
-    if _should_fail(result, args.fail_on):
+    # --fail-on / config fail_on controls the minimum severity that triggers failure
+    if _should_fail(result, merged.fail_on):
         return 1
     return 0
 
