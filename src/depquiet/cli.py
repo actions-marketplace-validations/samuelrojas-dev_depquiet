@@ -169,10 +169,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--sbom-format",
-        choices=["json", "xml"],
+        choices=["json", "xml", "spdx"],
         default=None,
         metavar="FMT",
-        help="SBOM format: json (default) or xml. Inferred from --sbom extension if omitted.",
+        help=(
+            "SBOM format: json (CycloneDX, default), xml (CycloneDX), "
+            "or spdx (SPDX 2.3 JSON). Inferred from --sbom extension if omitted."
+        ),
     )
     parser.add_argument(
         "--policy",
@@ -359,7 +362,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.sbom:
         sbom_fmt = args.sbom_format
         if sbom_fmt is None:
-            sbom_fmt = "xml" if args.sbom.suffix.lower() == ".xml" else "json"
+            name_lower = args.sbom.name.lower()
+            if name_lower.endswith(".spdx.json") or name_lower.endswith(".spdx"):
+                sbom_fmt = "spdx"
+            elif args.sbom.suffix.lower() == ".xml":
+                sbom_fmt = "xml"
+            else:
+                sbom_fmt = "json"
         write_sbom(result, args.sbom, fmt=sbom_fmt)
 
     if args.summary:

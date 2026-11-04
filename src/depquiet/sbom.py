@@ -300,10 +300,14 @@ def write_sbom(
     Args:
         scan_result: Triage results.
         output_path: Where to write the SBOM.
-        fmt: "json" or "xml".
+        fmt: "json", "xml", or "spdx" (SPDX 2.3 JSON).
         packages: Optional lockfile packages for component inventory.
     """
-    if fmt == "xml":
+    if fmt == "spdx":
+        from depquiet.spdx import write_spdx
+
+        write_spdx(scan_result, output_path, packages)
+    elif fmt == "xml":
         data = generate_cyclonedx_xml(scan_result, packages)
         output_path.write_bytes(data)
     else:

@@ -32,11 +32,11 @@ inputs:
     required: false
     default: ""
   sbom:
-    description: "Path to write CycloneDX 1.5 SBOM (.json or .xml)"
+    description: "Path to write SBOM (.json/.xml for CycloneDX, .spdx.json for SPDX 2.3)"
     required: false
     default: ""
   sbom-format:
-    description: "SBOM format: json (default) or xml. Inferred from --sbom extension if omitted."
+    description: "SBOM format: json (CycloneDX, default), xml (CycloneDX), or spdx (SPDX 2.3). Inferred from extension if omitted."
     required: false
     default: ""
   ignore:

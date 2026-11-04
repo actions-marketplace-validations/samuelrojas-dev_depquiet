@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-11-04
+
+### Added
+
+- **SPDX 2.3 SBOM generation (`--sbom-format spdx`)** — produce ISO/IEC 5962:2021-compliant Software Package Data Exchange documents, required alongside CycloneDX by US Executive Order 14028
+- New `spdx.py` module with `generate_spdx_json()` and `write_spdx()` functions
+- Auto-detection of `.spdx.json` and `.spdx` file extensions for format inference
+- SPDX document includes: spdxVersion 2.3, CC0-1.0 data license, Package URLs (purl), SECURITY external references for known CVEs with depquiet verdict annotations, DESCRIBES relationships, and tool creator metadata
+- Package inventory from lockfile parsing or fallback from triage results (same dual-source as CycloneDX)
+- Deduplication of packages by purl (lockfile mode) or by name@version (scan-results mode)
+- Integration with existing `write_sbom()` via `fmt="spdx"` — all three formats (json, xml, spdx) use the same CLI flag
+- 22 tests covering SPDX ID generation, verdict annotations, document structure, lockfile/scan-result sources, deduplication, SECURITY refs, relationships, edge cases, file output, and integration with `write_sbom`
+
 ## [0.21.0] - 2026-11-03
 
 ### Added
