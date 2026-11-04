@@ -24,6 +24,7 @@ from depquiet.config import load_config
 from depquiet.engine import scan
 from depquiet.fix import apply_fixes, print_fix_report
 from depquiet.ignore import apply_ignores, load_ignore, print_ignore_warnings
+from depquiet.kev import apply_kev, fetch_kev_catalog, load_kev_from_file
 from depquiet.license import LicenseReport, print_license_report, scan_licenses
 from depquiet.models import ScanResult
 from depquiet.output import print_scan_result
@@ -147,6 +148,20 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--kev",
+        action="store_true",
+        help=(
+            "Check vulnerabilities against the CISA Known Exploited Vulnerabilities "
+            "(KEV) catalog. KEV-listed CVEs are auto-escalated to ACTION."
+        ),
+    )
+    parser.add_argument(
+        "--kev-file",
+        type=Path,
+        metavar="FILE",
+        help="Path to a local KEV catalog JSON file (for air-gapped environments)",
+    )
+    parser.add_argument(
         "--fail-on",
         choices=["critical", "high", "moderate", "low", "none"],
         default=None,
@@ -219,6 +234,23 @@ def main(argv: list[str] | None = None) -> int:
                 f"\n📊 Baseline: {bl.known_findings} known findings suppressed, "
                 f"{bl.new_findings} new findings remain\n"
             )
+
+    # Apply KEV escalation — auto-escalate actively exploited CVEs
+    if args.kev or args.kev_file:
+        if args.kev_file:
+            kev_catalog = load_kev_from_file(args.kev_file)
+        else:
+            kev_catalog = fetch_kev_catalog(offline=merged.offline)
+        if kev_catalog is not None:
+            kev_result = apply_kev(result, kev_catalog)
+            if not args.json_output:
+                parts = [f"🛡️  KEV: {kev_result.kev_matches} of {kev_result.total_checked}"]
+                parts[0] += " CVEs on the CISA KEV catalog"
+                if kev_result.escalated > 0:
+                    parts.append(f"{kev_result.escalated} escalated to ACTION")
+                print("\n" + " — ".join(parts) + "\n")
+        elif not args.json_output:
+            print("\n⚠️  KEV catalog unavailable (offline with no cache)\n")
 
     # Output
     if args.json_output:
@@ -317,20 +349,26 @@ def _print_json(result: ScanResult) -> None:
         "results": results_list,
     }
     for tr in result.results:
-        results_list.append(
-            {
-                "cve": tr.vuln.cve,
-                "package": tr.vuln.package,
-                "version": tr.vuln.version,
-                "severity": tr.vuln.severity.value,
-                "title": tr.vuln.title,
-                "verdict": tr.verdict.value,
-                "reasons": [r.value for r in tr.reasons],
-                "epss_score": tr.epss_score,
-                "fix_version": tr.vuln.fix_version,
-                "reachable_imports": tr.reachable_imports,
+        entry: dict[str, Any] = {
+            "cve": tr.vuln.cve,
+            "package": tr.vuln.package,
+            "version": tr.vuln.version,
+            "severity": tr.vuln.severity.value,
+            "title": tr.vuln.title,
+            "verdict": tr.verdict.value,
+            "reasons": [r.value for r in tr.reasons],
+            "epss_score": tr.epss_score,
+            "fix_version": tr.vuln.fix_version,
+            "reachable_imports": tr.reachable_imports,
+        }
+        if tr.kev_entry is not None:
+            entry["kev"] = {
+                "date_added": tr.kev_entry.date_added,
+                "due_date": tr.kev_entry.due_date,
+                "required_action": tr.kev_entry.required_action,
+                "ransomware_use": tr.kev_entry.ransomware_use,
             }
-        )
+        results_list.append(entry)
 
     json.dump(out, sys.stdout, indent=2)
     print()  # trailing newline

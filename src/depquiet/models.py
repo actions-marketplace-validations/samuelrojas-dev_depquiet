@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Any
 
 
 class Severity(Enum):
@@ -73,6 +74,7 @@ class TriageResult:
     reachable_imports: list[str] = field(default_factory=list)
     template_id: str | None = None
     template_reason: str | None = None
+    kev_entry: Any = None  # KevEntry when CVE is in the CISA KEV catalog
 
     @property
     def reason_summary(self) -> str:

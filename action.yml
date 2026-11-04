@@ -51,6 +51,14 @@ inputs:
     description: "Path to a previous depquiet --json output. Only NEW findings trigger failure."
     required: false
     default: ""
+  kev:
+    description: "Check vulnerabilities against the CISA KEV catalog. KEV-listed CVEs are auto-escalated to ACTION."
+    required: false
+    default: "false"
+  kev-file:
+    description: "Path to a local KEV catalog JSON file (for air-gapped environments)"
+    required: false
+    default: ""
   fail-on-action:
     description: "Fail the workflow if ACTION items are found (deprecated: use fail-on)"
     required: false
@@ -113,6 +121,8 @@ runs:
         INPUT_FAIL_ON_ACTION: ${{ inputs.fail-on-action }}
         INPUT_FAIL_ON: ${{ inputs.fail-on }}
         INPUT_BASELINE: ${{ inputs.baseline }}
+        INPUT_KEV: ${{ inputs.kev }}
+        INPUT_KEV_FILE: ${{ inputs.kev-file }}
       run: |
         ARGS="--path $INPUT_PATH --epss-threshold $INPUT_EPSS_THRESHOLD --json"
 
@@ -156,6 +166,14 @@ runs:
 
         if [ -n "$INPUT_BASELINE" ]; then
           ARGS="$ARGS --baseline $INPUT_BASELINE"
+        fi
+
+        if [ "$INPUT_KEV" = "true" ]; then
+          ARGS="$ARGS --kev"
+        fi
+
+        if [ -n "$INPUT_KEV_FILE" ]; then
+          ARGS="$ARGS --kev-file $INPUT_KEV_FILE"
         fi
 
         # Job summary — always write when GITHUB_STEP_SUMMARY is available

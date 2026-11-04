@@ -56,6 +56,13 @@ def to_sarif(result: ScanResult) -> dict[str, Any]:
         if tr.epss_score is not None:
             sarif_result.setdefault("properties", {})["epss_score"] = tr.epss_score
 
+        if tr.kev_entry is not None:
+            props = sarif_result.setdefault("properties", {})
+            props["kev"] = True
+            props["kev_date_added"] = tr.kev_entry.date_added
+            props["kev_due_date"] = tr.kev_entry.due_date
+            props["kev_ransomware_use"] = tr.kev_entry.ransomware_use
+
         results.append(sarif_result)
 
     return {
@@ -104,6 +111,9 @@ def _build_message(tr: TriageResult) -> str:
 
     if tr.epss_score is not None:
         parts.append(f"EPSS: {tr.epss_score:.1%}")
+
+    if tr.kev_entry is not None:
+        parts.append("⚠ CISA KEV: actively exploited")
 
     if tr.verdict == Verdict.REVIEW:
         parts.append("Verdict: REVIEW")

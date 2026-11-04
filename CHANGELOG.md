@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-11-03
+
+### Added
+
+- **CISA KEV integration (`--kev`)** — check vulnerabilities against the CISA Known Exploited Vulnerabilities catalog. KEV-listed CVEs are auto-escalated to ACTION, reflecting BOD 22-01 requirements for federal agencies
+- `--kev-file` flag for air-gapped environments — load a local KEV catalog JSON instead of fetching from CISA
+- KEV data enrichment in JSON output (`kev.date_added`, `kev.due_date`, `kev.required_action`, `kev.ransomware_use`)
+- KEV properties in SARIF output (`kev`, `kev_date_added`, `kev_due_date`, `kev_ransomware_use`)
+- `kev` and `kev-file` inputs for the GitHub Action
+- 24-hour local cache for the KEV feed with automatic fallback to expired cache on network failure
+- Ransomware campaign usage tracking from KEV entries
+- 27 tests for the KEV module covering parsing, catalog lookup, apply/escalation, file loading, caching, and CLI integration
+
 ## [0.15.0] - 2026-11-03
 
 ### Added
@@ -187,7 +200,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.12.0...v0.13.0

@@ -383,6 +383,44 @@ Place `.depquiet-ignore` in the project root (auto-detected) or pass `--ignore p
 
 **Audit trail:** The `reason` field (recommended) explains why the risk was accepted. The `author` field records who made the decision.
 
+### CISA KEV integration (`--kev`)
+
+The [CISA Known Exploited Vulnerabilities (KEV)](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) catalog lists CVEs with confirmed active exploitation. Under [BOD 22-01](https://www.cisa.gov/binding-operational-directive-22-01), federal agencies must remediate KEV-listed CVEs within strict deadlines — and any organization should treat them as top priority.
+
+```bash
+# Check scan results against the KEV catalog
+depquiet --kev
+
+# Air-gapped environments: use a local copy of the catalog
+depquiet --kev-file /path/to/known_exploited_vulnerabilities.json
+```
+
+How it works: KEV-listed CVEs are **auto-escalated to ACTION** regardless of other filters. A low-EPSS, devDependency, or unreachable vulnerability that's on the KEV catalog gets promoted to ACTION because active exploitation trumps all other signals.
+
+The KEV feed is cached locally for 24 hours. On network failure, depquiet falls back to the expired cache. In `--offline` mode, only the cache is used.
+
+JSON output includes KEV enrichment:
+
+```json
+{
+  "cve": "CVE-2021-44228",
+  "verdict": "action",
+  "kev": {
+    "date_added": "2021-12-10",
+    "due_date": "2021-12-24",
+    "required_action": "Apply updates per vendor instructions.",
+    "ransomware_use": true
+  }
+}
+```
+
+Combine with baseline and fail-on for maximum control:
+
+```bash
+# Accept known debt, but always flag KEV-listed CVEs
+depquiet --baseline .depquiet-baseline.json --kev --fail-on high
+```
+
 ### Baseline diffing (`--baseline`)
 
 Adopting depquiet on an existing codebase? The `--baseline` flag lets you accept the current state and only fail on **new** vulnerabilities — just like Snyk's `--new-only` or Trivy's `--ignore-unfixed`.
@@ -459,7 +497,7 @@ The action installs depquiet, runs it, uploads SARIF to GitHub Code Scanning, up
 
 The action automatically writes a **Job Summary** to the PR checks page with severity badges, EPSS scores, fix versions, and a filtered breakdown.
 
-**Action inputs:** `path`, `epss-threshold`, `offline`, `sarif`, `templates`, `policy`, `sbom`, `sbom-format`, `ignore`, `license`, `baseline`, `fail-on-action`, `fail-on`, `python-version`.
+**Action inputs:** `path`, `epss-threshold`, `offline`, `sarif`, `templates`, `policy`, `sbom`, `sbom-format`, `ignore`, `license`, `baseline`, `kev`, `kev-file`, `fail-on-action`, `fail-on`, `python-version`.
 
 > **Note:** `fail-on` (severity-based) supersedes `fail-on-action` (boolean). When `fail-on` is set, `fail-on-action` is ignored.
 
