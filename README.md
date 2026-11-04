@@ -10,7 +10,10 @@
 
 `depquiet` triages your `npm audit` / `pip-audit` / `trivy` / `grype` / Dependabot / Snyk alerts and tells you which CVEs actually matter — in seconds, not hours. It can also **scan lockfiles directly** using the [OSV.dev](https://osv.dev) API — no external scanner required.
 
-A real Express app, `npm audit` piped in ([reproduce it](benchmarks/RESULTS.md#real-npm-express)):
+![depquiet on a real Express app: npm audit, then depquiet, then depquiet explain](docs/demo/demo.gif)
+
+Every line in the recording is real command output ([how it's made](docs/demo/make_demo.py)).
+The same run as text ([reproduce it](benchmarks/RESULTS.md#real-npm-express)):
 
 ```
 $ npm audit --json | depquiet --stdin

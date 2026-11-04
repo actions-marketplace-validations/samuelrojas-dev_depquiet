@@ -69,6 +69,11 @@ Changelog = "https://github.com/samuelrojas-dev/depquiet/blob/main/CHANGELOG.md"
 [tool.hatch.build.targets.wheel]
 packages = ["src/depquiet"]
 
+[tool.hatch.build.targets.sdist]
+# Keep the source distribution small: the demo media and captured benchmark
+# fixtures live in the repository, not in the package.
+exclude = ["docs/demo/*.gif", "docs/demo/*.mp4", "docs/demo/captured.json", "benchmarks/fixtures"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--strict-markers -v"
