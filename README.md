@@ -470,6 +470,26 @@ depquiet diff base.json head.json --summary diff-report.md
 
 The action auto-updates the comment on re-runs (deletes previous depquiet comments first), writes a diff summary to `$GITHUB_STEP_SUMMARY`, and exposes `diff-new` / `diff-fixed` outputs for downstream steps.
 
+### Config scaffolder (`depquiet init`)
+
+Bootstrap a `.depquiet.yaml` for your project in seconds. `init` auto-detects the package manager, CI provider, and existing scanners, then generates a config with sensible defaults.
+
+```bash
+# Interactive — shows detection results, asks before writing
+depquiet init
+
+# Non-interactive — accept all defaults (great for scripts)
+depquiet init --yes
+
+# Overwrite an existing config
+depquiet init --yes --force
+
+# Write to a custom path
+depquiet init -o configs/depquiet.yaml
+```
+
+Detection covers 11 package managers (npm, pip, Go, Cargo, Maven, Gradle, Gem, Composer, Pub, NuGet), 6 CI providers (GitHub Actions, GitLab CI, Jenkins, CircleCI, Bitbucket, Azure DevOps), and 6 scanner tools (Snyk, Trivy, Grype, OSV-Scanner, Dependabot, Renovate). GitHub Actions projects automatically get SARIF and summary outputs enabled.
+
 ### CISA KEV integration (`--kev`)
 
 The [CISA Known Exploited Vulnerabilities (KEV)](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) catalog lists CVEs with confirmed active exploitation. Under [BOD 22-01](https://www.cisa.gov/binding-operational-directive-22-01), federal agencies must remediate KEV-listed CVEs within strict deadlines — and any organization should treat them as top priority.

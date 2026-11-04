@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-11-04
+
+### Added
+
+- **`depquiet init` config scaffolder** — interactive subcommand that detects the project environment and generates a `.depquiet.yaml` with sensible defaults
+- Auto-detects 11 package managers: npm, pip, Go, Cargo, Maven, Gradle, Gem, Composer, Pub, NuGet, and multi-manager monorepos
+- Auto-detects 6 CI providers: GitHub Actions, GitLab CI, Jenkins, CircleCI, Bitbucket Pipelines, Azure DevOps
+- Auto-detects existing scanners: Snyk, Trivy, Grype, OSV-Scanner, Dependabot, Renovate
+- GitHub Actions projects get SARIF and summary outputs enabled by default
+- `--yes` flag for non-interactive mode (CI/scripted setups)
+- `--force` flag to overwrite existing config
+- `-o` / `--output` flag for custom output path
+- Generated config is loadable by depquiet's own config parser (round-trip tested)
+- 48 tests covering detection, generation, overwrite protection, and CLI dispatch
+
 ## [0.24.0] - 2026-11-04
 
 ### Added

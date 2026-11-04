@@ -105,12 +105,48 @@ def diff_main(argv: list[str]) -> int:
     return 0
 
 
+def init_main(argv: list[str]) -> int:
+    """Run the `depquiet init` subcommand. Returns exit code."""
+    from depquiet.init import init_command
+
+    parser = argparse.ArgumentParser(
+        prog="depquiet init",
+        description="Generate a .depquiet.yaml config for this project.",
+    )
+    parser.add_argument(
+        "--path",
+        type=Path,
+        default=Path("."),
+        help="Project directory (default: current directory)",
+    )
+    parser.add_argument(
+        "-y", "--yes",
+        action="store_true",
+        help="Non-interactive mode — accept all defaults",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite existing .depquiet.yaml",
+    )
+    parser.add_argument(
+        "-o", "--output",
+        type=Path,
+        metavar="FILE",
+        help="Write config to FILE instead of <project>/.depquiet.yaml",
+    )
+    args = parser.parse_args(argv)
+    return init_command(args.path, yes=args.yes, force=args.force, output=args.output)
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the depquiet CLI. Returns exit code."""
     # Dispatch to subcommands before argparse sees them
     effective = argv if argv is not None else sys.argv[1:]
     if effective and effective[0] == "diff":
         return diff_main(effective[1:])
+    if effective and effective[0] == "init":
+        return init_main(effective[1:])
 
     parser = argparse.ArgumentParser(
         prog="depquiet",
