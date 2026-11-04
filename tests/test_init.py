@@ -20,6 +20,7 @@ from depquiet.init import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _touch(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.touch()

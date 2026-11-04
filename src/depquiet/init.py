@@ -26,6 +26,7 @@ from textwrap import dedent
 # Detection dataclasses
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ProjectInfo:
     """Detected project characteristics."""
@@ -106,10 +107,9 @@ def detect_project(project: Path) -> ProjectInfo:
         if _match_signal(project, patterns):
             info.existing_scanners.append(name)
 
-    info.has_depquiet_config = (
-        (project / ".depquiet.yaml").is_file()
-        or (project / ".depquiet.yml").is_file()
-    )
+    info.has_depquiet_config = (project / ".depquiet.yaml").is_file() or (
+        project / ".depquiet.yml"
+    ).is_file()
 
     return info
 
@@ -117,6 +117,7 @@ def detect_project(project: Path) -> ProjectInfo:
 # ---------------------------------------------------------------------------
 # Config generation
 # ---------------------------------------------------------------------------
+
 
 def _pick_threshold(info: ProjectInfo) -> float:
     """Choose a sensible EPSS threshold based on ecosystem."""
@@ -189,6 +190,7 @@ def generate_config(
 # Interactive prompts
 # ---------------------------------------------------------------------------
 
+
 def _confirm(prompt: str, default: bool = True) -> bool:
     """Ask a yes/no question on the terminal."""
     suffix = " [Y/n] " if default else " [y/N] "
@@ -222,6 +224,7 @@ def _print_detection(info: ProjectInfo) -> None:
 # ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
+
 
 def init_command(
     project: Path,

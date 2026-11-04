@@ -26,6 +26,7 @@ from depquiet.stats import (
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 def _vuln(**kw) -> Vulnerability:
     defaults = {
         "cve": "CVE-2024-0001",
@@ -177,9 +178,9 @@ class TestComputeStats:
     def test_epss_distribution(self):
         results = _sample_results()
         stats = compute_stats(results)
-        assert stats.epss.low == 2      # 0.02, 0.01
-        assert stats.epss.medium == 1   # 0.15
-        assert stats.epss.high == 1     # 0.85
+        assert stats.epss.low == 2  # 0.02, 0.01
+        assert stats.epss.medium == 1  # 0.15
+        assert stats.epss.high == 1  # 0.85
         assert stats.epss.critical == 1  # 0.95
         assert stats.epss.unavailable == 1
 
@@ -395,8 +396,10 @@ class TestCLIDispatch:
         scan_data = {
             "results": [
                 {
-                    "cve": f"CVE-2024-{i:04d}", "package": f"pkg-{i}",
-                    "verdict": "action", "reasons": [],
+                    "cve": f"CVE-2024-{i:04d}",
+                    "package": f"pkg-{i}",
+                    "verdict": "action",
+                    "reasons": [],
                 }
                 for i in range(20)
             ]

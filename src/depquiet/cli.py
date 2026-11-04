@@ -290,7 +290,8 @@ def init_main(argv: list[str]) -> int:
         help="Project directory (default: current directory)",
     )
     parser.add_argument(
-        "-y", "--yes",
+        "-y",
+        "--yes",
         action="store_true",
         help="Non-interactive mode — accept all defaults",
     )
@@ -300,7 +301,8 @@ def init_main(argv: list[str]) -> int:
         help="Overwrite existing .depquiet.yaml",
     )
     parser.add_argument(
-        "-o", "--output",
+        "-o",
+        "--output",
         type=Path,
         metavar="FILE",
         help="Write config to FILE instead of <project>/.depquiet.yaml",

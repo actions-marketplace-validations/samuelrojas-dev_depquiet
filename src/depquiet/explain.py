@@ -25,6 +25,7 @@ from depquiet.models import FilterReason, ScanResult, TriageResult, Verdict
 # Explanation model
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class Signal:
     """One contributing signal to the verdict."""
@@ -70,6 +71,7 @@ class Explanation:
 # Explain logic
 # ---------------------------------------------------------------------------
 
+
 def explain_triage(tr: TriageResult) -> Explanation:
     """Build an Explanation from a TriageResult."""
     signals: list[Signal] = []
@@ -86,93 +88,115 @@ def explain_triage(tr: TriageResult) -> Explanation:
         else:
             effect = "neutral"
             detail = "Above threshold"
-        signals.append(Signal(
-            name="EPSS score",
-            value=f"{pct:.1f}%",
-            effect=effect,
-            detail=detail,
-        ))
+        signals.append(
+            Signal(
+                name="EPSS score",
+                value=f"{pct:.1f}%",
+                effect=effect,
+                detail=detail,
+            )
+        )
     else:
-        signals.append(Signal(
-            name="EPSS score",
-            value="unavailable",
-            effect="not_applicable",
-            detail="EPSS lookup was skipped or failed",
-        ))
+        signals.append(
+            Signal(
+                name="EPSS score",
+                value="unavailable",
+                effect="not_applicable",
+                detail="EPSS lookup was skipped or failed",
+            )
+        )
 
     # 2. Reachability
     if tr.reachable_imports:
         imports = ", ".join(tr.reachable_imports)
-        signals.append(Signal(
-            name="Reachability",
-            value="reachable",
-            effect="escalated",
-            detail=f"Imported by: {imports}",
-        ))
+        signals.append(
+            Signal(
+                name="Reachability",
+                value="reachable",
+                effect="escalated",
+                detail=f"Imported by: {imports}",
+            )
+        )
     elif FilterReason.UNREACHABLE in tr.reasons:
-        signals.append(Signal(
-            name="Reachability",
-            value="unreachable",
-            effect="filtered",
-            detail="Vulnerable code is not imported in this project",
-        ))
+        signals.append(
+            Signal(
+                name="Reachability",
+                value="unreachable",
+                effect="filtered",
+                detail="Vulnerable code is not imported in this project",
+            )
+        )
     else:
-        signals.append(Signal(
-            name="Reachability",
-            value="unknown",
-            effect="neutral",
-            detail="Reachability analysis did not run or was inconclusive",
-        ))
+        signals.append(
+            Signal(
+                name="Reachability",
+                value="unknown",
+                effect="neutral",
+                detail="Reachability analysis did not run or was inconclusive",
+            )
+        )
 
     # 3. Dev dependency
     if tr.vuln.is_dev:
         effect = "filtered" if FilterReason.DEV_DEPENDENCY in tr.reasons else "neutral"
-        signals.append(Signal(
-            name="Dependency type",
-            value="devDependency",
-            effect=effect,
-            detail="Not included in production builds",
-        ))
+        signals.append(
+            Signal(
+                name="Dependency type",
+                value="devDependency",
+                effect=effect,
+                detail="Not included in production builds",
+            )
+        )
     else:
-        signals.append(Signal(
-            name="Dependency type",
-            value="production",
-            effect="neutral",
-            detail="Included in production builds",
-        ))
+        signals.append(
+            Signal(
+                name="Dependency type",
+                value="production",
+                effect="neutral",
+                detail="Included in production builds",
+            )
+        )
 
     # 4. Community template match
     if tr.template_id is not None:
-        signals.append(Signal(
-            name="Community template",
-            value=tr.template_id,
-            effect="filtered" if FilterReason.COMMUNITY_TEMPLATE in tr.reasons else "neutral",
-            detail=tr.template_reason or "Matched a known-benign pattern",
-        ))
+        signals.append(
+            Signal(
+                name="Community template",
+                value=tr.template_id,
+                effect="filtered" if FilterReason.COMMUNITY_TEMPLATE in tr.reasons else "neutral",
+                detail=tr.template_reason or "Matched a known-benign pattern",
+            )
+        )
 
     # 5. KEV catalog
     if tr.kev_entry is not None:
-        signals.append(Signal(
-            name="CISA KEV",
-            value="listed",
-            effect="escalated",
-            detail=f"Added {tr.kev_entry.date_added}, due {tr.kev_entry.due_date}",
-        ))
+        signals.append(
+            Signal(
+                name="CISA KEV",
+                value="listed",
+                effect="escalated",
+                detail=f"Added {tr.kev_entry.date_added}, due {tr.kev_entry.due_date}",
+            )
+        )
     else:
-        signals.append(Signal(
-            name="CISA KEV",
-            value="not listed",
-            effect="neutral",
-        ))
+        signals.append(
+            Signal(
+                name="CISA KEV",
+                value="not listed",
+                effect="neutral",
+            )
+        )
 
     # 6. Ignore rule
     if FilterReason.IGNORED in tr.reasons:
-        signals.append(Signal(
-            name="Ignore rule",
-            value="suppressed",
-            effect="filtered",
-            detail="Matched an entry in the ignore file",
-        ))
+        signals.append(
+            Signal(
+                name="Ignore rule",
+                value="suppressed",
+                effect="filtered",
+                detail="Matched an entry in the ignore file",
+            )
+        )
 
     return Explanation(
         cve=tr.vuln.cve,
@@ -191,6 +215,7 @@ def explain_triage(tr: TriageResult) -> Explanation:
 # ---------------------------------------------------------------------------
 # Lookup
 # ---------------------------------------------------------------------------
+
 
 def find_cve(result: ScanResult, cve_id: str) -> TriageResult | None:
     """Find a TriageResult by CVE ID (case-insensitive)."""

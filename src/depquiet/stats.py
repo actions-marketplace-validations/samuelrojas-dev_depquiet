@@ -27,15 +27,16 @@ from depquiet.models import (
 # Stats model
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class EpssDistribution:
     """EPSS score distribution buckets."""
 
     unavailable: int = 0
-    low: int = 0        # < 10%
-    medium: int = 0     # 10-50%
-    high: int = 0       # 50-90%
-    critical: int = 0   # >= 90%
+    low: int = 0  # < 10%
+    medium: int = 0  # 10-50%
+    high: int = 0  # 50-90%
+    critical: int = 0  # >= 90%
 
 
 @dataclass
@@ -79,10 +80,7 @@ class ScanStats:
             "filter_rate": round(self.filter_rate, 1),
             "severity": self.severity_counts,
             "filter_reasons": self.reason_counts,
-            "top_packages": [
-                {"package": pkg, "count": cnt}
-                for pkg, cnt in self.top_packages
-            ],
+            "top_packages": [{"package": pkg, "count": cnt} for pkg, cnt in self.top_packages],
             "epss_distribution": {
                 "unavailable": self.epss.unavailable,
                 "low": self.epss.low,
@@ -100,6 +98,7 @@ class ScanStats:
 # ---------------------------------------------------------------------------
 # Compute stats
 # ---------------------------------------------------------------------------
+
 
 def compute_stats(
     results: list[TriageResult],
@@ -194,13 +193,15 @@ def stats_from_json(data: dict[str, Any], *, top_n: int = 10) -> ScanStats:
             for r in entry.get("reasons", [])
             if r in FilterReason._value2member_map_
         ]
-        results.append(TriageResult(
-            vuln=vuln,
-            verdict=Verdict(entry.get("verdict", "review")),
-            reasons=reasons,
-            epss_score=entry.get("epss_score"),
-            reachable_imports=entry.get("reachable_imports", []),
-        ))
+        results.append(
+            TriageResult(
+                vuln=vuln,
+                verdict=Verdict(entry.get("verdict", "review")),
+                reasons=reasons,
+                epss_score=entry.get("epss_score"),
+                reachable_imports=entry.get("reachable_imports", []),
+            )
+        )
     total_deps = data.get("total_dependencies", 0)
     return compute_stats(results, total_deps, top_n=top_n)
 
@@ -267,9 +268,7 @@ def format_stats(stats: ScanStats) -> str:
             icon = _SEV_ICONS.get(sev, "·")
             pct = count / total * 100 if total else 0
             bar = _bar(count, total)
-            lines.append(
-                f"  {icon} {sev:10s} {count:4d} ({pct:5.1f}%) {bar}"
-            )
+            lines.append(f"  {icon} {sev:10s} {count:4d} ({pct:5.1f}%) {bar}")
         lines.append("")
 
     # Filter reasons
@@ -315,14 +314,12 @@ def format_stats(stats: ScanStats) -> str:
     if stats.fixable_count or stats.unfixable_count:
         lines.append("Fix availability:")
         lines.append(
-            f"  Fixable:   {stats.fixable_count:4d}"
-            f" ({stats.fixable_count / total * 100:.1f}%)"
+            f"  Fixable:   {stats.fixable_count:4d} ({stats.fixable_count / total * 100:.1f}%)"
             if total
             else f"  Fixable:   {stats.fixable_count:4d}"
         )
         lines.append(
-            f"  No fix:    {stats.unfixable_count:4d}"
-            f" ({stats.unfixable_count / total * 100:.1f}%)"
+            f"  No fix:    {stats.unfixable_count:4d} ({stats.unfixable_count / total * 100:.1f}%)"
             if total
             else f"  No fix:    {stats.unfixable_count:4d}"
         )

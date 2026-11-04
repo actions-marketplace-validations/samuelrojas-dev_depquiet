@@ -31,6 +31,7 @@ from depquiet.models import (
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 def _vuln(**kw) -> Vulnerability:
     defaults = {
         "cve": "CVE-2024-0001",
@@ -146,8 +147,7 @@ class TestExplainSignals:
             reasons=[FilterReason.COMMUNITY_TEMPLATE],
             template_id="npm/lodash-prototype-pollution",
             template_reason=(
-                "Prototype pollution in lodash.merge"
-                " — only exploitable via untrusted input"
+                "Prototype pollution in lodash.merge — only exploitable via untrusted input"
             ),
         )
         exp = explain_triage(tr)

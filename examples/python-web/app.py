@@ -1,7 +1,7 @@
 """Example Flask app that uses requests (not cryptography PKCS12)."""
 
-from flask import Flask, jsonify
 import requests
+from flask import Flask, jsonify
 
 app = Flask(__name__)
 
