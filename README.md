@@ -3,17 +3,17 @@
 [![CI](https://github.com/samuelrojas-dev/depquiet/actions/workflows/ci.yml/badge.svg)](https://github.com/samuelrojas-dev/depquiet/actions/workflows/ci.yml)
 [![PyPI version](https://img.shields.io/pypi/v/depquiet)](https://pypi.org/project/depquiet/)
 [![Python versions](https://img.shields.io/pypi/pyversions/depquiet)](https://pypi.org/project/depquiet/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/samuelrojas-dev/depquiet/blob/main/LICENSE)
 [![codecov](https://codecov.io/gh/samuelrojas-dev/depquiet/graph/badge.svg)](https://codecov.io/gh/samuelrojas-dev/depquiet)
 
 **Cut through vulnerability alert noise. Surface the signal.**
 
 `depquiet` triages your `npm audit` / `pip-audit` / `trivy` / `grype` / Dependabot / Snyk alerts and tells you which CVEs actually matter — in seconds, not hours. It can also **scan lockfiles directly** using the [OSV.dev](https://osv.dev) API — no external scanner required.
 
-![depquiet on a real Express app: npm audit, then depquiet, then depquiet explain](docs/demo/demo.gif)
+![depquiet on a real Express app: npm audit, then depquiet, then depquiet explain](https://raw.githubusercontent.com/samuelrojas-dev/depquiet/main/docs/demo/demo.gif)
 
-Every line in the recording is real command output ([how it's made](docs/demo/make_demo.py)).
-The same run as text ([reproduce it](benchmarks/RESULTS.md#real-npm-express)):
+Every line in the recording is real command output ([how it's made](https://github.com/samuelrojas-dev/depquiet/blob/main/docs/demo/make_demo.py)).
+The same run as text ([reproduce it](https://github.com/samuelrojas-dev/depquiet/blob/main/benchmarks/RESULTS.md#real-npm-express)):
 
 ```
 $ npm audit --json | depquiet --stdin
@@ -248,7 +248,7 @@ depquiet builds a dependency graph from the project before filtering:
 | Ecosystem | Direct dependencies from | Dependency paths from |
 |---|---|---|
 | npm | `package.json`, `package-lock.json` | `package-lock.json` (v1-v3), `yarn.lock` (v1, berry) |
-| Python | `pyproject.toml` (PEP 621, PEP 735, Poetry), `Pipfile`, `requirements.in`, hand-written `requirements.txt` | pip-compile `# via` comments |
+| Python | `uv.lock`, `pyproject.toml` (PEP 621, PEP 735, Poetry), `Pipfile`, `requirements.in`, hand-written `requirements.txt` | `uv.lock`, `poetry.lock`, pip-compile `# via` comments |
 | Rust | `Cargo.lock` workspace crates | `Cargo.lock` |
 | Ruby | `Gemfile.lock` | `Gemfile.lock` |
 | PHP | `composer.json` | `composer.lock` |
@@ -264,10 +264,20 @@ Rules, in order:
 2. **Transitive** dependency: filtered only when none of the direct dependencies that pull it
    in are used. With no known path (Go, Dart, Maven), it is never filtered.
 
-A direct dependency is **used** when a source file imports it or the project runs one of its
-executables: `pm2 start` in a `package.json` script, a `Procfile` entry, or a Dockerfile
-command (executable names come from the lockfile's `bin` field, falling back to the package
-name). Tools like `pm2`, `cross-env` or `next` are rarely imported but run in production.
+A direct dependency is **used** when any of these holds:
+
+- a source file imports it. Python distribution names are mapped to module names
+  (`PyYAML` → `yaml`, `llama-index-core` → `llama_index`) from installed metadata in the
+  project's virtualenv, a table of known mismatches, and naming rules;
+- the project runs one of its executables: `pm2 start` in a `package.json` script, a
+  `Procfile` entry, or a Dockerfile command;
+- it is named in the project's code, scripts or config (`INSTALLED_APPS = ["allauth"]`,
+  `postgresql+psycopg2://`, `celery flower` in a service script). Docs, manifests and
+  lockfiles don't count;
+- a used dependency loads it itself (FastAPI loads `python-multipart`, SQLAlchemy loads
+  database drivers).
+
+Every rule only ever keeps alerts: a wrong match makes depquiet filter less, never more.
 3. **Unknown**: never filtered. This includes a `requirements.txt` where every line is pinned
    with `==` and there are no `# via` comments, since that is indistinguishable from
    `pip freeze` output.
@@ -578,7 +588,7 @@ Each signal shows its effect on the final verdict:
   · CISA KEV: not listed
 ```
 
-(The [real Express benchmark](benchmarks/RESULTS.md), scanned with `--offline`, so no EPSS.)
+(The [real Express benchmark](https://github.com/samuelrojas-dev/depquiet/blob/main/benchmarks/RESULTS.md), scanned with `--offline`, so no EPSS.)
 
 ### Scan statistics (`depquiet stats`)
 
@@ -945,23 +955,30 @@ All conditions on a rule must match (AND logic):
 
 ## Benchmarks
 
-`npm audit` output for four real projects: three popular open-source Express apps pinned to
-a commit, plus a small Express app pinned to 2022 versions. Every verdict is listed in
-[benchmarks/RESULTS.md](benchmarks/RESULTS.md).
+Six real projects: five popular open-source apps pinned to a commit, plus a small Express
+app pinned to 2022 versions. npm projects are audited with `npm audit`, Python projects with
+`pip-audit` on every version in their `uv.lock` / `poetry.lock`. Every verdict is listed in
+[benchmarks/RESULTS.md](https://github.com/samuelrojas-dev/depquiet/blob/main/benchmarks/RESULTS.md).
 
-| Project | Alerts | Filtered by 0.27 | Filtered now | Filtered by 0.27, kept now |
-|---|---:|---:|---:|---:|
-| [hagopj13/node-express-boilerplate](https://github.com/hagopj13/node-express-boilerplate) | 163 | 115 | 18 | 97 |
-| [gothinkster/node-express-realworld-example-app](https://github.com/gothinkster/node-express-realworld-example-app) | 95 | 59 | 41 | 18 |
-| Express app, 2022 versions | 29 | 26 | 13 | 13 |
-| [sahat/hackathon-starter](https://github.com/sahat/hackathon-starter) | 2 | 2 | 2 | 0 |
-| **Total** | **289** | **202 (70%)** | **74 (26%)** | **128** |
+| Project | Scanner | Alerts | Filtered by 0.27 | Filtered now | Filtered by 0.27, kept now |
+|---|---|---:|---:|---:|---:|
+| [mealie-recipes/mealie](https://github.com/mealie-recipes/mealie) | pip-audit | 229 | 200 | 28 | 172 |
+| [hagopj13/node-express-boilerplate](https://github.com/hagopj13/node-express-boilerplate) | npm audit | 163 | 115 | 18 | 97 |
+| [gothinkster/node-express-realworld-example-app](https://github.com/gothinkster/node-express-realworld-example-app) | npm audit | 95 | 59 | 41 | 18 |
+| Express app, 2022 versions | npm audit | 29 | 26 | 13 | 13 |
+| [paperless-ngx/paperless-ngx](https://github.com/paperless-ngx/paperless-ngx) | pip-audit | 17 | 17 | 0 | 17 |
+| [sahat/hackathon-starter](https://github.com/sahat/hackathon-starter) | npm audit | 2 | 2 | 2 | 0 |
+| **Total** | | **535** | **419 (78%)** | **102 (19%)** | **317** |
 
-0.27 counted any package the app didn't import itself as unreachable. The 128 alerts it
-dismissed are in packages that a production dependency the app imports or runs pulls in:
-`path-to-regexp`, `qs` and `body-parser` under Express, or everything under `pm2`, which the
-boilerplate starts from `npm start`. The 74 filtered now are almost all in packages that only
-development tools (jest, eslint, nx, nodemon, coveralls) pull in.
+0.27 dismissed 317 alerts without evidence. It counted any package the app didn't import
+itself as unreachable, which is true of nearly every transitive package, and it compared
+Python distribution names literally, so `Django`, `PyYAML` or `llama-index-core` never matched
+`import django`, `import yaml` or `import llama_index`.
+
+What depquiet filters now is almost entirely packages that only development tooling pulls in
+(jest, eslint, nx, nodemon, pre-commit, mkdocs). On these projects nearly every production
+dependency is in use, so the useful output is less the filtering than the trace: each kept
+alert names the direct dependency it comes through and where the app uses it.
 
 Run them yourself: `python -I benchmarks/run_benchmark.py`. The first run clones the pinned
 commits into `benchmarks/.cache/`; `benchmarks/capture_real.py` re-captures the audits. The
@@ -989,4 +1006,4 @@ MIT
 
 depquiet is designed to grow through community templates. Every template you contribute helps thousands of developers skip a false positive.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+See [CONTRIBUTING.md](https://github.com/samuelrojas-dev/depquiet/blob/main/CONTRIBUTING.md) for guidelines.

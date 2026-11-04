@@ -55,8 +55,12 @@ def _express_app(tmp: Path, *, import_express: bool = True, lockfile: bool = Tru
                 }
             )
         )
-    src = "const express = require('express');\n" if import_express else "console.log(1);\n"
-    (tmp / "app.js").write_text(src + "const app = express();\n")
+    src = (
+        "const express = require('express');\nconst app = express();\n"
+        if import_express
+        else "console.log(1);\n"
+    )
+    (tmp / "app.js").write_text(src)
     return tmp
 
 
@@ -787,3 +791,30 @@ class TestExecutedDependencies:
         }
         [tr] = scan(tmp_path, skip_epss=True, audit_json=audit).results
         assert tr.reasons == [FilterReason.DEV_DEPENDENCY]  # dev-only, but not "unreachable"
+
+
+class TestPipAuditDedup:
+    def test_duplicate_and_aliased_advisories_count_once(self, tmp_path: Path) -> None:
+        from depquiet.parsers.pip import PipAuditParser
+
+        audit = {
+            "dependencies": [
+                {
+                    "name": "pyjwt",
+                    "version": "2.10.1",
+                    "vulns": [
+                        {"id": "PYSEC-1", "aliases": ["GHSA-a", "CVE-1"], "fix_versions": ["2.12"]},
+                        {"id": "PYSEC-1", "aliases": ["GHSA-a"], "fix_versions": ["2.12"]},
+                        {"id": "GHSA-a", "aliases": ["PYSEC-1"], "fix_versions": ["2.12"]},
+                        {"id": "PYSEC-2", "aliases": [], "fix_versions": []},
+                    ],
+                },
+                {"name": "other", "version": "1", "vulns": [{"id": "PYSEC-1", "aliases": []}]},
+            ]
+        }
+        vulns = PipAuditParser.parse(audit, tmp_path)
+        assert [(v.package, v.cve) for v in vulns] == [
+            ("pyjwt", "PYSEC-1"),
+            ("pyjwt", "PYSEC-2"),
+            ("other", "PYSEC-1"),
+        ]

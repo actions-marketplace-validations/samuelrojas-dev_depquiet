@@ -302,6 +302,6 @@ def _import_sites(
     for ancestor in decision.imported_ancestors:
         found = reachability.find_imports_for(ancestor)
         if not found:
-            found = [f"{ancestor} (run as a command)"]
+            found = [f"{ancestor} (run as a command or referenced in project files)"]
         sites += [s for s in found if s not in sites]
     return sites

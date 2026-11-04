@@ -132,7 +132,8 @@ def run_repo(fixture_dir: Path) -> BenchResult:
         if (fixture_dir / "package-lock.json").exists():
             shutil.copy2(fixture_dir / "package-lock.json", project / "package-lock.json")
         result, elapsed = _timed_scan(project, audit_json)
-    r = _summarize(fixture_dir.name, "npm", "repo", result, elapsed)
+    parser = "pip-audit" if str(meta.get("tool", "")).startswith("pip-audit") else "npm"
+    r = _summarize(fixture_dir.name, parser, "repo", result, elapsed)
     r.meta = meta
     return r
 
@@ -225,8 +226,9 @@ def main() -> None:
         "",
         "## Public repositories",
         "",
-        "Open-source projects at a pinned commit, `npm audit` run on their own lockfile",
-        "(for yarn projects, the lockfile npm derives from `yarn.lock`).",
+        "Open-source projects at a pinned commit. npm projects: `npm audit` on their own",
+        "lockfile (for yarn projects, the lockfile npm derives from `yarn.lock`). Python",
+        "projects: `pip-audit --no-deps` on every version pinned in `uv.lock`/`poetry.lock`.",
         "",
     ]
     lines += _summary_table(repos)
@@ -238,7 +240,8 @@ def main() -> None:
             "",
             f"[{repo}](https://github.com/{repo}/tree/{commit}) at `{commit[:7]}` "
             f"({r.meta.get('commit_date', '?')}), audited {r.meta.get('captured_at', '?')} "
-            f"with {r.meta.get('tool', '?')}.",
+            f"with {r.meta.get('tool', '?')}"
+            + (f" from `{r.meta['lockfile']}`." if r.meta.get("lockfile") else "."),
             "",
         ]
         lines += _alert_table(r)

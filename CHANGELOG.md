@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-11-04
+
+### Fixed
+- **Python dependencies were compared to imports by literal name.** `Django`, `PyYAML`,
+  `Pillow` or `llama-index-core` never matched `import django`, `yaml`, `PIL` or
+  `llama_index`, so real dependencies looked unused and their alerts were filtered. On
+  mealie 0.27 filtered 200 of 229 alerts. Names are now mapped through the project's
+  virtualenv metadata (`top_level.txt`/`RECORD`), a table of known mismatches, and rules
+  (case, `python-` prefix, namespace prefixes, `django-` app labels).
+- Dependencies used without an import were treated as unused: apps listed in
+  `INSTALLED_APPS`, database drivers named in connection URLs, services started from
+  scripts (`celery flower`), and plugins a library loads itself (FastAPI ->
+  `python-multipart`, SQLAlchemy -> drivers). A dependency named in the project's code,
+  scripts or config (not docs, manifests or lockfiles) now counts as used.
+- pip-audit output that lists one advisory several times (same id, or a PYSEC id and its
+  GHSA/CVE alias) produced duplicate alerts.
+- Scans re-read and re-parsed every source file for every package checked. mealie (560
+  Python files, 229 alerts) took 259 s; it now takes under 2 s.
+- README links and the demo GIF are absolute, so they render on PyPI.
+
+### Added
+- `uv.lock` (direct, dev and transitive dependencies) and `poetry.lock` (transitive) in
+  the dependency graph.
+- Python benchmark scenarios: paperless-ngx (uv.lock) and mealie (poetry.lock) at pinned
+  commits, audited with pip-audit. Across all six real projects: 535 alerts; 0.27 filtered
+  419, depquiet now filters 102.
+
 ## [0.29.0] - 2026-11-04
 
 ### Fixed

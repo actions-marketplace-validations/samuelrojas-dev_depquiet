@@ -1,0 +1,17 @@
+{
+  "repo": "paperless-ngx/paperless-ngx",
+  "commit": "09d70ed7da7f56b9c197a57518fd363a1fddc3ff",
+  "commit_date": "2026-11-04",
+  "lockfile": "uv.lock",
+  "captured_at": "2026-11-04T21:29:34Z",
+  "tool": "pip-audit 2.10.1",
+  "commands": [
+    "name==version for every registry package in uv.lock",
+    "pip-audit -r requirements.txt --no-deps --disable-pip -f json"
+  ],
+  "pinned_packages": 267,
+  "duplicate_versions_not_audited": [
+    "torch==2.14.0+cpu"
+  ],
+  "vulnerable_packages": 5
+}

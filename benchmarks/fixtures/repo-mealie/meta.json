@@ -1,0 +1,15 @@
+{
+  "repo": "mealie-recipes/mealie",
+  "commit": "01713b04163e9524b2665ad8089148b6d2f90233",
+  "commit_date": "2025-10-31",
+  "lockfile": "poetry.lock",
+  "captured_at": "2026-11-04T21:29:38Z",
+  "tool": "pip-audit 2.10.1",
+  "commands": [
+    "name==version for every registry package in poetry.lock",
+    "pip-audit -r requirements.txt --no-deps --disable-pip -f json"
+  ],
+  "pinned_packages": 142,
+  "duplicate_versions_not_audited": [],
+  "vulnerable_packages": 32
+}

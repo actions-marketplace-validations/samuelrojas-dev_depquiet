@@ -38,10 +38,134 @@ import ast
 import os
 import re
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 
 from depquiet.depgraph import DependencyGraph
 from depquiet.models import FilterReason, Vulnerability
+from depquiet.pynames import import_candidates
+
+_TEXT_CACHE: dict[tuple[str, int, int], str] = {}
+
+
+def _read_text(f: Path) -> str:
+    """Read a source file once per scan.
+
+    Every package check walks every source file, so without this a project
+    with hundreds of files and alerts re-reads (and, via the cached
+    extractors below, re-parses) the same files thousands of times. Keyed by
+    size and mtime so an edited file is read again. Raises OSError like
+    ``Path.read_text``.
+    """
+    st = f.stat()
+    key = (str(f), st.st_mtime_ns, st.st_size)
+    text = _TEXT_CACHE.get(key)
+    if text is None:
+        if len(_TEXT_CACHE) > 20000:
+            _TEXT_CACHE.clear()
+        text = f.read_text(errors="replace")
+        _TEXT_CACHE[key] = text
+    return text
+
+
+# Files whose text can show a dependency is in use without an import:
+# settings (INSTALLED_APPS = ["allauth"]), database URLs ("postgresql+psycopg2"),
+# service scripts ("celery flower"), bundler/linter configs.
+_MENTION_SUFFIXES = {
+    ".py",
+    ".js",
+    ".mjs",
+    ".cjs",
+    ".ts",
+    ".tsx",
+    ".jsx",
+    ".vue",
+    ".rb",
+    ".php",
+    ".go",
+    ".rs",
+    ".java",
+    ".kt",
+    ".cs",
+    ".swift",
+    ".dart",
+    ".sh",
+    ".bash",
+    ".zsh",
+    ".conf",
+    ".ini",
+    ".cfg",
+    ".yml",
+    ".yaml",
+    ".env",
+    ".service",
+    ".toml",
+    ".json",
+    ".xml",
+}
+# Manifests and lockfiles list every dependency; docs mention them in prose.
+_MENTION_EXCLUDED_NAMES = {
+    "package.json",
+    "package-lock.json",
+    "npm-shrinkwrap.json",
+    "yarn.lock",
+    "pnpm-lock.yaml",
+    "pyproject.toml",
+    "poetry.lock",
+    "uv.lock",
+    "Pipfile",
+    "Pipfile.lock",
+    "setup.cfg",
+    "composer.json",
+    "composer.lock",
+    "Cargo.toml",
+    "Cargo.lock",
+    "go.mod",
+    "go.sum",
+    "Gemfile",
+    "Gemfile.lock",
+    "pubspec.yaml",
+    "pubspec.lock",
+    "packages.lock.json",
+    "dependabot.yml",
+    "renovate.json",
+    ".pre-commit-config.yaml",
+}
+_MENTION_EXCLUDED_DIRS = {"docs", "doc", ".github", "site", "examples"}
+_MENTION_MAX_BYTES = 512 * 1024
+_WORD = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_\-]*")
+
+
+def _mention_words(project: Path) -> set[str]:
+    """Lower-cased words in the project's code, scripts and config files."""
+    words: set[str] = set()
+    for root, dirs, files in os.walk(project):
+        dirs[:] = [
+            d
+            for d in dirs
+            if d not in _SKIP_DIRS and d not in _MENTION_EXCLUDED_DIRS and not d.startswith(".")
+        ]
+        for name in files:
+            if name in _MENTION_EXCLUDED_NAMES or name.startswith("requirements"):
+                continue
+            path = Path(root) / name
+            suffix = path.suffix.lower()
+            extensionless = not suffix and not name.startswith(".")
+            if suffix not in _MENTION_SUFFIXES and not extensionless:
+                continue
+            try:
+                if path.stat().st_size > _MENTION_MAX_BYTES:
+                    continue
+                text = _read_text(path)
+            except OSError:
+                continue
+            if extensionless and "\x00" in text[:1024]:
+                continue  # binary
+            for w in _WORD.findall(text):
+                w = w.lower()
+                words.add(w)
+                words.add(w.replace("-", "_"))
+    return words
 
 
 @dataclass
@@ -122,7 +246,7 @@ def _file_mentions(files: list[Path], pattern: str) -> list[str]:
     regex = re.compile(re.escape(pattern))
     for f in files:
         try:
-            text = f.read_text(errors="replace")
+            text = _read_text(f)
             if regex.search(text):
                 matches.append(str(f))
         except OSError:
@@ -130,6 +254,7 @@ def _file_mentions(files: list[Path], pattern: str) -> list[str]:
     return matches
 
 
+@lru_cache(maxsize=8192)
 def _ast_imports(source: str) -> set[str] | None:
     """Extract all top-level package names from Python source using AST.
 
@@ -169,7 +294,7 @@ def _ast_imports(source: str) -> set[str] | None:
     return names
 
 
-def _py_imports_package(files: list[Path], package: str) -> bool:
+def _py_imports_package(files: list[Path], package: str, project: Path | None = None) -> bool:
     """Check whether any Python file imports the given package using AST.
 
     Uses ``ast.parse()`` for proper import detection — immune to false
@@ -180,29 +305,26 @@ def _py_imports_package(files: list[Path], package: str) -> bool:
     parse it, we check with regex so we don't accidentally filter a real
     import.
     """
-    # PyPI packages often use hyphens but Python imports use underscores
-    import_name = package.replace("-", "_")
-
-    for f in files:
-        try:
-            text = f.read_text(errors="replace")
-        except OSError:
-            continue
-
-        imports = _ast_imports(text)
-        if imports is None:
-            # AST parse failed — fall back to regex (conservative: don't
-            # miss a real import in a file we can't parse).
-            if _regex_py_imports(text, import_name):
-                return True
-        else:
-            # AST parsed successfully — trust the extracted import set
-            if import_name in imports:
-                return True
-    return False
+    # The distribution name (PyYAML, Django) rarely equals the module name
+    # (yaml, django); see depquiet.pynames.
+    candidates = import_candidates(package, project)
+    return any(_py_text_imports(f, candidates) for f in files)
 
 
-def _regex_py_imports(text: str, import_name: str) -> bool:
+def _py_text_imports(f: Path, candidates: set[str]) -> bool:
+    try:
+        text = _read_text(f)
+    except OSError:
+        return False
+    imports = _ast_imports(text)
+    if imports is None:
+        # AST parse failed — fall back to regex (conservative: don't miss a
+        # real import in a file we can't parse).
+        return any(_regex_py_imports(text, c, ignore_case=True) for c in candidates)
+    return any(i.lower() in candidates for i in imports)
+
+
+def _regex_py_imports(text: str, import_name: str, *, ignore_case: bool = False) -> bool:
     """Regex fallback for Python import detection (used when AST fails)."""
     esc = re.escape(import_name)
     pattern = re.compile(
@@ -211,7 +333,7 @@ def _regex_py_imports(text: str, import_name: str) -> bool:
         rf"(?:^|\n)\s*from\s+{esc}(?:\s|\.)"
         r"|"
         rf"__import__\(\s*['\"]" + esc + r"['\"]",
-        re.MULTILINE,
+        re.MULTILINE | (re.IGNORECASE if ignore_case else 0),
     )
     return bool(pattern.search(text))
 
@@ -260,6 +382,7 @@ def _strip_js_comments(source: str) -> str:
     )
 
 
+@lru_cache(maxsize=8192)
 def _js_extract_imports(source: str) -> set[str]:
     """Extract package names from JS/TS source using regex on stripped code.
 
@@ -333,7 +456,7 @@ def _js_imports_package(files: list[Path], package: str) -> bool:
     """
     for f in files:
         try:
-            text = f.read_text(errors="replace")
+            text = _read_text(f)
         except OSError:
             continue
         imports = _js_extract_imports(text)
@@ -345,25 +468,15 @@ def _js_imports_package(files: list[Path], package: str) -> bool:
 def _js_file_imports_package(f: Path, package: str) -> bool:
     """Check whether a single JS/TS file imports the given package."""
     try:
-        text = f.read_text(errors="replace")
+        text = _read_text(f)
     except OSError:
         return False
     return package in _js_extract_imports(text)
 
 
-def _py_file_imports_package(f: Path, package: str) -> bool:
+def _py_file_imports_package(f: Path, package: str, project: Path | None = None) -> bool:
     """Check whether a single Python file imports the given package."""
-    import_name = package.replace("-", "_")
-    try:
-        text = f.read_text(errors="replace")
-    except OSError:
-        return False
-
-    imports = _ast_imports(text)
-    if imports is None:
-        # AST parse failed — fall back to regex
-        return _regex_py_imports(text, import_name)
-    return import_name in imports
+    return _py_text_imports(f, import_candidates(package, project))
 
 
 def _strip_go_comments(source: str) -> str:
@@ -381,6 +494,7 @@ def _strip_go_comments(source: str) -> str:
     )
 
 
+@lru_cache(maxsize=8192)
 def _go_extract_imports(source: str) -> set[str]:
     """Extract Go module paths from import statements.
 
@@ -442,7 +556,7 @@ def _go_imports_package(files: list[Path], package: str) -> bool:
     """
     for f in files:
         try:
-            text = f.read_text(errors="replace")
+            text = _read_text(f)
         except OSError:
             continue
         imports = _go_extract_imports(text)
@@ -457,7 +571,7 @@ def _go_imports_package(files: list[Path], package: str) -> bool:
 def _go_file_imports_package(f: Path, package: str) -> bool:
     """Check whether a single Go file imports the given package."""
     try:
-        text = f.read_text(errors="replace")
+        text = _read_text(f)
     except OSError:
         return False
     imports = _go_extract_imports(text)
@@ -483,6 +597,7 @@ def _strip_rust_comments(source: str) -> str:
     )
 
 
+@lru_cache(maxsize=8192)
 def _rs_extract_imports(source: str) -> set[str]:
     """Extract crate names from Rust source using regex on stripped code.
 
@@ -524,7 +639,7 @@ def _rs_imports_package(files: list[Path], package: str) -> bool:
     crate_name = package.replace("-", "_")
     for f in files:
         try:
-            text = f.read_text(errors="replace")
+            text = _read_text(f)
         except OSError:
             continue
         imports = _rs_extract_imports(text)
@@ -537,7 +652,7 @@ def _rs_file_imports_package(f: Path, package: str) -> bool:
     """Check whether a single Rust file imports the given crate."""
     crate_name = package.replace("-", "_")
     try:
-        text = f.read_text(errors="replace")
+        text = _read_text(f)
     except OSError:
         return False
     return crate_name in _rs_extract_imports(text)
@@ -563,6 +678,7 @@ def _strip_java_comments(source: str) -> str:
     )
 
 
+@lru_cache(maxsize=8192)
 def _java_extract_imports(source: str) -> set[str]:
     """Extract package prefixes from Java/Kotlin import statements.
 
@@ -622,7 +738,7 @@ def _java_imports_package(files: list[Path], package: str) -> bool:
     group = _java_group_id(package)
     for f in files:
         try:
-            text = f.read_text(errors="replace")
+            text = _read_text(f)
         except OSError:
             continue
         for imp in _java_extract_imports(text):
@@ -635,7 +751,7 @@ def _java_file_imports_package(f: Path, package: str) -> bool:
     """Check whether a single Java/Kotlin file imports the given package."""
     group = _java_group_id(package)
     try:
-        text = f.read_text(errors="replace")
+        text = _read_text(f)
     except OSError:
         return False
     return any(imp == group or imp.startswith(group + ".") for imp in _java_extract_imports(text))
@@ -658,6 +774,7 @@ def _strip_cs_comments(source: str) -> str:
     return re.sub(r"//[^\n]*", "", text)
 
 
+@lru_cache(maxsize=8192)
 def _cs_extract_namespaces(source: str) -> set[str]:
     r"""Return the set of namespace prefixes found in ``using`` directives.
 
@@ -701,7 +818,7 @@ def _cs_imports_package(files: list[Path], package: str) -> bool:
     """
     for f in files:
         try:
-            text = f.read_text(errors="replace")
+            text = _read_text(f)
         except OSError:
             continue
         for ns in _cs_extract_namespaces(text):
@@ -713,7 +830,7 @@ def _cs_imports_package(files: list[Path], package: str) -> bool:
 def _cs_file_imports_package(f: Path, package: str) -> bool:
     """Check whether a single C# file uses a namespace matching the package."""
     try:
-        text = f.read_text(errors="replace")
+        text = _read_text(f)
     except OSError:
         return False
     return any(ns == package or ns.startswith(package + ".") for ns in _cs_extract_namespaces(text))
@@ -736,6 +853,7 @@ def _strip_php_comments(source: str) -> str:
     return re.sub(r"(?://|#)[^\n]*", "", text)
 
 
+@lru_cache(maxsize=8192)
 def _php_extract_uses(source: str) -> set[str]:
     r"""Return Composer-style vendor/package names from PHP ``use`` statements.
 
@@ -776,7 +894,7 @@ def _php_imports_package(files: list[Path], package: str) -> bool:
     pkg_lower = package.lower()
     for f in files:
         try:
-            text = f.read_text(errors="replace")
+            text = _read_text(f)
         except OSError:
             continue
         if pkg_lower in _php_extract_uses(text):
@@ -787,7 +905,7 @@ def _php_imports_package(files: list[Path], package: str) -> bool:
 def _php_file_imports_package(f: Path, package: str) -> bool:
     """Check whether a single PHP file uses a namespace matching the package."""
     try:
-        text = f.read_text(errors="replace")
+        text = _read_text(f)
     except OSError:
         return False
     return package.lower() in _php_extract_uses(text)
@@ -810,6 +928,7 @@ def _strip_rb_comments(source: str) -> str:
     return re.sub(r"#[^\n]*", "", text)
 
 
+@lru_cache(maxsize=8192)
 def _rb_extract_requires(source: str) -> set[str]:
     r"""Return gem names from Ruby ``require`` / ``require_relative`` statements.
 
@@ -863,7 +982,7 @@ def _rb_imports_package(files: list[Path], package: str) -> bool:
     require_names = _rb_gem_require_names(package)
     for f in files:
         try:
-            text = f.read_text(errors="replace")
+            text = _read_text(f)
         except OSError:
             continue
         extracted = _rb_extract_requires(text)
@@ -875,7 +994,7 @@ def _rb_imports_package(files: list[Path], package: str) -> bool:
 def _rb_file_imports_package(f: Path, package: str) -> bool:
     """Check whether a single Ruby file requires the package."""
     try:
-        text = f.read_text(errors="replace")
+        text = _read_text(f)
     except OSError:
         return False
     return bool(_rb_gem_require_names(package) & _rb_extract_requires(text))
@@ -896,6 +1015,7 @@ def _strip_swift_comments(source: str) -> str:
     return re.sub(r"//[^\n]*", "", text)
 
 
+@lru_cache(maxsize=8192)
 def _swift_extract_imports(source: str) -> set[str]:
     r"""Return module names from Swift ``import`` statements.
 
@@ -941,7 +1061,7 @@ def _swift_imports_package(files: list[Path], package: str) -> bool:
     names = {package, _swift_module_name(package)}
     for f in files:
         try:
-            text = f.read_text(errors="replace")
+            text = _read_text(f)
         except OSError:
             continue
         if names & _swift_extract_imports(text):
@@ -952,7 +1072,7 @@ def _swift_imports_package(files: list[Path], package: str) -> bool:
 def _swift_file_imports_package(f: Path, package: str) -> bool:
     """Check whether a single Swift file imports the package."""
     try:
-        text = f.read_text(errors="replace")
+        text = _read_text(f)
     except OSError:
         return False
     return bool({package, _swift_module_name(package)} & _swift_extract_imports(text))
@@ -973,6 +1093,7 @@ def _strip_dart_comments(source: str) -> str:
     return re.sub(r"//[^\n]*", "", text)
 
 
+@lru_cache(maxsize=8192)
 def _dart_extract_imports(source: str) -> set[str]:
     r"""Return package names from Dart ``import`` statements.
 
@@ -1003,7 +1124,7 @@ def _dart_imports_package(files: list[Path], package: str) -> bool:
     names = {package, package.replace("-", "_")}
     for f in files:
         try:
-            text = f.read_text(errors="replace")
+            text = _read_text(f)
         except OSError:
             continue
         if names & _dart_extract_imports(text):
@@ -1014,7 +1135,7 @@ def _dart_imports_package(files: list[Path], package: str) -> bool:
 def _dart_file_imports_package(f: Path, package: str) -> bool:
     """Check whether a single Dart file imports the package."""
     try:
-        text = f.read_text(errors="replace")
+        text = _read_text(f)
     except OSError:
         return False
     return bool({package, package.replace("-", "_")} & _dart_extract_imports(text))
@@ -1038,6 +1159,8 @@ class ReachabilityFilter:
         self._swift_files: list[Path] | None = None
         self._dart_files: list[Path] | None = None
         self._import_cache: dict[str, bool] = {}
+        self._sites_cache: dict[str, list[str]] = {}
+        self._words: set[str] | None = None
 
     @property
     def js_files(self) -> list[Path]:
@@ -1159,7 +1282,7 @@ class ReachabilityFilter:
     def _imports_package_uncached(self, pkg: str) -> bool:
         checks = (
             (self.js_files, _js_imports_package),
-            (self.py_files, _py_imports_package),
+            (self.py_files, lambda fs, p: _py_imports_package(fs, p, self._project)),
             (self.go_files, _go_imports_package),
             (self.rs_files, _rs_imports_package),
             (self.java_files, _java_imports_package),
@@ -1170,6 +1293,19 @@ class ReachabilityFilter:
             (self.dart_files, _dart_imports_package),
         )
         return any(files and func(files, pkg) for files, func in checks)
+
+    def _mentioned(self, pkg: str) -> bool:
+        """True when the package (or a module it provides) is named in project files.
+
+        Only ever used to *keep* an alert: a stray word match makes depquiet
+        filter less, never more.
+        """
+        if self._words is None:
+            self._words = _mention_words(self._project)
+        names = {pkg.lower(), pkg.rsplit("/", 1)[-1].lower()}
+        names |= import_candidates(pkg, self._project)
+        names |= {n.replace("-", "_") for n in names}
+        return bool(names & self._words)
 
     def _package_unused(self, pkg: str) -> bool:
         """True when there is source to inspect and none of it imports ``pkg``."""
@@ -1190,7 +1326,7 @@ class ReachabilityFilter:
             kind = "transitive"  # the scanner knows (npm audit, Snyk)
 
         def used(name: str) -> bool:
-            return self._imports_package(name) or graph.is_executed(name)
+            return self._imports_package(name) or graph.is_executed(name) or self._mentioned(name)
 
         if kind == "direct":
             # A package can be both direct and transitive: listed in the
@@ -1202,6 +1338,7 @@ class ReachabilityFilter:
             return ReachabilityDecision(
                 unreachable=not imported
                 and not graph.is_executed(vuln.package)
+                and not self._mentioned(vuln.package)
                 and self.check(vuln),
                 dependency_type="direct",
                 introduced_by=ancestors,
@@ -1228,7 +1365,12 @@ class ReachabilityFilter:
         return self.find_imports_for(vuln.package)
 
     def find_imports_for(self, pkg: str) -> list[str]:
-        """Files that import the package named ``pkg``."""
+        """Files that import the package named ``pkg`` (memoized per scan)."""
+        if pkg not in self._sites_cache:
+            self._sites_cache[pkg] = self._find_imports_uncached(pkg)
+        return list(self._sites_cache[pkg])
+
+    def _find_imports_uncached(self, pkg: str) -> list[str]:
         results: list[str] = []
         # Check JS/TS files by import/require detection
         for f in self.js_files:
@@ -1236,7 +1378,7 @@ class ReachabilityFilter:
                 results.append(str(f))
         # Check Python files by AST-based import detection
         for f in self.py_files:
-            if _py_file_imports_package(f, pkg):
+            if _py_file_imports_package(f, pkg, self._project):
                 results.append(str(f))
         # Check Go files by import detection
         for f in self.go_files:

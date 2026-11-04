@@ -24,7 +24,8 @@ Ecosystem                 Direct deps         Edges
 ========================  ==================  ==================
 npm                       package.json /      package-lock.json,
                           package-lock root   yarn.lock (v1/berry)
-Python                    pyproject.toml,     requirements.txt
+Python                    uv.lock roots,      uv.lock, poetry.lock,
+                          pyproject.toml,     requirements.txt
                           Pipfile,            ``# via`` comments
                           requirements.in,    (pip-compile)
                           requirements.txt*
@@ -231,6 +232,15 @@ class DependencyGraph:
             if part is not None:
                 part.sources.append(str(path.relative_to(project)))
                 graph.merge(part)
+        if graph.has_manifest:
+            # Plugins a library imports on its own (FastAPI -> python-multipart,
+            # SQLAlchemy -> database drivers): edges the lockfile can't record.
+            from depquiet.pynames import IMPLICIT_PLUGINS
+
+            for parent, plugins in IMPLICIT_PLUGINS.items():
+                if parent in graph.direct or any(parent in c for c in graph.edges.values()):
+                    for plugin in plugins:
+                        graph.add_edge(parent, plugin)
         return graph
 
 
@@ -477,6 +487,50 @@ def _load_requirements_txt(path: Path) -> DependencyGraph | None:
     return g
 
 
+def _uv_names(entries: object) -> list[str]:
+    return [e["name"] for e in entries or [] if isinstance(e, dict) and e.get("name")]  # type: ignore[attr-defined]
+
+
+def _load_uv_lock(path: Path) -> DependencyGraph:
+    """uv.lock: every package lists its dependencies; workspace roots are direct.
+
+    Roots are the packages whose ``source`` is the project itself
+    (``virtual`` or ``editable``). Their ``dependencies`` and
+    ``optional-dependencies`` (extras) ship to users; ``dev-dependencies``
+    (PEP 735 groups) are development-only.
+    """
+    data = tomllib.loads(path.read_text(encoding="utf-8"))
+    g = DependencyGraph()
+    for pkg in data.get("package") or []:
+        name = pkg.get("name", "")
+        source = pkg.get("source") or {}
+        prod = _uv_names(pkg.get("dependencies"))
+        for extra in (pkg.get("optional-dependencies") or {}).values():
+            prod += _uv_names(extra)
+        dev: list[str] = []
+        for group in (pkg.get("dev-dependencies") or {}).values():
+            dev += _uv_names(group)
+        if "virtual" in source or "editable" in source:
+            g.has_manifest = True
+            for d in prod:
+                g.add_direct(d, python=True)
+            for d in dev:
+                g.add_direct(d, python=True, dev=True)
+        for d in prod + dev:
+            g.add_edge(_pep503(name), _pep503(d))
+    return g
+
+
+def _load_poetry_lock(path: Path) -> DependencyGraph:
+    """poetry.lock: edges only. Direct dependencies come from pyproject.toml."""
+    data = tomllib.loads(path.read_text(encoding="utf-8"))
+    g = DependencyGraph()
+    for pkg in data.get("package") or []:
+        for dep in pkg.get("dependencies") or {}:
+            g.add_edge(_pep503(pkg.get("name", "")), _pep503(dep))
+    return g
+
+
 # ---------------------------------------------------------------------------
 # Rust, Ruby, PHP, .NET, Dart, Go, Maven
 # ---------------------------------------------------------------------------
@@ -631,6 +685,8 @@ _LOADERS: dict[str, Any] = {
     "pyproject.toml": _load_pyproject,
     "Pipfile": _load_pipfile,
     "requirements.in": _load_requirements_in,
+    "uv.lock": _load_uv_lock,
+    "poetry.lock": _load_poetry_lock,
     "Cargo.lock": _load_cargo_lock,
     "Gemfile.lock": _load_gemfile_lock,
     "composer.json": _load_composer_json,

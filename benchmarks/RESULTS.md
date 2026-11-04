@@ -9,7 +9,7 @@ Lockfile resolved and audited by the real package manager (`capture_real.py`).
 
 | Scenario | Parser | Total | Action | Review | Filtered | Filter rate | Time |
 |----------|--------|------:|-------:|-------:|---------:|------------:|-----:|
-| real-npm-express | npm | 29 | 13 | 3 | 13 | **45%** | 10ms |
+| real-npm-express | npm | 29 | 13 | 3 | 13 | **45%** | 441ms |
 
 | Scenario | Unreachable | Dev-only | Low EPSS | Template |
 |----------|------------:|---------:|---------:|---------:|
@@ -53,20 +53,25 @@ Captured 2026-11-04T20:38:08Z with npm 10.9.9. Each row is one alert from `npm a
 
 ## Public repositories
 
-Open-source projects at a pinned commit, `npm audit` run on their own lockfile
-(for yarn projects, the lockfile npm derives from `yarn.lock`).
+Open-source projects at a pinned commit. npm projects: `npm audit` on their own
+lockfile (for yarn projects, the lockfile npm derives from `yarn.lock`). Python
+projects: `pip-audit --no-deps` on every version pinned in `uv.lock`/`poetry.lock`.
 
 | Scenario | Parser | Total | Action | Review | Filtered | Filter rate | Time |
 |----------|--------|------:|-------:|-------:|---------:|------------:|-----:|
-| repo-hackathon-starter | npm | 2 | 0 | 0 | 2 | **100%** | 52ms |
-| repo-node-express-boilerplate | npm | 163 | 140 | 5 | 18 | **11%** | 936ms |
-| repo-node-express-realworld | npm | 95 | 51 | 3 | 41 | **43%** | 316ms |
+| repo-hackathon-starter | npm | 2 | 0 | 0 | 2 | **100%** | 49ms |
+| repo-mealie | pip-audit | 229 | 201 | 0 | 28 | **12%** | 1445ms |
+| repo-node-express-boilerplate | npm | 163 | 140 | 5 | 18 | **11%** | 82ms |
+| repo-node-express-realworld | npm | 95 | 51 | 3 | 41 | **43%** | 53ms |
+| repo-paperless-ngx | pip-audit | 17 | 17 | 0 | 0 | **0%** | 1517ms |
 
 | Scenario | Unreachable | Dev-only | Low EPSS | Template |
 |----------|------------:|---------:|---------:|---------:|
 | repo-hackathon-starter | 0 | 2 | 0 | 0 |
+| repo-mealie | 0 | 28 | 0 | 0 |
 | repo-node-express-boilerplate | 0 | 18 | 0 | 0 |
-| repo-node-express-realworld | 1 | 41 | 0 | 0 |
+| repo-node-express-realworld | 0 | 41 | 0 | 0 |
+| repo-paperless-ngx | 0 | 0 | 0 | 0 |
 
 ### repo-hackathon-starter
 
@@ -76,6 +81,242 @@ Open-source projects at a pinned commit, `npm audit` run on their own lockfile
 |---------|----------|----------|------|--------------|---------|--------|
 | glob | GHSA-3g3m-2fjr-6pw4 | moderate | transitive | c8, mocha | filtered | dev dependency |
 | minimatch | GHSA-g3hv-75wg-m249 | moderate | transitive | @eslint/js, c8, eslint, eslint-config-prettier, eslint-plugin-chai-friendly, mocha | filtered | dev dependency |
+
+### repo-mealie
+
+[mealie-recipes/mealie](https://github.com/mealie-recipes/mealie/tree/01713b04163e9524b2665ad8089148b6d2f90233) at `01713b0` (2025-10-31), audited 2026-11-04T21:29:38Z with pip-audit 2.10.1 from `poetry.lock`.
+
+| Package | Advisory | Severity | Type | Pulled in by | Verdict | Reason |
+|---------|----------|----------|------|--------------|---------|--------|
+| anyio | PYSEC-2026-4024 | moderate | transitive | fastapi, httpx, openai, uvicorn | action | - |
+| anyio | PYSEC-2026-4025 | moderate | transitive | fastapi, httpx, openai, uvicorn | action | - |
+| apprise | PYSEC-2026-4200 | moderate | direct | - | action | - |
+| authlib | CVE-2026-116672 | moderate | direct | - | action | - |
+| authlib | CVE-2026-96760 | moderate | direct | - | action | - |
+| authlib | PYSEC-2026-1201 | moderate | direct | - | action | - |
+| authlib | PYSEC-2026-188 | moderate | direct | - | action | - |
+| authlib | PYSEC-2026-2116 | moderate | direct | - | action | - |
+| authlib | PYSEC-2026-2117 | moderate | direct | - | action | - |
+| authlib | PYSEC-2026-2118 | moderate | direct | - | action | - |
+| authlib | PYSEC-2026-2119 | moderate | direct | - | action | - |
+| authlib | PYSEC-2026-25 | moderate | direct | - | action | - |
+| authlib | PYSEC-2026-287 | moderate | direct | - | action | - |
+| authlib | PYSEC-2026-4354 | moderate | direct | - | action | - |
+| authlib | PYSEC-2026-4355 | moderate | direct | - | action | - |
+| authlib | PYSEC-2026-4356 | moderate | direct | - | action | - |
+| authlib | PYSEC-2026-4357 | moderate | direct | - | action | - |
+| authlib | PYSEC-2026-4358 | moderate | direct | - | action | - |
+| authlib | PYSEC-2026-4359 | moderate | direct | - | action | - |
+| authlib | PYSEC-2026-4360 | moderate | direct | - | action | - |
+| certifi | PYSEC-2023-135 | moderate | transitive | apprise, extruct, fastapi, httpx, mkdocs-material, openai, recipe-scrapers, requests | action | - |
+| certifi | PYSEC-2024-230 | moderate | transitive | apprise, extruct, fastapi, httpx, mkdocs-material, openai, recipe-scrapers, requests | action | - |
+| certifi | PYSEC-2026-4320 | moderate | transitive | apprise, extruct, fastapi, httpx, mkdocs-material, openai, recipe-scrapers, requests | action | - |
+| cryptography | GHSA-537c-gmf6-5ccf | moderate | transitive | authlib | action | - |
+| cryptography | GHSA-h4gh-qq45-vh27 | moderate | transitive | authlib | action | - |
+| cryptography | PYSEC-2024-225 | moderate | transitive | authlib | action | - |
+| cryptography | PYSEC-2026-1283 | moderate | transitive | authlib | action | - |
+| cryptography | PYSEC-2026-1285 | moderate | transitive | authlib | action | - |
+| cryptography | PYSEC-2026-2141 | moderate | transitive | authlib | action | - |
+| cryptography | PYSEC-2026-35 | moderate | transitive | authlib | action | - |
+| cryptography | PYSEC-2026-3553 | moderate | transitive | authlib | action | - |
+| cryptography | PYSEC-2026-3554 | moderate | transitive | authlib | action | - |
+| filelock | CVE-2026-112909 | moderate | transitive | pre-commit | filtered | dev dependency |
+| filelock | CVE-2026-112910 | moderate | transitive | pre-commit | filtered | dev dependency |
+| filelock | PYSEC-2026-1374 | moderate | transitive | pre-commit | filtered | dev dependency |
+| filelock | PYSEC-2026-1375 | moderate | transitive | pre-commit | filtered | dev dependency |
+| h11 | PYSEC-2026-348 | moderate | transitive | fastapi, httpx, openai, uvicorn | action | - |
+| idna | PYSEC-2024-60 | moderate | transitive | apprise, extruct, fastapi, httpx, mkdocs-material, openai, recipe-scrapers, requests, uvicorn | action | - |
+| idna | PYSEC-2026-215 | moderate | transitive | apprise, extruct, fastapi, httpx, mkdocs-material, openai, recipe-scrapers, requests, uvicorn | action | - |
+| lxml | PYSEC-2026-87 | moderate | direct | extruct, recipe-scrapers | action | - |
+| lxml-html-clean | PYSEC-2024-160 | moderate | transitive | extruct, recipe-scrapers | action | - |
+| lxml-html-clean | PYSEC-2026-2201 | moderate | transitive | extruct, recipe-scrapers | action | - |
+| lxml-html-clean | PYSEC-2026-2202 | moderate | transitive | extruct, recipe-scrapers | action | - |
+| lxml-html-clean | PYSEC-2026-2614 | moderate | transitive | extruct, recipe-scrapers | action | - |
+| mako | PYSEC-2026-2617 | moderate | transitive | alembic | action | - |
+| markdown | PYSEC-2026-89 | moderate | transitive | apprise, mkdocs-material | action | - |
+| mkdocs-material | PYSEC-2026-3864 | moderate | direct | - | action | - |
+| nltk | PYSEC-2026-2085 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-2235 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-2236 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-2237 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-3582 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-3583 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-3584 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-3657 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-3722 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-3723 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-3724 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-3728 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-3729 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-3730 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-3731 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-3732 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-3733 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-3734 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-3735 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-3736 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-3737 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-3738 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-3739 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-3740 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-3741 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-3748 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-3749 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-3750 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-3751 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-3752 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-3868 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-3869 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-3870 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-3871 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-3954 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-3955 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-597 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-96 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-97 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-98 | moderate | transitive | ingredient-parser-nlp | action | - |
+| nltk | PYSEC-2026-99 | moderate | transitive | ingredient-parser-nlp | action | - |
+| oauthlib | PYSEC-2026-4114 | moderate | transitive | apprise | action | - |
+| orjson | PYSEC-2026-107 | moderate | direct | fastapi | action | - |
+| pillow | CVE-2026-112390 | moderate | direct | pillow-heif | action | - |
+| pillow | CVE-2026-112391 | moderate | direct | pillow-heif | action | - |
+| pillow | CVE-2026-112393 | moderate | direct | pillow-heif | action | - |
+| pillow | CVE-2026-112395 | moderate | direct | pillow-heif | action | - |
+| pillow | CVE-2026-112399 | moderate | direct | pillow-heif | action | - |
+| pillow | CVE-2026-112400 | moderate | direct | pillow-heif | action | - |
+| pillow | CVE-2026-112401 | moderate | direct | pillow-heif | action | - |
+| pillow | CVE-2026-112404 | moderate | direct | pillow-heif | action | - |
+| pillow | CVE-2026-112406 | moderate | direct | pillow-heif | action | - |
+| pillow | CVE-2026-112891 | moderate | direct | pillow-heif | action | - |
+| pillow | CVE-2026-112892 | moderate | direct | pillow-heif | action | - |
+| pillow | CVE-2026-112893 | moderate | direct | pillow-heif | action | - |
+| pillow | CVE-2026-112894 | moderate | direct | pillow-heif | action | - |
+| pillow | CVE-2026-112895 | moderate | direct | pillow-heif | action | - |
+| pillow | CVE-2026-112897 | moderate | direct | pillow-heif | action | - |
+| pillow | CVE-2026-112899 | moderate | direct | pillow-heif | action | - |
+| pillow | CVE-2026-112900 | moderate | direct | pillow-heif | action | - |
+| pillow | CVE-2026-96638 | moderate | direct | pillow-heif | action | - |
+| pillow | CVE-2026-96640 | moderate | direct | pillow-heif | action | - |
+| pillow | CVE-2026-96778 | moderate | direct | pillow-heif | action | - |
+| pillow | GHSA-78g4-xqwv-q3g8 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-165 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-2249 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-2250 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-2251 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-2252 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-2253 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-2254 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-2255 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-2256 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-2257 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-2874 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-3451 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-3452 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-3453 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-3454 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-3493 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-3494 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-3495 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-3496 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-4326 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-4327 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-4328 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-4329 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-4330 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-4331 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-4332 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-4333 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-4334 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-4335 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-4336 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-4337 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-4338 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-4339 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-4340 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-4341 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-4342 | moderate | direct | pillow-heif | action | - |
+| pillow | PYSEC-2026-4343 | moderate | direct | pillow-heif | action | - |
+| pillow-heif | PYSEC-2026-2258 | moderate | direct | - | action | - |
+| pyasn1 | CVE-2026-119194 | moderate | transitive | python-ldap | action | - |
+| pyasn1 | CVE-2026-119195 | moderate | transitive | python-ldap | action | - |
+| pyasn1 | CVE-2026-119196 | moderate | transitive | python-ldap | action | - |
+| pyasn1 | CVE-2026-119197 | moderate | transitive | python-ldap | action | - |
+| pyasn1 | PYSEC-2026-2263 | moderate | transitive | python-ldap | action | - |
+| pyasn1 | PYSEC-2026-3455 | moderate | transitive | python-ldap | action | - |
+| pyasn1 | PYSEC-2026-3456 | moderate | transitive | python-ldap | action | - |
+| pyasn1 | PYSEC-2026-3457 | moderate | transitive | python-ldap | action | - |
+| pygments | PYSEC-2026-2987 | moderate | transitive | mkdocs-material, pytest, pytest-asyncio, rich | filtered | dev dependency |
+| pyjwt | GHSA-pxh4-856f-4h89 | moderate | direct | - | action | - |
+| pyjwt | PYSEC-2025-183 | moderate | direct | - | action | - |
+| pyjwt | PYSEC-2026-120 | moderate | direct | - | action | - |
+| pyjwt | PYSEC-2026-175 | moderate | direct | - | action | - |
+| pyjwt | PYSEC-2026-176 | moderate | direct | - | action | - |
+| pyjwt | PYSEC-2026-177 | moderate | direct | - | action | - |
+| pyjwt | PYSEC-2026-178 | moderate | direct | - | action | - |
+| pyjwt | PYSEC-2026-179 | moderate | direct | - | action | - |
+| pyjwt | PYSEC-2026-4140 | moderate | direct | - | action | - |
+| pyjwt | PYSEC-2026-4141 | moderate | direct | - | action | - |
+| pyjwt | PYSEC-2026-4144 | moderate | direct | - | action | - |
+| pyjwt | PYSEC-2026-4145 | moderate | direct | - | action | - |
+| pyjwt | PYSEC-2026-4147 | moderate | direct | - | action | - |
+| pyjwt | PYSEC-2026-4148 | moderate | direct | - | action | - |
+| pyjwt | PYSEC-2026-4149 | moderate | direct | - | action | - |
+| pyjwt | PYSEC-2026-4152 | moderate | direct | - | action | - |
+| pyjwt | PYSEC-2026-4183 | moderate | direct | - | action | - |
+| pylint | CVE-2026-114608 | moderate | direct | - | action | - |
+| pymdown-extensions | PYSEC-2026-1825 | moderate | transitive | mkdocs-material | filtered | dev dependency |
+| pymdown-extensions | PYSEC-2026-2999 | moderate | transitive | mkdocs-material | filtered | dev dependency |
+| pymdown-extensions | PYSEC-2026-3609 | moderate | transitive | mkdocs-material | filtered | dev dependency |
+| pymdown-extensions | PYSEC-2026-3654 | moderate | transitive | mkdocs-material | filtered | dev dependency |
+| pytest | PYSEC-2026-1845 | moderate | direct | pytest-asyncio | action | - |
+| python-dotenv | PYSEC-2026-2270 | moderate | direct | pydantic-settings, uvicorn | action | - |
+| python-multipart | PYSEC-2026-1852 | moderate | direct | fastapi | action | - |
+| python-multipart | PYSEC-2026-3036 | moderate | direct | fastapi | action | - |
+| python-multipart | PYSEC-2026-3037 | moderate | direct | fastapi | action | - |
+| python-multipart | PYSEC-2026-3038 | moderate | direct | fastapi | action | - |
+| python-multipart | PYSEC-2026-3039 | moderate | direct | fastapi | action | - |
+| python-multipart | PYSEC-2026-3040 | moderate | direct | fastapi | action | - |
+| requests | PYSEC-2026-2275 | moderate | direct | apprise, extruct, mkdocs-material, recipe-scrapers | action | - |
+| setuptools | GHSA-xmj3-9gf7-h52w | moderate | transitive | pre-commit | filtered | dev dependency |
+| setuptools | PYSEC-2025-49 | moderate | transitive | pre-commit | filtered | dev dependency |
+| setuptools | PYSEC-2026-3447 | moderate | transitive | pre-commit | filtered | dev dependency |
+| soupsieve | PYSEC-2026-3071 | moderate | transitive | beautifulsoup4, extruct, recipe-scrapers | action | - |
+| soupsieve | PYSEC-2026-3072 | moderate | transitive | beautifulsoup4, extruct, recipe-scrapers | action | - |
+| soupsieve | PYSEC-2026-4170 | moderate | transitive | beautifulsoup4, extruct, recipe-scrapers | action | - |
+| soupsieve | PYSEC-2026-4171 | moderate | transitive | beautifulsoup4, extruct, recipe-scrapers | action | - |
+| starlette | PYSEC-2026-161 | moderate | transitive | fastapi | action | - |
+| starlette | PYSEC-2026-1941 | moderate | transitive | fastapi | action | - |
+| starlette | PYSEC-2026-1942 | moderate | transitive | fastapi | action | - |
+| starlette | PYSEC-2026-2280 | moderate | transitive | fastapi | action | - |
+| starlette | PYSEC-2026-2281 | moderate | transitive | fastapi | action | - |
+| starlette | PYSEC-2026-248 | moderate | transitive | fastapi | action | - |
+| starlette | PYSEC-2026-249 | moderate | transitive | fastapi | action | - |
+| urllib3 | PYSEC-2023-192 | moderate | transitive | apprise, extruct, mkdocs-material, recipe-scrapers, requests | action | - |
+| urllib3 | PYSEC-2023-212 | moderate | transitive | apprise, extruct, mkdocs-material, recipe-scrapers, requests | action | - |
+| urllib3 | PYSEC-2026-141 | moderate | transitive | apprise, extruct, mkdocs-material, recipe-scrapers, requests | action | - |
+| urllib3 | PYSEC-2026-1994 | moderate | transitive | apprise, extruct, mkdocs-material, recipe-scrapers, requests | action | - |
+| urllib3 | PYSEC-2026-1995 | moderate | transitive | apprise, extruct, mkdocs-material, recipe-scrapers, requests | action | - |
+| urllib3 | PYSEC-2026-1996 | moderate | transitive | apprise, extruct, mkdocs-material, recipe-scrapers, requests | action | - |
+| urllib3 | PYSEC-2026-1998 | moderate | transitive | apprise, extruct, mkdocs-material, recipe-scrapers, requests | action | - |
+| urllib3 | PYSEC-2026-1999 | moderate | transitive | apprise, extruct, mkdocs-material, recipe-scrapers, requests | action | - |
+| urllib3 | PYSEC-2026-4175 | moderate | transitive | apprise, extruct, mkdocs-material, recipe-scrapers, requests | action | - |
+| urllib3 | PYSEC-2026-4177 | moderate | transitive | apprise, extruct, mkdocs-material, recipe-scrapers, requests | action | - |
+| virtualenv | CVE-2026-113714 | moderate | transitive | pre-commit | filtered | dev dependency |
+| virtualenv | CVE-2026-113715 | moderate | transitive | pre-commit | filtered | dev dependency |
+| virtualenv | CVE-2026-113717 | moderate | transitive | pre-commit | filtered | dev dependency |
+| virtualenv | CVE-2026-113718 | moderate | transitive | pre-commit | filtered | dev dependency |
+| virtualenv | CVE-2026-113720 | moderate | transitive | pre-commit | filtered | dev dependency |
+| virtualenv | CVE-2026-113722 | moderate | transitive | pre-commit | filtered | dev dependency |
+| virtualenv | CVE-2026-113723 | moderate | transitive | pre-commit | filtered | dev dependency |
+| virtualenv | CVE-2026-113725 | moderate | transitive | pre-commit | filtered | dev dependency |
+| virtualenv | CVE-2026-113726 | moderate | transitive | pre-commit | filtered | dev dependency |
+| virtualenv | CVE-2026-113732 | moderate | transitive | pre-commit | filtered | dev dependency |
+| virtualenv | CVE-2026-113776 | moderate | transitive | pre-commit | filtered | dev dependency |
+| virtualenv | PYSEC-2026-2009 | moderate | transitive | pre-commit | filtered | dev dependency |
+| virtualenv | PYSEC-2026-4011 | moderate | transitive | pre-commit | filtered | dev dependency |
+| virtualenv | PYSEC-2026-4012 | moderate | transitive | pre-commit | filtered | dev dependency |
+| virtualenv | PYSEC-2026-4013 | moderate | transitive | pre-commit | filtered | dev dependency |
+| virtualenv | PYSEC-2026-4014 | moderate | transitive | pre-commit | filtered | dev dependency |
 
 ### repo-node-express-boilerplate
 
@@ -308,7 +549,7 @@ Open-source projects at a pinned commit, `npm audit` run on their own lockfile
 | deepmerge | GHSA-gcqx-w48m-w2h4 | low | transitive | @nx/jest, @nx/node, jest, jest-mock-extended, ts-jest | filtered | dev dependency |
 | diff | GHSA-73rr-hh4g-fpgx | low | transitive | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, jest, jest-mock-extended, ts-jest, ts-node | filtered | dev dependency |
 | ejs | GHSA-ghr5-ch3p-vcr6 | moderate | transitive | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace | filtered | dev dependency |
-| esbuild | GHSA-67mh-4wv8-2f99 | moderate | direct | @nx/esbuild | filtered | dev dependency, unreachable |
+| esbuild | GHSA-67mh-4wv8-2f99 | moderate | direct | @nx/esbuild | filtered | dev dependency |
 | express | GHSA-qw6h-vgh9-j6wx | high | direct | - | action | - |
 | express | GHSA-rv95-896h-c2vc | high | direct | - | action | - |
 | flatted | GHSA-25h7-pfq9-p65f | high | transitive | @nx/eslint, @nx/eslint-plugin, @nx/node, @typescript-eslint/eslint-plugin, @typescript-eslint/parser, eslint, eslint-config-prettier | filtered | dev dependency |
@@ -348,6 +589,30 @@ Open-source projects at a pinned commit, `npm audit` run on their own lockfile
 | tmp | GHSA-ph9p-34f9-6g65 | high | transitive | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | filtered | dev dependency |
 | uuid | GHSA-w5hq-g745-h8pq | moderate | transitive | @ngneat/falso | action | - |
 | yaml | GHSA-48c2-rrv3-qjmp | moderate | transitive | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, jest, jest-mock-extended, ts-jest | filtered | dev dependency |
+
+### repo-paperless-ngx
+
+[paperless-ngx/paperless-ngx](https://github.com/paperless-ngx/paperless-ngx/tree/09d70ed7da7f56b9c197a57518fd363a1fddc3ff) at `09d70ed` (2026-11-04), audited 2026-11-04T21:29:34Z with pip-audit 2.10.1 from `uv.lock`.
+
+| Package | Advisory | Severity | Type | Pulled in by | Verdict | Reason |
+|---------|----------|----------|------|--------------|---------|--------|
+| autobahn | CVE-2026-116579 | moderate | transitive | channels, channels-redis, daphne | action | - |
+| nltk | PYSEC-2026-3740 | moderate | transitive | llama-index-core, llama-index-embeddings-huggingface, llama-index-embeddings-ollama, llama-index-embeddings-openai-like, llama-index-llms-ollama, llama-index-llms-openai-like | action | - |
+| pyasn1 | CVE-2026-119194 | moderate | transitive | channels, channels-redis, daphne | action | - |
+| pyasn1 | CVE-2026-119195 | moderate | transitive | channels, channels-redis, daphne | action | - |
+| pyasn1 | CVE-2026-119196 | moderate | transitive | channels, channels-redis, daphne | action | - |
+| pyasn1 | CVE-2026-119197 | moderate | transitive | channels, channels-redis, daphne | action | - |
+| tornado | CVE-2026-115927 | moderate | transitive | flower | action | - |
+| tornado | CVE-2026-116577 | moderate | transitive | flower | action | - |
+| tornado | CVE-2026-116578 | moderate | transitive | flower | action | - |
+| twisted | CVE-2026-106454 | moderate | transitive | channels, channels-redis, daphne | action | - |
+| twisted | CVE-2026-115774 | moderate | transitive | channels, channels-redis, daphne | action | - |
+| twisted | CVE-2026-115775 | moderate | transitive | channels, channels-redis, daphne | action | - |
+| twisted | CVE-2026-115776 | moderate | transitive | channels, channels-redis, daphne | action | - |
+| twisted | CVE-2026-115778 | moderate | transitive | channels, channels-redis, daphne | action | - |
+| twisted | CVE-2026-115877 | moderate | transitive | channels, channels-redis, daphne | action | - |
+| twisted | CVE-2026-83813 | moderate | transitive | channels, channels-redis, daphne | action | - |
+| twisted | GHSA-vpp8-g58w-m8mp | moderate | transitive | channels, channels-redis, daphne | action | - |
 
 ## Synthetic fixtures
 

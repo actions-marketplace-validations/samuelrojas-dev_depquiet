@@ -63,8 +63,16 @@ class PipAuditParser:
             pkg_name = dep.get("name", "")
             pkg_version = dep.get("version", "")
 
+            # pip-audit can report one advisory several times (same id with a
+            # different description, or a PYSEC id plus its GHSA/CVE alias).
+            seen: set[str] = set()
             for vuln_entry in dep.get("vulns", []):
                 cve = vuln_entry.get("id", "")
+                ids = {cve, *vuln_entry.get("aliases", [])} - {""}
+                if ids & seen:
+                    seen |= ids
+                    continue
+                seen |= ids
                 fix_versions = vuln_entry.get("fix_versions", [])
                 description = vuln_entry.get("description", "")
 

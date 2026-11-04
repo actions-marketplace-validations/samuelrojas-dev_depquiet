@@ -81,6 +81,22 @@ REPOS: dict[str, tuple[str, str]] = {
     ),
 }
 
+# Python projects: name -> (GitHub repo, pinned commit, lockfile). Audited with
+# pip-audit against every version pinned in the lockfile (--no-deps
+# --disable-pip: nothing is installed or resolved).
+PY_REPOS: dict[str, tuple[str, str, str]] = {
+    "repo-paperless-ngx": (
+        "paperless-ngx/paperless-ngx",
+        "09d70ed7da7f56b9c197a57518fd363a1fddc3ff",
+        "uv.lock",
+    ),
+    "repo-mealie": (
+        "mealie-recipes/mealie",
+        "01713b04163e9524b2665ad8089148b6d2f90233",
+        "poetry.lock",
+    ),
+}
+
 CACHE = Path(__file__).resolve().parent / ".cache"
 
 
@@ -152,6 +168,91 @@ def capture_repo(name: str, repo: str, commit: str) -> None:
     print(f"{name}: {meta['vulnerable_packages']} vulnerable packages ({repo}@{commit[:7]})")
 
 
+def lock_pins(lockfile: Path) -> tuple[list[str], list[str]]:
+    """``name==version`` for every registry package in a uv.lock / poetry.lock.
+
+    Local, path and git packages are skipped (nothing to look up). When a
+    lockfile pins one name to several versions (platform markers, e.g. torch
+    cpu/cuda), pip-audit rejects the duplicates, so only the first is kept and
+    the rest are reported.
+    """
+    import tomllib
+
+    data = tomllib.loads(lockfile.read_text(encoding="utf-8"))
+    pins: dict[str, str] = {}
+    dropped: list[str] = []
+    for pkg in data.get("package") or []:
+        source = pkg.get("source") or {}
+        if any(k in source for k in ("virtual", "editable", "directory", "path", "git")):
+            continue
+        if source.get("type") in ("directory", "git", "file", "url"):
+            continue
+        name, version = pkg["name"].lower(), pkg["version"]
+        if name in pins:
+            if pins[name] != version:
+                dropped.append(f"{name}=={version}")
+            continue
+        pins[name] = version
+    return [f"{n}=={v}" for n, v in sorted(pins.items())], dropped
+
+
+def capture_py_repo(name: str, repo: str, commit: str, lockfile: str) -> None:
+    import tempfile
+
+    clone = checkout(repo, commit)
+    dest = OUT / name
+    if dest.exists():
+        shutil.rmtree(dest)
+    dest.mkdir(parents=True)
+    pins, dropped = lock_pins(clone / lockfile)
+    with tempfile.TemporaryDirectory() as tmp:
+        req = Path(tmp) / "requirements.txt"
+        req.write_text("\n".join(pins) + "\n")
+        out = Path(tmp) / "audit.json"
+        cmd = [
+            "pip-audit",
+            "-r",
+            str(req),
+            "--no-deps",
+            "--disable-pip",
+            "-f",
+            "json",
+            "--progress-spinner",
+            "off",
+            "-o",
+            str(out),
+        ]
+        r = _run(cmd, Path(tmp))
+        if not out.exists():
+            raise SystemExit(f"pip-audit failed for {name}:\n{r.stderr[-2000:]}")
+        audit_json = json.loads(out.read_text())
+    (dest / "audit.json").write_text(json.dumps(audit_json, indent=2) + "\n")
+    version = _run(["pip-audit", "--version"], OUT).stdout.strip()
+    vulnerable = [d for d in audit_json.get("dependencies", []) if d.get("vulns")]
+    commit_date = subprocess.run(
+        ["git", "log", "-1", "--format=%cs"], cwd=clone, capture_output=True, text=True
+    ).stdout.strip()
+    meta = {
+        "repo": repo,
+        "commit": subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=clone, capture_output=True, text=True
+        ).stdout.strip(),
+        "commit_date": commit_date,
+        "lockfile": lockfile,
+        "captured_at": dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "tool": version,
+        "commands": [
+            f"name==version for every registry package in {lockfile}",
+            "pip-audit -r requirements.txt --no-deps --disable-pip -f json",
+        ],
+        "pinned_packages": len(pins),
+        "duplicate_versions_not_audited": dropped,
+        "vulnerable_packages": len(vulnerable),
+    }
+    (dest / "meta.json").write_text(json.dumps(meta, indent=2) + "\n")
+    print(f"{name}: {len(vulnerable)} vulnerable packages ({repo}@{commit[:7]}, {lockfile})")
+
+
 def _run(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=300)
 
@@ -204,3 +305,6 @@ if __name__ == "__main__":
     for scenario, (repo, commit) in REPOS.items():
         if not only or scenario in only:
             capture_repo(scenario, repo, commit)
+    for scenario, (repo, commit, lockfile) in PY_REPOS.items():
+        if not only or scenario in only:
+            capture_py_repo(scenario, repo, commit, lockfile)
