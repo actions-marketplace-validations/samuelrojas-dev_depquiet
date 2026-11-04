@@ -72,5 +72,5 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           major="${TAG%%.*}"
-          git tag -f "$major" "$TAG"
+          git tag -f "$major" HEAD
           git push -f origin "refs/tags/$major"
