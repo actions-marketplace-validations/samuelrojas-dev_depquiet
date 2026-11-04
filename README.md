@@ -494,6 +494,25 @@ depquiet --html report.html
 
 The report includes a severity donut chart, collapsible sections (review auto-collapses when >5 findings, filtered always starts collapsed), dark mode support, and client-side text search. All data is embedded as JSON for future extensibility. XSS-safe: user-controlled values are escaped in both HTML and embedded JSON contexts.
 
+### PR annotations (`--annotations`)
+
+Post vulnerability findings as inline annotations on PR diffs — like CodeQL or ESLint. Each ACTION or REVIEW finding becomes a GitHub Check Run annotation pointing at the package manifest or the file that imports the vulnerable package.
+
+```bash
+# Generate annotations JSON
+depquiet --annotations annotations.json
+```
+
+In the GitHub Action, just add `annotations: true`:
+
+```yaml
+- uses: samuelrojas-dev/depquiet@v1
+  with:
+    annotations: true
+```
+
+Annotations are automatically posted via the Check Runs API. Critical/high findings appear as errors, moderate as warnings, and low/info as notices. Each annotation includes the CVE, severity, EPSS score, fix version, and a link to the NVD advisory.
+
 ### Baseline diffing (`--baseline`)
 
 Adopting depquiet on an existing codebase? The `--baseline` flag lets you accept the current state and only fail on **new** vulnerabilities — just like Snyk's `--new-only` or Trivy's `--ignore-unfixed`.
@@ -570,7 +589,7 @@ The action installs depquiet, runs it, uploads SARIF to GitHub Code Scanning, up
 
 The action automatically writes a **Job Summary** to the PR checks page with severity badges, EPSS scores, fix versions, and a filtered breakdown.
 
-**Action inputs:** `path`, `epss-threshold`, `offline`, `sarif`, `templates`, `policy`, `sbom`, `sbom-format`, `ignore`, `license`, `baseline`, `kev`, `kev-file`, `html`, `fail-on-action`, `fail-on`, `python-version`.
+**Action inputs:** `path`, `epss-threshold`, `offline`, `sarif`, `templates`, `policy`, `sbom`, `sbom-format`, `ignore`, `license`, `baseline`, `kev`, `kev-file`, `html`, `annotations`, `fail-on-action`, `fail-on`, `python-version`.
 
 > **Note:** `fail-on` (severity-based) supersedes `fail-on-action` (boolean). When `fail-on` is set, `fail-on-action` is ignored.
 

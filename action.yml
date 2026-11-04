@@ -63,6 +63,10 @@ inputs:
     description: "Write a self-contained interactive HTML report to this file path"
     required: false
     default: ""
+  annotations:
+    description: "Post inline PR annotations via GitHub Check Runs API (true/false)"
+    required: false
+    default: "false"
   diff-base:
     description: "Path to a base scan JSON for diff comparison. When set, a diff summary is posted to the PR and GITHUB_STEP_SUMMARY."
     required: false
@@ -142,6 +146,7 @@ runs:
         INPUT_KEV: ${{ inputs.kev }}
         INPUT_KEV_FILE: ${{ inputs.kev-file }}
         INPUT_HTML: ${{ inputs.html }}
+        INPUT_ANNOTATIONS: ${{ inputs.annotations }}
       run: |
         ARGS="--path $INPUT_PATH --epss-threshold $INPUT_EPSS_THRESHOLD --json"
 
@@ -199,6 +204,10 @@ runs:
           ARGS="$ARGS --html $INPUT_HTML"
         fi
 
+        if [ "$INPUT_ANNOTATIONS" = "true" ]; then
+          ARGS="$ARGS --annotations /tmp/depquiet-annotations.json"
+        fi
+
         # Job summary — always write when GITHUB_STEP_SUMMARY is available
         if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
           ARGS="$ARGS --summary $GITHUB_STEP_SUMMARY"
@@ -231,6 +240,99 @@ runs:
         elif [ "$INPUT_FAIL_ON_ACTION" = "true" ] && [ "$EXIT_CODE" -ne 0 ]; then
           exit 1
         fi
+
+    - name: Post PR annotations
+      if: inputs.annotations == 'true' && always()
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        if [ ! -f /tmp/depquiet-annotations.json ]; then
+          echo "No annotations file found, skipping"
+          exit 0
+        fi
+
+        SUMMARY=$(python3 -c "import sys,json; print(json.load(sys.stdin)['summary'])" < /tmp/depquiet-annotations.json 2>/dev/null || echo "depquiet scan complete")
+        CONCLUSION=$(python3 -c "import sys,json; print(json.load(sys.stdin)['conclusion'])" < /tmp/depquiet-annotations.json 2>/dev/null || echo "neutral")
+        ANN_COUNT=$(python3 -c "import sys,json; print(len(json.load(sys.stdin)['annotations']))" < /tmp/depquiet-annotations.json 2>/dev/null || echo "0")
+
+        if [ "$ANN_COUNT" = "0" ]; then
+          echo "No annotations to post"
+          # Still create the check run to show success
+          gh api "repos/$GITHUB_REPOSITORY/check-runs" \
+            -f "name=depquiet" \
+            -f "head_sha=$GITHUB_SHA" \
+            -f "status=completed" \
+            -f "conclusion=success" \
+            -f "output[title]=depquiet: all clear" \
+            -f "output[summary]=$SUMMARY" \
+            2>/dev/null || true
+          exit 0
+        fi
+
+        # Post annotations in batches of 50 (GitHub API limit)
+        python3 -c "
+import json, subprocess, os, sys
+
+with open('/tmp/depquiet-annotations.json') as f:
+    data = json.load(f)
+
+annotations = data['annotations']
+summary = data['summary']
+conclusion = data['conclusion']
+repo = os.environ['GITHUB_REPOSITORY']
+sha = os.environ['GITHUB_SHA']
+
+# First call: create the check run with the first batch
+batch_size = 50
+first_batch = annotations[:batch_size]
+
+payload = {
+    'name': 'depquiet',
+    'head_sha': sha,
+    'status': 'completed',
+    'conclusion': conclusion,
+    'output': {
+        'title': f'depquiet: {len(annotations)} findings',
+        'summary': summary,
+        'annotations': first_batch,
+    },
+}
+
+result = subprocess.run(
+    ['gh', 'api', f'repos/{repo}/check-runs', '--input', '-'],
+    input=json.dumps(payload),
+    capture_output=True,
+    text=True,
+)
+
+if result.returncode != 0:
+    print(f'Warning: failed to create check run: {result.stderr}', file=sys.stderr)
+    sys.exit(0)
+
+# If more than 50 annotations, update with remaining batches
+if len(annotations) > batch_size:
+    check_run = json.loads(result.stdout)
+    check_run_id = check_run['id']
+
+    for i in range(batch_size, len(annotations), batch_size):
+        batch = annotations[i:i + batch_size]
+        update = {
+            'output': {
+                'title': f'depquiet: {len(annotations)} findings',
+                'summary': summary,
+                'annotations': batch,
+            },
+        }
+        subprocess.run(
+            ['gh', 'api', '-X', 'PATCH', f'repos/{repo}/check-runs/{check_run_id}', '--input', '-'],
+            input=json.dumps(update),
+            capture_output=True,
+            text=True,
+        )
+
+print(f'Posted {len(annotations)} annotations to check run')
+" 2>/dev/null || echo "Warning: failed to post annotations"
 
     - name: Save scan JSON for diff
       if: inputs.diff-base != ''

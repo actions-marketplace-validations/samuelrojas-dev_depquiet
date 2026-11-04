@@ -20,18 +20,19 @@ from pathlib import Path
 from typing import Any
 
 from depquiet import __version__
+from depquiet.annotations import build_annotations, write_annotations
 from depquiet.baseline import apply_baseline, load_baseline
 from depquiet.config import load_config
 from depquiet.diff import diff_scans, diff_to_json, format_diff, format_diff_markdown
 from depquiet.engine import scan
 from depquiet.fix import apply_fixes, print_fix_report
+from depquiet.html_report import write_html
 from depquiet.ignore import apply_ignores, load_ignore, print_ignore_warnings
 from depquiet.kev import apply_kev, fetch_kev_catalog, load_kev_from_file
 from depquiet.license import LicenseReport, print_license_report, scan_licenses
 from depquiet.models import ScanResult
 from depquiet.output import print_scan_result
 from depquiet.policy import load_policy
-from depquiet.html_report import write_html
 from depquiet.sarif import write_sarif
 from depquiet.sbom import write_sbom
 from depquiet.summary import write_summary
@@ -242,6 +243,12 @@ def main(argv: list[str] | None = None) -> int:
         help="Write a self-contained interactive HTML report to FILE",
     )
     parser.add_argument(
+        "--annotations",
+        type=Path,
+        metavar="FILE",
+        help="Write GitHub Check Run annotations JSON to FILE",
+    )
+    parser.add_argument(
         "--fail-on",
         choices=["critical", "high", "moderate", "low", "none"],
         default=None,
@@ -352,6 +359,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.html:
         write_html(result, args.html)
+
+    if args.annotations:
+        ann_report = build_annotations(result)
+        write_annotations(ann_report, args.annotations)
 
     # License compliance
     if args.license_scan:

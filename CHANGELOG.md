@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-11-03
+
+### Added
+
+- **GitHub Check Run annotations (`annotations: true`)** — post inline vulnerability findings directly on PR diffs, like CodeQL or ESLint. Each ACTION or REVIEW finding becomes an annotation on the package manifest or reachable import file
+- `--annotations FILE` CLI flag to write GitHub Check Run annotations JSON
+- Severity-to-annotation-level mapping: critical/high → failure, moderate → warning, low/info → notice
+- Automatic batching of annotations in groups of 50 (GitHub API limit)
+- Annotations include CVE, severity, EPSS score, fix version, KEV status, and NVD link
+- Support for 9 package manager manifest files (npm, pip, Go, Cargo, Maven, NuGet, Composer, Gem, Pub)
+- `annotations` input for the GitHub Action — posts annotations via the Check Runs API using `GITHUB_TOKEN`
+- 40 tests for the annotations module covering generation, content, paths, severity mapping, batching, serialization, file output, and KEV integration
+
 ## [0.19.0] - 2026-11-03
 
 ### Added
@@ -238,7 +251,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.19.0...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.20.0...HEAD
+[0.20.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.16.0...v0.17.0
