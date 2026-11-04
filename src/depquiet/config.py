@@ -43,6 +43,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from depquiet.filters.templates import _parse_yaml_simple
 
@@ -284,7 +285,7 @@ def _parse_config(path: Path, project: Path) -> Config:
     )
 
 
-def _parse_bool(data: dict, key: str) -> bool:
+def _parse_bool(data: dict[str, Any], key: str) -> bool:
     """Parse a boolean value from config data."""
     raw = data.get(key)
     if raw is None:
@@ -292,7 +293,7 @@ def _parse_bool(data: dict, key: str) -> bool:
     return str(raw).lower() in ("true", "yes", "1")
 
 
-def _parse_path(data: dict, key: str, project: Path) -> Path | None:
+def _parse_path(data: dict[str, Any], key: str, project: Path) -> Path | None:
     """Parse an optional path value, resolved relative to the project root."""
     raw = data.get(key)
     if raw is None:

@@ -509,7 +509,9 @@ def main(argv: list[str] | None = None) -> int:
 
     # Detect which CLI flags were explicitly passed (vs argparse defaults)
     _raw = argv if argv is not None else sys.argv[1:]
-    _has = lambda flag: flag in _raw  # noqa: E731
+
+    def _has(flag: str) -> bool:
+        return flag in _raw
 
     merged = config.merge_cli(
         epss_threshold=cli_threshold,
