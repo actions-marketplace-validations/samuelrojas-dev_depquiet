@@ -725,7 +725,10 @@ def _print_json(result: ScanResult) -> None:
             "reasons": [r.value for r in tr.reasons],
             "epss_score": tr.epss_score,
             "fix_version": tr.vuln.fix_version,
+            "fix_package": tr.vuln.fix_package,
             "reachable_imports": tr.reachable_imports,
+            "dependency_type": tr.dependency_type,
+            "introduced_by": tr.introduced_by,
         }
         if tr.kev_entry is not None:
             entry["kev"] = {

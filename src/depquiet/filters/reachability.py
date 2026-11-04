@@ -37,9 +37,28 @@ from __future__ import annotations
 import ast
 import os
 import re
+from dataclasses import dataclass, field
 from pathlib import Path
 
+from depquiet.depgraph import DependencyGraph
 from depquiet.models import FilterReason, Vulnerability
+
+
+@dataclass
+class ReachabilityDecision:
+    """Outcome of the reachability filter for one vulnerability.
+
+    ``unreachable`` is True only when the filter can justify it: the package
+    is a direct dependency that no source file imports, or it is transitive
+    and none of the direct dependencies that pull it in are imported.
+    """
+
+    unreachable: bool
+    dependency_type: str  # "direct" | "transitive" | "unknown"
+    introduced_by: list[str] = field(default_factory=list)
+    # Direct dependencies (introduced_by) that the source code does import.
+    imported_ancestors: list[str] = field(default_factory=list)
+
 
 # File extensions to search for imports
 _JS_EXTENSIONS = {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"}
@@ -1017,6 +1036,7 @@ class ReachabilityFilter:
         self._rb_files: list[Path] | None = None
         self._swift_files: list[Path] | None = None
         self._dart_files: list[Path] | None = None
+        self._import_cache: dict[str, bool] = {}
 
     @property
     def js_files(self) -> list[Path]:
@@ -1079,7 +1099,10 @@ class ReachabilityFilter:
         return self._dart_files
 
     def check(self, vuln: Vulnerability) -> bool:
-        """Return True if the vulnerable code is unreachable (safe to filter).
+        """Return True if no source file imports the package (import-level check).
+
+        This treats the package as if it were a direct dependency. Callers that
+        filter on it must use :meth:`decide`, which handles transitive packages.
 
         Conservative: returns True only when we're confident the package or its
         vulnerable functions are never referenced in source code. Checks both
@@ -1106,47 +1129,9 @@ class ReachabilityFilter:
                 return False
             return all(not _file_mentions(all_files, func) for func in vuln.vulnerable_functions)
 
-        # Check JS/TS files for actual import/require statements
-        if self.js_files and _js_imports_package(self.js_files, pkg):
-            return False
+        return self._package_unused(pkg)
 
-        # Check Python files for actual import statements (AST-based)
-        if self.py_files and _py_imports_package(self.py_files, pkg):
-            return False
-
-        # Check Go files for import statements
-        if self.go_files and _go_imports_package(self.go_files, pkg):
-            return False
-
-        # Check Rust files for use/extern crate statements
-        if self.rs_files and _rs_imports_package(self.rs_files, pkg):
-            return False
-
-        # Check Java/Kotlin files for import statements
-        if self.java_files and _java_imports_package(self.java_files, pkg):
-            return False
-
-        # Check C# files for using directives
-        if self.cs_files and _cs_imports_package(self.cs_files, pkg):
-            return False
-
-        # Check PHP files for use statements
-        if self.php_files and _php_imports_package(self.php_files, pkg):
-            return False
-
-        # Check Ruby files for require statements
-        if self.rb_files and _rb_imports_package(self.rb_files, pkg):
-            return False
-
-        # Check Swift files for import statements
-        if self.swift_files and _swift_imports_package(self.swift_files, pkg):
-            return False
-
-        # Check Dart files for import statements
-        if self.dart_files and _dart_imports_package(self.dart_files, pkg):
-            return False
-
-        # Only filter if we had files to check
+    def _has_source(self) -> bool:
         return bool(
             self.js_files
             or self.py_files
@@ -1160,13 +1145,84 @@ class ReachabilityFilter:
             or self.dart_files
         )
 
+    def _imports_package(self, pkg: str) -> bool:
+        """True if any source file, in any supported language, imports ``pkg``.
+
+        Memoized: transitive decisions ask about the same few direct
+        dependencies for every alert, and each check reads every source file.
+        """
+        if pkg not in self._import_cache:
+            self._import_cache[pkg] = self._imports_package_uncached(pkg)
+        return self._import_cache[pkg]
+
+    def _imports_package_uncached(self, pkg: str) -> bool:
+        checks = (
+            (self.js_files, _js_imports_package),
+            (self.py_files, _py_imports_package),
+            (self.go_files, _go_imports_package),
+            (self.rs_files, _rs_imports_package),
+            (self.java_files, _java_imports_package),
+            (self.cs_files, _cs_imports_package),
+            (self.php_files, _php_imports_package),
+            (self.rb_files, _rb_imports_package),
+            (self.swift_files, _swift_imports_package),
+            (self.dart_files, _dart_imports_package),
+        )
+        return any(files and func(files, pkg) for files, func in checks)
+
+    def _package_unused(self, pkg: str) -> bool:
+        """True when there is source to inspect and none of it imports ``pkg``."""
+        return self._has_source() and not self._imports_package(pkg)
+
+    def decide(self, vuln: Vulnerability, graph: DependencyGraph) -> ReachabilityDecision:
+        """Reachability verdict that accounts for transitive dependencies.
+
+        - **direct**: unreachable when no source file imports the package (or,
+          if the advisory names vulnerable functions, none of them appear).
+        - **transitive**: the application never imports these itself, so the
+          import check says nothing about them. Unreachable only when every
+          direct dependency that pulls the package in is itself unused.
+        - **unknown**: no manifest tells us which it is. Never filtered.
+        """
+        kind = graph.directness(vuln.package)
+        if kind == "unknown" and vuln.is_direct is False:
+            kind = "transitive"  # the scanner knows (npm audit, Snyk)
+
+        if kind == "direct":
+            # A package can be both direct and transitive: listed in the
+            # manifest but unused by the app, while a dependency the app does
+            # use calls it. Any imported ancestor keeps it reachable.
+            ancestors = sorted(graph.direct_ancestors(vuln.package))
+            imported = [a for a in ancestors if self._imports_package(a)]
+            return ReachabilityDecision(
+                unreachable=not imported and self.check(vuln),
+                dependency_type="direct",
+                introduced_by=ancestors,
+                imported_ancestors=imported,
+            )
+
+        if kind == "transitive":
+            ancestors = sorted(graph.direct_ancestors(vuln.package))
+            imported = [a for a in ancestors if self._imports_package(a)]
+            return ReachabilityDecision(
+                unreachable=bool(ancestors) and self._has_source() and not imported,
+                dependency_type="transitive",
+                introduced_by=ancestors,
+                imported_ancestors=imported,
+            )
+
+        return ReachabilityDecision(unreachable=False, dependency_type="unknown")
+
     def find_imports(self, vuln: Vulnerability) -> list[str]:
         """Return list of files where the vulnerable package is imported.
 
         Uses AST for Python files, import-pattern regex for JS/TS, Go, and Rust files.
         """
+        return self.find_imports_for(vuln.package)
+
+    def find_imports_for(self, pkg: str) -> list[str]:
+        """Files that import the package named ``pkg``."""
         results: list[str] = []
-        pkg = vuln.package
         # Check JS/TS files by import/require detection
         for f in self.js_files:
             if _js_file_imports_package(f, pkg):

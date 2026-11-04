@@ -147,7 +147,7 @@ def _build_findings_json(result: ScanResult) -> str:
                 "verdict": tr.verdict.value,
                 "reasons": [r.value for r in tr.reasons],
                 "epss": tr.epss_score,
-                "fix": tr.vuln.fix_version,
+                "fix": tr.vuln.fix_label,
                 "reachable": tr.reachable_imports,
             }
         )
@@ -234,7 +234,7 @@ def _finding_row(tr: TriageResult) -> str:
     """Render one finding as a table row."""
 
     epss = f"{tr.epss_score:.0%}" if tr.epss_score is not None else "—"
-    fix = f"<code>{_esc(tr.vuln.fix_version)}</code>" if tr.vuln.fix_version else "—"
+    fix = f"<code>{_esc(tr.vuln.fix_label)}</code>" if tr.vuln.fix_version else "—"
     sev = tr.vuln.severity.value
     sev_color = _SEVERITY_COLORS.get(sev, "#94a3b8")
 

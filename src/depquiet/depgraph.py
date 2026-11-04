@@ -1,0 +1,582 @@
+"""Dependency graph: which packages are direct, and what pulls in the rest.
+
+Import-level reachability only makes sense for *direct* dependencies. A
+transitive dependency is almost never imported by the application itself:
+an Express app imports ``express``, never ``path-to-regexp`` or ``qs``, yet
+Express calls both on every request. Treating "not imported" as "unreachable"
+for those packages silently dismisses real, exploitable vulnerabilities.
+
+So the reachability filter needs two facts the scanners do not reliably give
+us (most scanner formats either omit directness or hard-code it):
+
+1. **Is the package direct?** Taken from the project's own manifests and
+   lockfiles, never from the scanner.
+2. **For a transitive package, which direct dependencies pull it in?**
+   Taken from lockfiles that record dependency edges.
+
+When either fact is unknown the caller must not filter on reachability.
+Being unable to prove a package is unused is not evidence that it is.
+
+Supported sources:
+
+========================  ==================  ==================
+Ecosystem                 Direct deps         Edges
+========================  ==================  ==================
+npm                       package.json /      package-lock.json,
+                          package-lock root   yarn.lock (v1/berry)
+Python                    pyproject.toml,     requirements.txt
+                          Pipfile,            ``# via`` comments
+                          requirements.in,    (pip-compile)
+                          requirements.txt*
+Rust                      Cargo.lock roots    Cargo.lock
+Ruby                      Gemfile.lock        Gemfile.lock
+PHP                       composer.json       composer.lock
+.NET                      packages.lock.json  packages.lock.json
+Dart                      pubspec.lock        (none)
+Go                        go.mod              (none)
+Java (Maven)              pom.xml             (none)
+========================  ==================  ==================
+
+\\* A requirements.txt where *every* line is pinned with ``==`` and that has no
+``# via`` annotations is indistinguishable from ``pip freeze`` output, which
+lists transitive packages as if they were direct. Such files are not used as
+a source of direct dependencies.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+import tomllib
+import xml.etree.ElementTree as ET
+from collections import deque
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Literal
+
+Directness = Literal["direct", "transitive", "unknown"]
+
+_SKIP_DIRS = {"node_modules", ".git", "vendor", "target", ".venv", "venv", "dist", "build"}
+
+
+def _norm(name: str) -> str:
+    """Case-insensitive key. Package names in every supported ecosystem
+    compare case-insensitively in practice (npm forbids uppercase, PyPI,
+    NuGet and Composer are case-insensitive)."""
+    return name.strip().lower()
+
+
+def _pep503(name: str) -> str:
+    return re.sub(r"[-_.]+", "-", name.strip().lower())
+
+
+def _keys(name: str) -> set[str]:
+    """Both lookup forms of a name: plain (npm, Cargo, ...) and PEP 503 (Python)."""
+    return {_norm(name), _pep503(name)}
+
+
+@dataclass
+class DependencyGraph:
+    """Direct dependencies plus parent -> child edges, keyed by normalized name."""
+
+    direct: set[str] = field(default_factory=set)
+    # Subset of ``direct`` declared for production in at least one manifest.
+    # direct - prod_direct = dev-only (devDependencies, require-dev, Pipfile
+    # dev-packages, Poetry dev groups).
+    prod_direct: set[str] = field(default_factory=set)
+    edges: dict[str, set[str]] = field(default_factory=dict)
+    # Packages the lockfiles say are transitive even without edges
+    # (pubspec.lock, go.mod ``// indirect``, NuGet "Transitive").
+    known_transitive: set[str] = field(default_factory=set)
+    # True once any manifest listing direct dependencies was read.
+    has_manifest: bool = False
+    sources: list[str] = field(default_factory=list)
+    # normalized key -> name as written in the manifest
+    display: dict[str, str] = field(default_factory=dict)
+
+    # -- construction -----------------------------------------------------
+
+    def add_direct(self, name: str, *, python: bool = False, dev: bool = False) -> None:
+        if name:
+            key = _pep503(name) if python else _norm(name)
+            self.direct.add(key)
+            self.display.setdefault(key, name.strip())
+            if not dev:
+                self.prod_direct.add(key)
+
+    def add_edge(self, parent: str, child: str) -> None:
+        if parent and child and _norm(parent) != _norm(child):
+            self.edges.setdefault(_norm(parent), set()).add(_norm(child))
+
+    def merge(self, other: DependencyGraph) -> None:
+        self.direct |= other.direct
+        self.prod_direct |= other.prod_direct
+        self.known_transitive |= other.known_transitive
+        for parent, children in other.edges.items():
+            self.edges.setdefault(parent, set()).update(children)
+        self.has_manifest = self.has_manifest or other.has_manifest
+        self.sources.extend(other.sources)
+        for key, name in other.display.items():
+            self.display.setdefault(key, name)
+
+    # -- queries ----------------------------------------------------------
+
+    def directness(self, package: str) -> Directness:
+        """Classify a package as direct, transitive or unknown."""
+        if _norm(package) in self.direct or _pep503(package) in self.direct:
+            # _pep503 only matches entries that came from Python manifests,
+            # since only those are stored in that form.
+            return "direct"
+        if _norm(package) in self.known_transitive:
+            return "transitive"
+        if not self.has_manifest:
+            return "unknown"
+        # A manifest lists every direct dependency of its ecosystem, but we
+        # don't know the package's ecosystem. If some edge points at it, it is
+        # certainly transitive; otherwise it is either transitive or belongs to
+        # an ecosystem whose manifest we didn't read.
+        keys = _keys(package)
+        if any(keys & children for children in self.edges.values()):
+            return "transitive"
+        return "unknown"
+
+    def is_dev_only(self, names: list[str]) -> bool:
+        """True when every name is a direct dependency declared as dev-only.
+
+        A package declared both as a dependency and a devDependency (or in a
+        second manifest as a regular dependency) counts as production.
+        """
+        keys = [_keys(n) for n in names]
+        return bool(keys) and all(k & self.direct and not k & self.prod_direct for k in keys)
+
+    def direct_ancestors(self, package: str) -> set[str]:
+        """Direct dependencies whose dependency closure contains ``package``.
+
+        Returns an empty set when no path from a direct dependency is known.
+        Names are returned as written in the manifest.
+        """
+        parents: dict[str, set[str]] = {}
+        for parent, children in self.edges.items():
+            for child in children:
+                parents.setdefault(child, set()).add(parent)
+
+        found: set[str] = set()
+        seen = set(_keys(package))
+        queue = deque(seen)
+        while queue:
+            node = queue.popleft()
+            for parent in parents.get(node, ()):
+                if parent in seen:
+                    continue
+                seen.add(parent)
+                if parent in self.direct:
+                    found.add(self.display.get(parent, parent))
+                queue.append(parent)
+        return found
+
+    # -- loading ----------------------------------------------------------
+
+    @classmethod
+    def from_project(cls, project: Path) -> DependencyGraph:
+        """Build the graph from every supported manifest/lockfile in ``project``.
+
+        Malformed files are skipped: a broken lockfile must not crash a scan,
+        and skipping it can only make the graph *less* informative, which
+        makes the caller filter less, never more.
+        """
+        graph = cls()
+        if not project.is_dir():
+            return graph
+        for path in _iter_files(project):
+            loader = _LOADERS.get(path.name)
+            if loader is None and path.name.startswith("requirements") and path.suffix == ".txt":
+                loader = _load_requirements_txt
+            if loader is None:
+                continue
+            try:
+                part = loader(path)
+            except (OSError, ValueError, KeyError, TypeError, ET.ParseError):
+                # ValueError covers JSON, TOML and Unicode decode errors.
+                continue
+            if part is not None:
+                part.sources.append(str(path.relative_to(project)))
+                graph.merge(part)
+        return graph
+
+
+def _iter_files(project: Path, max_depth: int = 3) -> list[Path]:
+    """Manifest files up to ``max_depth`` levels deep (monorepos), skipping vendored dirs."""
+    out: list[Path] = []
+
+    def walk(d: Path, depth: int) -> None:
+        try:
+            entries = sorted(d.iterdir())
+        except OSError:
+            return
+        for e in entries:
+            if e.is_dir():
+                if depth < max_depth and e.name not in _SKIP_DIRS and not e.name.startswith("."):
+                    walk(e, depth + 1)
+            elif e.is_file():
+                out.append(e)
+
+    walk(project, 0)
+    return out
+
+
+# ---------------------------------------------------------------------------
+# npm
+# ---------------------------------------------------------------------------
+
+_NPM_DEP_KEYS = ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies")
+
+
+def _load_package_json(path: Path) -> DependencyGraph:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    g = DependencyGraph(has_manifest=True)
+    for key in _NPM_DEP_KEYS:
+        for name in data.get(key) or {}:
+            g.add_direct(name, dev=key == "devDependencies")
+    return g
+
+
+def _npm_name_from_key(key: str) -> str:
+    return key.rsplit("node_modules/", 1)[-1]
+
+
+def _load_package_lock(path: Path) -> DependencyGraph:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    g = DependencyGraph()
+    packages: dict[str, Any] = data.get("packages") or {}
+    if packages:
+        root = packages.get("") or {}
+        if root:
+            g.has_manifest = True
+            for key in _NPM_DEP_KEYS:
+                for name in root.get(key) or {}:
+                    g.add_direct(name, dev=key == "devDependencies")
+        for key, info in packages.items():
+            if not key or not isinstance(info, dict):
+                continue
+            parent = info.get("name") or _npm_name_from_key(key)
+            for dep_key in ("dependencies", "optionalDependencies", "peerDependencies"):
+                for child in info.get(dep_key) or {}:
+                    g.add_edge(parent, child)
+        return g
+
+    # lockfileVersion 1: nested "dependencies" with "requires"
+    def walk(deps: dict[str, Any]) -> None:
+        for name, info in deps.items():
+            if not isinstance(info, dict):
+                continue
+            for child in info.get("requires") or {}:
+                g.add_edge(name, child)
+            walk(info.get("dependencies") or {})
+
+    walk(data.get("dependencies") or {})
+    return g
+
+
+_YARN_DEP_SECTIONS = ("dependencies", "optionalDependencies", "peerDependencies")
+_YARN_HEADER = re.compile(r'^"?(@?[^@"\s,]+)@')
+
+
+def _load_yarn_lock(path: Path) -> DependencyGraph:
+    """yarn.lock v1 and berry: headers at column 0, deps indented under ``dependencies:``."""
+    g = DependencyGraph()
+    current: str | None = None
+    in_deps = False
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        if not raw.strip() or raw.lstrip().startswith("#"):
+            continue
+        indent = len(raw) - len(raw.lstrip(" "))
+        line = raw.strip()
+        if indent == 0:
+            m = _YARN_HEADER.match(line)
+            current = m.group(1) if m else None
+            in_deps = False
+        elif indent == 2:
+            in_deps = line.rstrip(":") in _YARN_DEP_SECTIONS
+        elif indent >= 4 and in_deps and current:
+            name = line.split(":", 1)[0] if ":" in line.split(" ", 1)[0] else line.split(" ", 1)[0]
+            g.add_edge(current, name.strip('"'))
+    return g
+
+
+# ---------------------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------------------
+
+_REQ_NAME = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)")
+
+
+def _req_name(spec: str) -> str:
+    m = _REQ_NAME.match(spec)
+    return m.group(1) if m else ""
+
+
+def _load_pyproject(path: Path) -> DependencyGraph | None:
+    """PEP 621, PEP 735 dependency groups and Poetry.
+
+    Extras (optional-dependencies) ship to users, so they count as production.
+    PEP 735 groups and Poetry dev/group dependencies are development-only.
+    """
+    data = tomllib.loads(path.read_text(encoding="utf-8"))
+    entries: list[tuple[str, bool]] = []  # (name, dev)
+    project = data.get("project") or {}
+    entries += [(_req_name(s), False) for s in project.get("dependencies") or []]
+    for group in (project.get("optional-dependencies") or {}).values():
+        entries += [(_req_name(s), False) for s in group]
+    for group in (data.get("dependency-groups") or {}).values():
+        entries += [(_req_name(s), True) for s in group if isinstance(s, str)]
+    poetry = (data.get("tool") or {}).get("poetry") or {}
+    entries += [(n, False) for n in poetry.get("dependencies") or {}]
+    entries += [(n, True) for n in poetry.get("dev-dependencies") or {}]
+    for grp in (poetry.get("group") or {}).values():
+        entries += [(n, True) for n in (grp or {}).get("dependencies") or {}]
+    entries = [(n, dev) for n, dev in entries if n and n.lower() != "python"]
+    if not entries:
+        return None
+    g = DependencyGraph(has_manifest=True)
+    for n, dev in entries:
+        g.add_direct(n, python=True, dev=dev)
+    return g
+
+
+def _load_pipfile(path: Path) -> DependencyGraph:
+    data = tomllib.loads(path.read_text(encoding="utf-8"))
+    g = DependencyGraph(has_manifest=True)
+    for section in ("packages", "dev-packages"):
+        for name in data.get(section) or {}:
+            g.add_direct(name, python=True, dev=section == "dev-packages")
+    return g
+
+
+def _load_requirements_in(path: Path) -> DependencyGraph:
+    g = DependencyGraph(has_manifest=True)
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.split("#", 1)[0].strip()
+        if line and not line.startswith("-"):
+            g.add_direct(_req_name(line), python=True)
+    return g
+
+
+def _load_requirements_txt(path: Path) -> DependencyGraph | None:
+    """requirements.txt, with pip-compile ``# via`` annotations when present."""
+    lines = path.read_text(encoding="utf-8").splitlines()
+    reqs: list[str] = []
+    via: dict[str, list[str]] = {}
+    current: str | None = None
+    collecting = False
+    for raw in lines:
+        stripped = raw.strip()
+        if not stripped:
+            continue
+        if stripped.startswith("#"):
+            comment = stripped.lstrip("#").strip()
+            if current and comment.startswith("via"):
+                rest = comment[3:].strip()
+                collecting = not rest
+                if rest:
+                    via.setdefault(current, []).append(rest)
+            elif current and collecting and comment:
+                via.setdefault(current, []).append(comment)
+            continue
+        if stripped.startswith("-"):
+            current, collecting = None, False
+            continue
+        spec = stripped.split(" #", 1)[0].strip()
+        current = _req_name(spec)
+        collecting = False
+        if current:
+            reqs.append(spec)
+            via.setdefault(current, [])
+
+    if not reqs:
+        return None
+
+    g = DependencyGraph()
+    annotated = any(via.values())
+    if annotated:
+        g.has_manifest = True
+        for name, parents in via.items():
+            for p in parents:
+                if p.startswith("-r") or p.startswith("-c") or p.endswith((".in", ".toml", ".cfg")):
+                    g.add_direct(name, python=True)
+                else:
+                    g.add_edge(_pep503(_req_name(p)), _pep503(name))
+        return g
+
+    if all("==" in r for r in reqs):
+        # Looks like `pip freeze`: directness unknown. Contribute nothing.
+        return None
+
+    g.has_manifest = True
+    for r in reqs:
+        g.add_direct(_req_name(r), python=True)
+    return g
+
+
+# ---------------------------------------------------------------------------
+# Rust, Ruby, PHP, .NET, Dart, Go, Maven
+# ---------------------------------------------------------------------------
+
+
+def _load_cargo_lock(path: Path) -> DependencyGraph:
+    data = tomllib.loads(path.read_text(encoding="utf-8"))
+    g = DependencyGraph()
+    for pkg in data.get("package") or []:
+        name = pkg.get("name", "")
+        deps = [d.split(" ", 1)[0] for d in pkg.get("dependencies") or []]
+        if "source" not in pkg:  # local workspace crate: its deps are direct
+            g.has_manifest = True
+            for d in deps:
+                g.add_direct(d)
+        for d in deps:
+            g.add_edge(name, d)
+    return g
+
+
+_GEM_LINE = re.compile(r"^(\s*)([A-Za-z0-9_.-]+)(?:\s|!|$)")
+
+
+def _load_gemfile_lock(path: Path) -> DependencyGraph:
+    g = DependencyGraph()
+    section = ""
+    in_specs = False
+    current: str | None = None
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        if raw and not raw.startswith(" "):
+            section = raw.strip()
+            in_specs = False
+            continue
+        if raw.strip() == "specs:":
+            in_specs = True
+            continue
+        m = _GEM_LINE.match(raw)
+        if not m:
+            continue
+        indent, name = len(m.group(1)), m.group(2)
+        if section == "DEPENDENCIES" and indent == 2:
+            g.has_manifest = True
+            g.add_direct(name)
+        elif in_specs and indent == 4:
+            current = name
+        elif in_specs and indent == 6 and current:
+            g.add_edge(current, name)
+    return g
+
+
+def _composer_real(name: str) -> bool:
+    return "/" in name  # skips "php", "ext-json", "lib-icu"
+
+
+def _load_composer_json(path: Path) -> DependencyGraph:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    g = DependencyGraph(has_manifest=True)
+    for key in ("require", "require-dev"):
+        for name in data.get(key) or {}:
+            if _composer_real(name):
+                g.add_direct(name, dev=key == "require-dev")
+    return g
+
+
+def _load_composer_lock(path: Path) -> DependencyGraph:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    g = DependencyGraph()
+    for key in ("packages", "packages-dev"):
+        for pkg in data.get(key) or []:
+            for child in pkg.get("require") or {}:
+                if _composer_real(child):
+                    g.add_edge(pkg.get("name", ""), child)
+    return g
+
+
+def _load_nuget_lock(path: Path) -> DependencyGraph:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    g = DependencyGraph()
+    for framework in (data.get("dependencies") or {}).values():
+        for name, info in (framework or {}).items():
+            kind = (info or {}).get("type", "")
+            if kind == "Direct":
+                g.has_manifest = True
+                g.add_direct(name)
+            elif kind == "Transitive":
+                g.known_transitive.add(_norm(name))
+            for child in (info or {}).get("dependencies") or {}:
+                g.add_edge(name, child)
+    return g
+
+
+def _load_pubspec_lock(path: Path) -> DependencyGraph:
+    g = DependencyGraph()
+    current: str | None = None
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        if re.match(r"^  [A-Za-z0-9_]+:\s*$", raw):
+            current = raw.strip().rstrip(":")
+            continue
+        m = re.match(r'^    dependency:\s*"?([^"]+)"?', raw)
+        if m and current:
+            kind = m.group(1).strip()
+            if kind.startswith("direct"):
+                g.has_manifest = True
+                g.add_direct(current)
+            elif kind == "transitive":
+                g.known_transitive.add(_norm(current))
+    return g
+
+
+def _load_go_mod(path: Path) -> DependencyGraph:
+    g = DependencyGraph(has_manifest=True)
+    in_block = False
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if line.startswith("require ("):
+            in_block = True
+            continue
+        if in_block and line == ")":
+            in_block = False
+            continue
+        if line.startswith("require "):
+            line = line[len("require ") :]
+        elif not in_block:
+            continue
+        if not line or line.startswith("//"):
+            continue
+        module = line.split()[0]
+        if "// indirect" in line:
+            g.known_transitive.add(_norm(module))
+        else:
+            g.add_direct(module)
+    return g
+
+
+def _load_pom(path: Path) -> DependencyGraph:
+    root = ET.parse(path).getroot()
+    ns = root.tag.split("}", 1)[0] + "}" if root.tag.startswith("{") else ""
+    g = DependencyGraph(has_manifest=True)
+    for dep in root.iter(f"{ns}dependency"):
+        group = dep.findtext(f"{ns}groupId") or ""
+        artifact = dep.findtext(f"{ns}artifactId") or ""
+        if group and artifact:
+            g.add_direct(f"{group}:{artifact}")
+    return g
+
+
+_LOADERS: dict[str, Any] = {
+    "package.json": _load_package_json,
+    "package-lock.json": _load_package_lock,
+    "npm-shrinkwrap.json": _load_package_lock,
+    "yarn.lock": _load_yarn_lock,
+    "pyproject.toml": _load_pyproject,
+    "Pipfile": _load_pipfile,
+    "requirements.in": _load_requirements_in,
+    "Cargo.lock": _load_cargo_lock,
+    "Gemfile.lock": _load_gemfile_lock,
+    "composer.json": _load_composer_json,
+    "composer.lock": _load_composer_lock,
+    "packages.lock.json": _load_nuget_lock,
+    "pubspec.lock": _load_pubspec_lock,
+    "go.mod": _load_go_mod,
+    "pom.xml": _load_pom,
+}

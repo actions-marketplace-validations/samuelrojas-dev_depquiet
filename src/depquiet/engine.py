@@ -16,9 +16,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Protocol
 
+from depquiet.depgraph import DependencyGraph
 from depquiet.filters.devdep import DevDepFilter
 from depquiet.filters.epss import EpssFilter
-from depquiet.filters.reachability import ReachabilityFilter
+from depquiet.filters.reachability import ReachabilityDecision, ReachabilityFilter
 from depquiet.filters.templates import TemplateFilter
 from depquiet.models import (
     FilterReason,
@@ -170,6 +171,7 @@ def scan(
 
     # Step 2: Initialize filters
     reachability = ReachabilityFilter(project)
+    graph = DependencyGraph.from_project(project)
     epss_filter = EpssFilter(threshold=epss_threshold)
     template_filter = TemplateFilter(template_dirs=template_dirs)
 
@@ -203,12 +205,20 @@ def scan(
             )
             continue
 
-        # Filter 1: devDependency
-        if DevDepFilter.check(vuln):
+        # Filter 2 runs first because filter 1 uses its dependency paths.
+        # Transitive packages are judged by the direct dependencies that pull
+        # them in, never by the app's own imports.
+        decision = reachability.decide(vuln, graph)
+
+        # Filter 1: devDependency. Scanners only flag direct devDependencies;
+        # a transitive package is dev-only when every direct dependency that
+        # pulls it in is itself a devDependency.
+        if DevDepFilter.check(vuln) or (
+            decision.dependency_type == "transitive" and graph.is_dev_only(decision.introduced_by)
+        ):
             reasons.append(FilterReason.DEV_DEPENDENCY)
 
-        # Filter 2: Unreachable (function never imported)
-        if reachability.check(vuln):
+        if decision.unreachable:
             reasons.append(FilterReason.UNREACHABLE)
 
         # Filter 3: Low EPSS score
@@ -254,7 +264,7 @@ def scan(
         # For ACTION items, find where the package is imported
         reachable_imports = []
         if verdict == Verdict.ACTION:
-            reachable_imports = reachability.find_imports(vuln)
+            reachable_imports = _import_sites(reachability, vuln, decision)
 
         results.append(
             TriageResult(
@@ -266,6 +276,8 @@ def scan(
                 reachable_imports=reachable_imports,
                 template_id=template_id,
                 template_reason=template_reason,
+                dependency_type=decision.dependency_type,
+                introduced_by=decision.introduced_by,
             )
         )
 
@@ -279,3 +291,14 @@ def scan(
         total_dependencies=len(set(v.package for v in vulns)),
         results=results,
     )
+
+
+def _import_sites(
+    reachability: ReachabilityFilter, vuln: Vulnerability, decision: ReachabilityDecision
+) -> list[str]:
+    """Where the vulnerable package enters the app: its own imports, or for a
+    transitive package, the imports of the direct dependencies that pull it in."""
+    sites = reachability.find_imports(vuln)
+    for ancestor in decision.imported_ancestors:
+        sites += [s for s in reachability.find_imports_for(ancestor) if s not in sites]
+    return sites

@@ -59,16 +59,19 @@ def print_scan_result(result: ScanResult) -> None:
                 by_reason[reason] = by_reason.get(reason, 0) + 1
 
         reason_labels = {
-            FilterReason.UNREACHABLE: "unreachable — vulnerable function never imported",
+            FilterReason.UNREACHABLE: "unreachable — not imported, directly or via a parent",
             FilterReason.DEV_DEPENDENCY: "devDependency only — never reaches production",
             FilterReason.LOW_EPSS: "EPSS < 10% — no known exploits in the wild",
             FilterReason.COMMUNITY_TEMPLATE: "community template — confirmed false positive",
         }
 
-        for reason, count in sorted(by_reason.items(), key=lambda x: -x[1]):
+        ordered = sorted(by_reason.items(), key=lambda x: (-x[1], x[0].value))
+        for i, (reason, count) in enumerate(ordered):
             label = reason_labels.get(reason, reason.value)
-            prefix = "└─" if reason == list(by_reason.keys())[-1] else "├─"
+            prefix = "└─" if i == len(ordered) - 1 else "├─"
             print(f"   {_c(_DIM, prefix)} {count} {label}")
+        if sum(by_reason.values()) > len(filtered):
+            print(f"   {_c(_DIM, '(an alert can match more than one reason)')}")
 
     # Review
     if review:
@@ -86,7 +89,10 @@ def print_scan_result(result: ScanResult) -> None:
         print(f"{_c(_RED, '🔴')} {_c(_BOLD, f'ACTION REQUIRED: {len(action)} alerts')}")
         for r in action:
             epss_str = f"EPSS {r.epss_score:.0%}" if r.epss_score is not None else ""
-            fix_str = f"FIX: update to {r.vuln.fix_version}" if r.vuln.fix_version else ""
+            fix_str = ""
+            if r.vuln.fix_version:
+                target = f"{r.vuln.fix_package} " if r.vuln.fix_package else ""
+                fix_str = f"FIX: update {target}to {r.vuln.fix_version}"
             parts = [r.vuln.cve, r.vuln.package]
             if epss_str:
                 parts.append(epss_str)
@@ -96,6 +102,8 @@ def print_scan_result(result: ScanResult) -> None:
             print(f"   {_c(_RED, '•')} {'  '.join(parts)}")
 
             # Show where it's imported
+            if r.dependency_type == "transitive" and r.introduced_by:
+                print(f"     {_c(_DIM, 'via ' + ', '.join(r.introduced_by[:3]))}")
             if r.reachable_imports:
                 for imp in r.reachable_imports[:3]:
                     print(f"     {_c(_DIM, '→')} {imp}")

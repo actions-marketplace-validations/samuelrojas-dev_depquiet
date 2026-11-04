@@ -51,7 +51,7 @@ def render_summary(result: ScanResult) -> str:
         lines.append("|-----|---------|----------|------|-----|")
         for r in result.action:
             epss = f"{r.epss_score:.0%}" if r.epss_score is not None else "—"
-            fix = f"`{r.vuln.fix_version}`" if r.vuln.fix_version else "—"
+            fix = f"`{r.vuln.fix_label}`" if r.vuln.fix_version else "—"
             sev = _severity_badge(r.vuln.severity.value)
             cve = r.vuln.cve
             if r.vuln.url:

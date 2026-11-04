@@ -109,8 +109,11 @@ class NpmAuditParser:
 
                 fix_available = pkg_data.get("fixAvailable", False)
                 fix_version = ""
+                fix_package = ""
                 if isinstance(fix_available, dict):
                     fix_version = fix_available.get("version", "")
+                    if fix_available.get("name", pkg_name) != pkg_name:
+                        fix_package = fix_available["name"]
 
                 vulns.append(
                     Vulnerability(
@@ -121,6 +124,7 @@ class NpmAuditParser:
                         title=title,
                         url=url,
                         fix_version=fix_version,
+                        fix_package=fix_package,
                         is_direct=is_direct,
                         is_dev=is_dev,
                         depth=0 if is_direct else 1,

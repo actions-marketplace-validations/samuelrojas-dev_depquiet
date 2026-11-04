@@ -48,6 +48,10 @@ class Vulnerability:
     title: str = ""
     url: str = ""
     fix_version: str = ""
+    # Package to upgrade to get ``fix_version`` when it isn't this package
+    # (npm audit: the fix for a transitive package is often a new version of
+    # the direct dependency that pulls it in). Empty means this package.
+    fix_package: str = ""
     # Which functions in the package are vulnerable (from advisory)
     vulnerable_functions: list[str] = field(default_factory=list)
     # Whether it's a direct or transitive dependency
@@ -60,6 +64,13 @@ class Vulnerability:
     @property
     def key(self) -> str:
         return f"{self.cve}:{self.package}"
+
+    @property
+    def fix_label(self) -> str:
+        """``4.17.21``, or ``express@4.22.3`` when the fix is upgrading another package."""
+        if not self.fix_version:
+            return ""
+        return f"{self.fix_package}@{self.fix_version}" if self.fix_package else self.fix_version
 
 
 @dataclass
@@ -75,6 +86,11 @@ class TriageResult:
     template_id: str | None = None
     template_reason: str | None = None
     kev_entry: Any = None  # KevEntry when CVE is in the CISA KEV catalog
+    # "direct", "transitive" or "unknown", from the project's manifests and
+    # lockfiles (see depquiet.depgraph); "" when reachability wasn't evaluated.
+    dependency_type: str = ""
+    # For transitive packages: the direct dependencies that pull them in.
+    introduced_by: list[str] = field(default_factory=list)
 
     @property
     def reason_summary(self) -> str:

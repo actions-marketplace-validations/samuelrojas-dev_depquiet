@@ -81,7 +81,11 @@ def _to_diff_finding(raw: dict[str, Any], previous_verdict: str | None = None) -
         verdict=raw.get("verdict", ""),
         previous_verdict=previous_verdict,
         epss_score=raw.get("epss_score"),
-        fix_version=raw.get("fix_version", ""),
+        fix_version=(
+            f"{raw['fix_package']}@{raw.get('fix_version', '')}"
+            if raw.get("fix_package") and raw.get("fix_version")
+            else raw.get("fix_version", "")
+        ),
     )
 
 

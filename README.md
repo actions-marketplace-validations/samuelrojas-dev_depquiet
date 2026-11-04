@@ -10,56 +10,74 @@
 
 `depquiet` triages your `npm audit` / `pip-audit` / `trivy` / `grype` / Dependabot / Snyk alerts and tells you which CVEs actually matter — in seconds, not hours. It can also **scan lockfiles directly** using the [OSV.dev](https://osv.dev) API — no external scanner required.
 
+A real Express app, `npm audit` piped in ([reproduce it](benchmarks/RESULTS.md#real-npm-express)):
+
 ```
-$ depquiet
+$ npm audit --json | depquiet --stdin
 
-depquiet scan — npm (847 packages)
+depquiet scan — npm (14 packages)
 
-✅ FILTERED: 89 alerts (92%)
-   ├─ 34 unreachable — vulnerable function never imported
-   ├─ 28 devDependency only — never reaches production
-   ├─ 19 EPSS < 10% — no known exploits in the wild
-   └─  8 community template — confirmed false positive
+✅ FILTERED: 13 alerts (45%)
+   ├─ 13 unreachable — not imported, directly or via a parent
+   └─ 8 devDependency only — never reaches production
+   (an alert can match more than one reason)
 
-⚠️  REVIEW: 5 alerts
-   CVE-2024-48930       lodash                    moderate   EPSS 3%
-   CVE-2024-21538       semver                    moderate   EPSS 1%
+⚠️  REVIEW: 3 alerts
+   GHSA-pxg6-pf52-xh8x  cookie                    low        no EPSS
    ...
 
-🔴 ACTION REQUIRED: 3 alerts
-   • CVE-2024-4068  braces  EPSS 67%  FIX: update to 3.0.3
-     → src/config/parser.ts
-     → src/utils/glob.ts
-     Uncontrolled resource consumption in braces
+🔴 ACTION REQUIRED: 13 alerts
+   • GHSA-9wv6-86v2-598j  path-to-regexp  FIX: update express to 4.22.3
+     via express
+     → app.js
+     path-to-regexp outputs backtracking regular expressions
+   ...
 
-Total: 97 alerts — 3 actionable | 5 review | 89 filtered
-You just saved ~178 minutes of triage time.
+Total: 29 alerts — 13 actionable | 3 review | 13 filtered
 ```
+
+`path-to-regexp` is never imported by the app, but Express calls it on every request, so
+depquiet keeps it. The 13 filtered alerts are in packages that only build tools pull in
+(eslint, nodemon, webpack-dev-middleware) or that the app declares but never imports.
 
 ## The problem
 
-Developers spend **3.5 hours per week** triaging vulnerability alerts that are mostly noise:
+Dependency scanners report every advisory that matches a version range, whether or not
+your application can reach the vulnerable code:
 
-- **60-80% of CVEs are unreachable** — the vulnerable function is never called
-- **npm audit is "broken by design"** — 80% false positive rate ([Dan Abramov](https://overreacted.io/npm-audit-broken-by-design/))
-- **Dependabot is a "noise machine"** — Filippo Valsorda recommends [disabling it entirely](https://words.filippo.io/dependabot)
+- **npm audit is "broken by design"** ([Dan Abramov](https://overreacted.io/npm-audit-broken-by-design/))
+- **Dependabot is a "noise machine"**: Filippo Valsorda recommends [turning it off](https://words.filippo.io/dependabot) in favor of reachability-aware tools like `govulncheck`
 
-The result? **Alert fatigue.** Teams either waste hours triaging noise, or ignore alerts entirely and miss the real threats.
+The result is alert fatigue: teams either spend hours triaging noise or start ignoring
+alerts, real ones included.
 
 ## How it works
 
 depquiet applies four deterministic filters to separate signal from noise:
 
-| Filter | What it catches | Impact |
-|---|---|---|
-| **Reachability** | Package/function never imported in your source code | 40-60% reduction |
-| **Dev dependencies** | Vulnerabilities in devDependencies that never reach production | 10-20% reduction |
-| **EPSS scoring** | CVEs with near-zero probability of real-world exploitation | 5-15% reduction |
-| **Community templates** | Known false positives confirmed by the community (nuclei-style YAML) | Growing over time |
+| Filter | Filters an alert when |
+|---|---|
+| **Reachability** | No source file imports the package, and (for a transitive package) no source file imports any direct dependency that pulls it in |
+| **Dev dependencies** | The package is a devDependency, or every direct dependency that pulls it in is one |
+| **EPSS scoring** | The CVE's probability of exploitation is below the threshold (default 10%) |
+| **Community templates** | A reviewed YAML template documents the advisory as a false positive |
 
-### Zero false negatives by design
+See [benchmarks](#benchmarks) for measured results on a real project.
 
-depquiet is **conservative**: it would rather let a false positive through than dismiss a real vulnerability. Python, JS/TS, Go, Rust, Java/Kotlin, C#, PHP, Ruby, Swift, and Dart reachability all use proper import analysis — no string matching, no regex against raw source. Only filter when there are **zero real references** to the package in your source code.
+### Conservative by design
+
+depquiet would rather let a false positive through than dismiss a real vulnerability:
+
+- **Transitive dependencies are judged by their parents.** Your code never imports
+  `path-to-regexp`; Express does. depquiet reads your manifests and lockfiles to find the
+  direct dependencies that pull a package in, and keeps the alert if your code imports any
+  of them. See [Direct vs. transitive](#direct-vs-transitive-dependencies).
+- **Unknown means not filtered.** If no manifest or lockfile says whether a package is direct
+  or transitive, or a file fails to parse, the alert is not filtered on reachability.
+- **Import-level, not call-graph.** Reachability means "the package enters your app", not
+  "the vulnerable function is called". It removes packages your app never loads; it does not
+  prove an imported package's vulnerable function is unused. For Go, `govulncheck` does
+  symbol-level analysis and is the better tool.
 
 ### Supported inputs
 
@@ -137,7 +155,7 @@ All standard depquiet flags work with SBOM input: `--epss-threshold`, `--kev`, `
 
 ### Reachability analysis in depth
 
-The reachability filter is where depquiet eliminates the most noise (40-60% of alerts). It works differently for each language:
+Import detection works differently for each language:
 
 **Python** — Full AST parsing via `ast.parse()`. Extracts `import`, `from … import`, and `__import__()` calls from the syntax tree. Immune to false positives from comments, docstrings, and string literals. Falls back to regex only for files that fail to parse (Python 2, encoding issues) — conservative: treats unparseable files as potentially importing the package.
 
@@ -217,6 +235,37 @@ The reachability filter is where depquiet eliminates the most noise (40-60% of a
 - Skips `.dart_tool/` directory
 
 All ten analyzers map aliased package names (e.g., `my-package` → `my_package` for Python, `@scope/name/sub` → `@scope/name` for JS, `github.com/user/repo/sub` → `github.com/user/repo` for Go, `my-crate` → `my_crate` for Rust, `com.fasterxml.jackson.core:jackson-databind` → `com.fasterxml.jackson.core` for Java, `Newtonsoft.Json.Linq` → `Newtonsoft.Json` for C#, `Monolog\Logger\Handler` → `monolog/logger` for PHP, `aws-sdk-s3` → matches `require 'aws/sdk/s3'` for Ruby, `swift-argument-parser` → `swift_argument_parser` for Swift, `flutter-bloc` → `flutter_bloc` for Dart) and check all source files in the project, skipping `node_modules`, `.git`, `__pycache__`, `dist`, `build`, `.build`, `.dart_tool`, `vendor`, `target`, and other vendored directories.
+
+### Direct vs. transitive dependencies
+
+The import check only answers "does my code import this package?", which is the right
+question for direct dependencies and the wrong one for transitive ones. Since v0.28.0
+depquiet builds a dependency graph from the project before filtering:
+
+| Ecosystem | Direct dependencies from | Dependency paths from |
+|---|---|---|
+| npm | `package.json`, `package-lock.json` | `package-lock.json` (v1-v3), `yarn.lock` (v1, berry) |
+| Python | `pyproject.toml` (PEP 621, PEP 735, Poetry), `Pipfile`, `requirements.in`, hand-written `requirements.txt` | pip-compile `# via` comments |
+| Rust | `Cargo.lock` workspace crates | `Cargo.lock` |
+| Ruby | `Gemfile.lock` | `Gemfile.lock` |
+| PHP | `composer.json` | `composer.lock` |
+| .NET | `packages.lock.json` | `packages.lock.json` |
+| Dart | `pubspec.lock` | — |
+| Go | `go.mod` (`// indirect`) | — |
+| Java (Maven) | `pom.xml` | — |
+
+Rules, in order:
+
+1. **Direct** dependency: filtered when nothing imports it *and* no imported direct dependency
+   also pulls it in.
+2. **Transitive** dependency: filtered only when none of the direct dependencies that pull it
+   in are imported. With no known path (Go, Dart, Maven), it is never filtered.
+3. **Unknown**: never filtered. This includes a `requirements.txt` where every line is pinned
+   with `==` and there are no `# via` comments, since that is indistinguishable from
+   `pip freeze` output.
+
+`depquiet explain <CVE>` shows the dependency type and the packages that pull it in, and
+`--json` output includes `dependency_type` and `introduced_by` for every alert.
 
 ## Install
 
@@ -496,29 +545,32 @@ Understand exactly why a CVE received its verdict. Every contributing signal —
 
 ```bash
 # Explain a CVE from a previous scan (saved with --json)
-depquiet explain CVE-2024-3651 --from-json scan.json
+depquiet explain GHSA-9wv6-86v2-598j --from-json scan.json
 
 # Machine-readable output
-depquiet explain CVE-2024-3651 --from-json scan.json --json
+depquiet explain GHSA-9wv6-86v2-598j --from-json scan.json --json
 
 # Live scan and explain
-depquiet explain CVE-2024-3651 --path ./my-project
+depquiet explain GHSA-9wv6-86v2-598j --path ./my-project
 ```
 
 Each signal shows its effect on the final verdict:
 
 ```
-🔴 CVE-2024-3651 — Inefficient Regular Expression Complexity
-   Package: idna@3.6
+🔴 GHSA-9wv6-86v2-598j — path-to-regexp outputs backtracking regular expressions
+   Package: path-to-regexp@<0.1.10
    Severity: HIGH
-   Verdict: ACTION (EPSS above threshold, reachable)
+   Verdict: ACTION (reachable, exploitable)
+   Fix: upgrade to express@4.22.3
 
    Signals:
-  ↑ EPSS score: 72.3% — High probability of exploitation
-  ↑ Reachability: reachable — Imported by: app/auth.py, app/dns.py
+  - EPSS score: unavailable — EPSS lookup was skipped or failed
+  ↑ Reachability: reachable — Transitive, pulled in by express. Entry points: app.js
   · Dependency type: production — Included in production builds
   · CISA KEV: not listed
 ```
+
+(The [real Express benchmark](benchmarks/RESULTS.md), scanned with `--offline`, so no EPSS.)
 
 ### Scan statistics (`depquiet stats`)
 
@@ -541,14 +593,19 @@ Output includes verdict breakdown, severity distribution, filter reason analysis
 depquiet scan statistics
 ========================================
 
-Total vulnerabilities: 97
-Total dependencies:   847
-Filter rate:          91.8%
+Total vulnerabilities: 29
+Total dependencies:   14
+Filter rate:          44.8%
 
 Verdicts:
-  🔴 ACTION        3 (  3.1%) ██░░░░░░░░░░░░░░░░░░
-  🟡 REVIEW        5 (  5.2%) █░░░░░░░░░░░░░░░░░░░
-  🟢 FILTERED     89 ( 91.8%) ██████████████████░░
+  🔴 ACTION       13 ( 44.8%) █████████░░░░░░░░░░░
+  🟡 REVIEW        3 ( 10.3%) ██░░░░░░░░░░░░░░░░░░
+  🟢 FILTERED     13 ( 44.8%) █████████░░░░░░░░░░░
+
+Filter reasons:
+  unreachable                 13 ( 61.9%)
+  dev dependency               8 ( 38.1%)
+...
 ```
 
 ### CISA KEV integration (`--kev`)
@@ -880,19 +937,21 @@ All conditions on a rule must match (AND logic):
 
 ## Benchmarks
 
-Tested against realistic audit output from popular project types (offline mode, all filters active):
+A real Express project: `package.json` pinned to versions from 2022, lockfile resolved by
+npm and audited with `npm audit` (captured with `benchmarks/capture_real.py`):
 
-| Scenario | Parser | Alerts | Filtered | Rate |
-|----------|--------|-------:|---------:|-----:|
-| Express web app | npm | 15 | 13 | **87%** |
-| Django web app | pip | 9 | 8 | **89%** |
-| Node.js container | trivy | 8 | 8 | **100%** |
-| Python container | grype | 6 | 5 | **83%** |
-| **Total** | | **38** | **34** | **89%** |
+| | Alerts | Filtered | Rate | Alerts in packages Express calls, filtered |
+|---|---:|---:|---:|---:|
+| depquiet 0.27 | 29 | 26 | 90% | **13** (false negatives) |
+| depquiet 0.28 | 29 | 13 | 45% | **0** |
 
-**89% noise reduction** — from 38 alerts down to 4 that actually matter. All scans complete in under 10ms.
+0.27 treated "your code doesn't import it" as "unreachable" for transitive packages too, so it
+dismissed every `body-parser`, `path-to-regexp`, `qs`, `cookie`, `send` and `serve-static`
+advisory. 0.28 traces each package to the direct dependency that pulls it in. Every verdict
+is listed in [benchmarks/RESULTS.md](benchmarks/RESULTS.md).
 
-Run the benchmarks yourself: `python -I benchmarks/run_benchmark.py`
+Run them yourself: `python -I benchmarks/run_benchmark.py` (offline). The synthetic fixtures
+in the same report are parser regression tests, not evidence.
 
 ## Compared to
 
@@ -903,10 +962,10 @@ Run the benchmarks yourself: `python -I benchmarks/run_benchmark.py`
 | Trivy | Multi-scanner, flags everything | Great detection, no triage |
 | Grype | Container scanner, flags everything | Great detection, no triage |
 | Dependabot | GitHub-only, flags everything | No triage, overwhelming noise |
-| Snyk | SaaS, paid | $100K+/year for reachability |
+| Snyk | SaaS, paid | Reachability analysis on paid plans |
 | GitHub Dependabot Reachability | AST analysis (Oct 2026) | JS/TS only, Enterprise Cloud ($21/user/mo), preview |
 | Mend / Black Duck | SaaS, paid | Enterprise pricing, vendor lock-in |
-| **depquiet** | Standalone lockfile scanner (OSV.dev), AST reachability (10 languages), SARIF input (any scanner), CycloneDX + SPDX SBOM, deterministic triage, community templates | Free, offline-capable, works everywhere |
+| **depquiet** | Standalone lockfile scanner (OSV.dev), import-level reachability across 10 languages, transitive-aware via lockfiles, SARIF input (any scanner), CycloneDX + SPDX SBOM, deterministic triage, community templates | Free, offline-capable, works everywhere |
 
 ## License
 

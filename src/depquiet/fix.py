@@ -55,7 +55,7 @@ def find_fixable(scan_result: ScanResult) -> list[TriageResult]:
             continue
         if not tr.vuln.fix_version:
             continue
-        key = f"{tr.vuln.package}@{tr.vuln.fix_version}"
+        key = f"{tr.vuln.fix_package or tr.vuln.package}@{tr.vuln.fix_version}"
         if key in seen:
             continue
         seen.add(key)
@@ -84,7 +84,9 @@ def apply_fixes(
     pm = scan_result.package_manager
 
     for tr in fixable:
-        pkg = tr.vuln.package
+        # Upgrade the package that carries the fix (for npm, often the direct
+        # parent), never pin a transitive package as a new direct dependency.
+        pkg = tr.vuln.fix_package or tr.vuln.package
         fix_ver = tr.vuln.fix_version
         from_ver = tr.vuln.version
         cve = tr.vuln.cve

@@ -189,7 +189,7 @@ def _finding_to_annotation(
     message_parts.append(f"Severity: {vuln.severity.value.upper()}")
 
     if vuln.fix_version:
-        message_parts.append(f"Fix: upgrade to {vuln.fix_version}")
+        message_parts.append(f"Fix: upgrade to {vuln.fix_label}")
 
     if tr.epss_score is not None:
         message_parts.append(f"EPSS: {tr.epss_score:.1%}")

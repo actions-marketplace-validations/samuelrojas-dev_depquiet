@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-11-04
+
+### Fixed
+- **Reachability no longer dismisses transitive dependencies.** Before, a package was
+  "unreachable" whenever the app didn't import it directly, which is true of almost every
+  transitive package. On a real Express app, 0.27 filtered 13 alerts in `body-parser`,
+  `path-to-regexp`, `qs`, `cookie`, `send` and `serve-static`, all of which Express calls
+  on every request. A transitive package is now filtered only when none of the direct
+  dependencies that pull it in are imported, and a direct dependency also pulled in by an
+  imported one stays reachable. Alerts whose dependency type can't be determined are no
+  longer filtered on reachability.
+- `depquiet fix` upgraded the wrong package for npm transitive advisories: it ran
+  `npm install body-parser@4.22.3` when npm audit's fix was express 4.22.3. Fixes now target
+  the package npm audit names (`fix_package`), and every output shows e.g.
+  `express@4.22.3`.
+- Filtered-reason breakdown printed `└─` before `├─` and didn't say that an alert can
+  match several reasons.
+
+### Added
+- `depquiet.depgraph`: direct dependencies and dependency paths from `package.json`,
+  `package-lock.json` (v1-v3), `yarn.lock` (v1, berry), `pyproject.toml` (PEP 621, PEP 735,
+  Poetry), `Pipfile`, `requirements.in`, pip-compile `requirements.txt`, `Cargo.lock`,
+  `Gemfile.lock`, `composer.json`/`composer.lock`, NuGet `packages.lock.json`,
+  `pubspec.lock`, `go.mod` and `pom.xml`.
+- Transitive packages pulled in only by devDependencies are filtered as dev-only.
+- `dependency_type`, `introduced_by` and `fix_package` in `--json` output; `explain` shows
+  which dependencies pull a package in; human output shows `via <parent>`.
+- Real benchmark scenario (`benchmarks/fixtures/real-npm-express`) captured with npm itself
+  by `benchmarks/capture_real.py`, with a per-alert verdict table in `RESULTS.md`.
+
+### Changed
+- README numbers now come only from the real benchmark. Removed the unsourced figures
+  (89% noise reduction from synthetic fixtures, "3.5 hours per week", "60-80% unreachable",
+  per-filter impact percentages, Snyk pricing) and the "zero false negatives" claim.
+
 ## [0.27.1] - 2026-11-04
 
 ### Fixed

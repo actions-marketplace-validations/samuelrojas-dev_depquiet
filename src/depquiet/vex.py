@@ -187,7 +187,7 @@ def _build_action(tr: TriageResult) -> str:
     """Build an action statement for affected findings."""
     parts: list[str] = [f"Update {tr.vuln.package}"]
     if tr.vuln.fix_version:
-        parts[0] += f" to {tr.vuln.fix_version}"
+        parts[0] += f" to {tr.vuln.fix_label}"
     parts[0] += "."
     if tr.epss_score is not None and tr.epss_score >= 0.1:
         parts.append(f"EPSS score: {tr.epss_score:.1%}.")

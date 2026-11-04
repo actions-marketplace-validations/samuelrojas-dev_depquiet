@@ -107,23 +107,53 @@ def explain_triage(tr: TriageResult) -> Explanation:
         )
 
     # 2. Reachability
+    via = ", ".join(tr.introduced_by)
     if tr.reachable_imports:
         imports = ", ".join(tr.reachable_imports)
+        detail = f"Imported by: {imports}"
+        if tr.dependency_type == "transitive" and via:
+            detail = f"Transitive, pulled in by {via}. Entry points: {imports}"
         signals.append(
             Signal(
                 name="Reachability",
                 value="reachable",
                 effect="escalated",
-                detail=f"Imported by: {imports}",
+                detail=detail,
             )
         )
     elif FilterReason.UNREACHABLE in tr.reasons:
+        detail = "Vulnerable code is not imported in this project"
+        if tr.dependency_type == "transitive" and via:
+            detail = f"Transitive; none of the packages that pull it in are imported ({via})"
         signals.append(
             Signal(
                 name="Reachability",
                 value="unreachable",
                 effect="filtered",
-                detail="Vulnerable code is not imported in this project",
+                detail=detail,
+            )
+        )
+    elif tr.dependency_type == "unknown":
+        signals.append(
+            Signal(
+                name="Reachability",
+                value="unknown",
+                effect="neutral",
+                detail=(
+                    "No manifest or lockfile says whether this package is direct or "
+                    "transitive, so it was not filtered on reachability"
+                ),
+            )
+        )
+    elif tr.dependency_type == "transitive":
+        detail = "Transitive dependency"
+        detail += f", pulled in by {via}" if via else "; no lockfile path to a direct dependency"
+        signals.append(
+            Signal(
+                name="Reachability",
+                value="transitive",
+                effect="neutral",
+                detail=detail + ". Not filtered on reachability",
             )
         )
     else:
@@ -137,14 +167,17 @@ def explain_triage(tr: TriageResult) -> Explanation:
         )
 
     # 3. Dev dependency
-    if tr.vuln.is_dev:
+    if tr.vuln.is_dev or FilterReason.DEV_DEPENDENCY in tr.reasons:
         effect = "filtered" if FilterReason.DEV_DEPENDENCY in tr.reasons else "neutral"
+        detail = "Not included in production builds"
+        if not tr.vuln.is_dev and tr.introduced_by:
+            detail = f"Only pulled in by devDependencies ({', '.join(tr.introduced_by)})"
         signals.append(
             Signal(
                 name="Dependency type",
                 value="devDependency",
                 effect=effect,
-                detail="Not included in production builds",
+                detail=detail,
             )
         )
     else:
@@ -208,7 +241,7 @@ def explain_triage(tr: TriageResult) -> Explanation:
         reason_summary=tr.reason_summary,
         signals=signals,
         fix_available=bool(tr.vuln.fix_version),
-        fix_version=tr.vuln.fix_version,
+        fix_version=tr.vuln.fix_label,
     )
 
 
@@ -243,6 +276,7 @@ def find_cve_in_json(data: dict[str, Any], cve_id: str) -> TriageResult | None:
                 severity=Severity.from_str(entry.get("severity", "moderate")),
                 title=entry.get("title", ""),
                 fix_version=entry.get("fix_version", ""),
+                fix_package=entry.get("fix_package", ""),
                 is_dev="dev_dependency" in entry.get("reasons", []),
             )
             reasons = [
@@ -256,6 +290,8 @@ def find_cve_in_json(data: dict[str, Any], cve_id: str) -> TriageResult | None:
                 reasons=reasons,
                 epss_score=entry.get("epss_score"),
                 reachable_imports=entry.get("reachable_imports", []),
+                dependency_type=entry.get("dependency_type", ""),
+                introduced_by=entry.get("introduced_by", []),
             )
     return None
 

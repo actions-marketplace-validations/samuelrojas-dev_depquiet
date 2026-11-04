@@ -107,7 +107,7 @@ def _build_message(tr: TriageResult) -> str:
     parts = [f"{vuln.package}@{vuln.version}: {vuln.title or vuln.cve}"]
 
     if vuln.fix_version:
-        parts.append(f"Fix: update to {vuln.fix_version}")
+        parts.append(f"Fix: update to {vuln.fix_label}")
 
     if tr.epss_score is not None:
         parts.append(f"EPSS: {tr.epss_score:.1%}")

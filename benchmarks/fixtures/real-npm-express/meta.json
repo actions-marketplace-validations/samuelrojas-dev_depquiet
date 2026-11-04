@@ -1,0 +1,9 @@
+{
+  "captured_at": "2026-11-04T20:38:08Z",
+  "tool": "npm 10.9.9",
+  "commands": [
+    "npm install --package-lock-only --ignore-scripts --no-fund",
+    "npm audit --json"
+  ],
+  "vulnerable_packages": 26
+}
