@@ -261,6 +261,9 @@ depquiet --ignore ./custom-ignore.yaml
 # Write GitHub-flavored Markdown summary (for CI)
 depquiet --summary report.md
 
+# Self-contained HTML report (share via email/Slack/artifact)
+depquiet --html report.html
+
 # Configurable CI gate — fail only on critical findings
 depquiet --fail-on critical
 
@@ -481,6 +484,16 @@ Combine with baseline and fail-on for maximum control:
 depquiet --baseline .depquiet-baseline.json --kev --fail-on high
 ```
 
+### HTML report (`--html`)
+
+Generate a self-contained interactive HTML report — zero external dependencies, all CSS and JS inline, ready to share via email, Slack, or upload as a CI artifact.
+
+```bash
+depquiet --html report.html
+```
+
+The report includes a severity donut chart, collapsible sections (review auto-collapses when >5 findings, filtered always starts collapsed), dark mode support, and client-side text search. All data is embedded as JSON for future extensibility. XSS-safe: user-controlled values are escaped in both HTML and embedded JSON contexts.
+
 ### Baseline diffing (`--baseline`)
 
 Adopting depquiet on an existing codebase? The `--baseline` flag lets you accept the current state and only fail on **new** vulnerabilities — just like Snyk's `--new-only` or Trivy's `--ignore-unfixed`.
@@ -557,7 +570,7 @@ The action installs depquiet, runs it, uploads SARIF to GitHub Code Scanning, up
 
 The action automatically writes a **Job Summary** to the PR checks page with severity badges, EPSS scores, fix versions, and a filtered breakdown.
 
-**Action inputs:** `path`, `epss-threshold`, `offline`, `sarif`, `templates`, `policy`, `sbom`, `sbom-format`, `ignore`, `license`, `baseline`, `kev`, `kev-file`, `fail-on-action`, `fail-on`, `python-version`.
+**Action inputs:** `path`, `epss-threshold`, `offline`, `sarif`, `templates`, `policy`, `sbom`, `sbom-format`, `ignore`, `license`, `baseline`, `kev`, `kev-file`, `html`, `fail-on-action`, `fail-on`, `python-version`.
 
 > **Note:** `fail-on` (severity-based) supersedes `fail-on-action` (boolean). When `fail-on` is set, `fail-on-action` is ignored.
 

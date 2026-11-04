@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-11-03
+
+### Added
+
+- **Standalone HTML report (`--html FILE`)** — generate a self-contained interactive HTML report with zero external dependencies. All CSS and JavaScript are inline for easy sharing via email, Slack, or artifact storage
+- Severity donut chart using CSS `conic-gradient` — visual breakdown of critical, high, moderate, low, and info findings
+- Collapsible sections: review auto-collapses when >5 findings, filtered always starts collapsed
+- Dark mode support via `prefers-color-scheme` media query
+- Client-side text search filtering across all findings tables
+- Embedded JSON data blob for future client-side filtering extensibility
+- XSS prevention: `html.escape()` for table content, Unicode escaping (`<`/`>`) for JSON in `<script>` tags
+- `html` input for the GitHub Action
+- 33 tests for the HTML report module covering structure, content, chart, collapsible sections, file output, CLI integration, JSON embedding, XSS prevention, and footer
+
 ## [0.18.0] - 2026-11-03
 
 ### Added
@@ -224,7 +238,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.18.0...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.19.0...HEAD
+[0.19.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.15.0...v0.16.0

@@ -31,6 +31,7 @@ from depquiet.license import LicenseReport, print_license_report, scan_licenses
 from depquiet.models import ScanResult
 from depquiet.output import print_scan_result
 from depquiet.policy import load_policy
+from depquiet.html_report import write_html
 from depquiet.sarif import write_sarif
 from depquiet.sbom import write_sbom
 from depquiet.summary import write_summary
@@ -235,6 +236,12 @@ def main(argv: list[str] | None = None) -> int:
         help="Path to a local KEV catalog JSON file (for air-gapped environments)",
     )
     parser.add_argument(
+        "--html",
+        type=Path,
+        metavar="FILE",
+        help="Write a self-contained interactive HTML report to FILE",
+    )
+    parser.add_argument(
         "--fail-on",
         choices=["critical", "high", "moderate", "low", "none"],
         default=None,
@@ -342,6 +349,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.summary:
         write_summary(result, args.summary)
+
+    if args.html:
+        write_html(result, args.html)
 
     # License compliance
     if args.license_scan:

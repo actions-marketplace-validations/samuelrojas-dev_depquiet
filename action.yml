@@ -59,6 +59,10 @@ inputs:
     description: "Path to a local KEV catalog JSON file (for air-gapped environments)"
     required: false
     default: ""
+  html:
+    description: "Write a self-contained interactive HTML report to this file path"
+    required: false
+    default: ""
   diff-base:
     description: "Path to a base scan JSON for diff comparison. When set, a diff summary is posted to the PR and GITHUB_STEP_SUMMARY."
     required: false
@@ -137,6 +141,7 @@ runs:
         INPUT_BASELINE: ${{ inputs.baseline }}
         INPUT_KEV: ${{ inputs.kev }}
         INPUT_KEV_FILE: ${{ inputs.kev-file }}
+        INPUT_HTML: ${{ inputs.html }}
       run: |
         ARGS="--path $INPUT_PATH --epss-threshold $INPUT_EPSS_THRESHOLD --json"
 
@@ -188,6 +193,10 @@ runs:
 
         if [ -n "$INPUT_KEV_FILE" ]; then
           ARGS="$ARGS --kev-file $INPUT_KEV_FILE"
+        fi
+
+        if [ -n "$INPUT_HTML" ]; then
+          ARGS="$ARGS --html $INPUT_HTML"
         fi
 
         # Job summary — always write when GITHUB_STEP_SUMMARY is available
