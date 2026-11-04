@@ -416,7 +416,7 @@ def _extract_fix_version(vuln_data: dict[str, Any], package_name: str) -> str:
             for event in range_info.get("events", []):
                 fixed = event.get("fixed", "")
                 if fixed:
-                    return fixed
+                    return str(fixed)
     return ""
 
 

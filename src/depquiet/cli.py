@@ -28,7 +28,7 @@ from depquiet.engine import scan
 from depquiet.fix import apply_fixes, print_fix_report
 from depquiet.html_report import write_html
 from depquiet.ignore import apply_ignores, load_ignore, print_ignore_warnings
-from depquiet.kev import apply_kev, fetch_kev_catalog, load_kev_from_file
+from depquiet.kev import KevCatalog, apply_kev, fetch_kev_catalog, load_kev_from_file
 from depquiet.license import LicenseReport, print_license_report, scan_licenses
 from depquiet.models import ScanResult
 from depquiet.output import print_scan_result
@@ -331,6 +331,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # Apply KEV escalation — auto-escalate actively exploited CVEs
     if args.kev or args.kev_file:
+        kev_catalog: KevCatalog | None
         if args.kev_file:
             kev_catalog = load_kev_from_file(args.kev_file)
         else:

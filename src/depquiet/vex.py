@@ -31,6 +31,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from depquiet.models import FilterReason, ScanResult, TriageResult, Verdict
 
@@ -195,11 +196,11 @@ def _build_action(tr: TriageResult) -> str:
     return " ".join(parts)
 
 
-def vex_to_json(doc: VexDocument) -> dict:
+def vex_to_json(doc: VexDocument) -> dict[str, Any]:
     """Serialize a VexDocument to the OpenVEX JSON structure."""
     statements = []
     for stmt in doc.statements:
-        s: dict = {
+        s: dict[str, Any] = {
             "vulnerability": {"@id": stmt.vulnerability_id},
             "products": [
                 {

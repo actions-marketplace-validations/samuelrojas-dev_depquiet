@@ -251,7 +251,7 @@ def _parse_policy(path: Path) -> Policy | None:
         severity = None
         raw_sev = raw.get("severity")
         if raw_sev is not None:
-            severity = _parse_severities(raw_sev)  # type: ignore[arg-type]
+            severity = _parse_severities(raw_sev)
 
         packages = None
         raw_pkg = raw.get("packages")

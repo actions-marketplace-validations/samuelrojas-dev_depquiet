@@ -343,9 +343,10 @@ def _get_pip_license(package_name: str) -> str:
 
         meta = get_metadata(package_name)
         # Try License field first
-        lic = meta.get("License", "")
+        raw_lic: str | None = meta["License"]
+        lic = raw_lic or ""
         if lic and lic.strip().lower() not in ("unknown", "", "none"):
-            return lic.strip()
+            return str(lic.strip())
 
         # Fall back to classifiers
         classifiers = meta.get_all("Classifier") or []

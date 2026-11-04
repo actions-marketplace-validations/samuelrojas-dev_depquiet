@@ -71,7 +71,7 @@ def _extract_cve(result: dict[str, Any], rule: dict[str, Any] | None) -> str:
     # 2. ruleId that looks like CVE-*
     rule_id = result.get("ruleId", "")
     if rule_id.upper().startswith("CVE-"):
-        return rule_id
+        return str(rule_id)
 
     # 3. rule properties
     if rule:
@@ -83,7 +83,7 @@ def _extract_cve(result: dict[str, Any], rule: dict[str, Any] | None) -> str:
         # 4. rule.id that looks like CVE
         rid = rule.get("id", "")
         if rid.upper().startswith("CVE-"):
-            return rid
+            return str(rid)
 
     # 5. Fallback: use ruleId as identifier (GHSA-*, CWE-*, etc.)
     return rule_id or "UNKNOWN"
@@ -123,7 +123,7 @@ def _extract_package(result: dict[str, Any], rule: dict[str, Any] | None) -> str
         if len(parts) > 1:
             candidate = parts[-1].split()[0].strip(".,;:'\"()")
             if candidate and not candidate.startswith("/"):
-                return candidate
+                return str(candidate)
 
     return ""
 
