@@ -520,6 +520,37 @@ Each signal shows its effect on the final verdict:
   · CISA KEV: not listed
 ```
 
+### Scan statistics (`depquiet stats`)
+
+Get aggregate metrics for security dashboards and management reports. Works from `--json` output or a live scan.
+
+```bash
+# Stats from a saved scan
+depquiet stats --from-json scan.json
+
+# Machine-readable JSON
+depquiet stats --from-json scan.json --json
+
+# Top 5 affected packages
+depquiet stats --from-json scan.json --top 5
+```
+
+Output includes verdict breakdown, severity distribution, filter reason analysis, top affected packages, EPSS distribution, and fix availability:
+
+```
+depquiet scan statistics
+========================================
+
+Total vulnerabilities: 97
+Total dependencies:   847
+Filter rate:          91.8%
+
+Verdicts:
+  🔴 ACTION        3 (  3.1%) ██░░░░░░░░░░░░░░░░░░
+  🟡 REVIEW        5 (  5.2%) █░░░░░░░░░░░░░░░░░░░
+  🟢 FILTERED     89 ( 91.8%) ██████████████████░░
+```
+
 ### CISA KEV integration (`--kev`)
 
 The [CISA Known Exploited Vulnerabilities (KEV)](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) catalog lists CVEs with confirmed active exploitation. Under [BOD 22-01](https://www.cisa.gov/binding-operational-directive-22-01), federal agencies must remediate KEV-listed CVEs within strict deadlines — and any organization should treat them as top priority.

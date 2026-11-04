@@ -194,6 +194,87 @@ def explain_main(argv: list[str]) -> int:
     return 0
 
 
+def stats_main(argv: list[str]) -> int:
+    """Run the `depquiet stats` subcommand. Returns exit code."""
+    from depquiet.stats import (
+        compute_stats,
+        format_stats,
+        format_stats_json,
+        stats_from_json,
+    )
+
+    parser = argparse.ArgumentParser(
+        prog="depquiet stats",
+        description="Show aggregate scan statistics.",
+    )
+    parser.add_argument(
+        "--from-json",
+        type=Path,
+        metavar="FILE",
+        dest="from_json",
+        help="Read from a previous depquiet --json output instead of scanning",
+    )
+    parser.add_argument(
+        "--path",
+        type=Path,
+        default=Path("."),
+        help="Project directory to scan (default: current directory)",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="Print machine-readable JSON statistics",
+    )
+    parser.add_argument(
+        "--top",
+        type=int,
+        default=10,
+        metavar="N",
+        help="Number of top packages to show (default: 10)",
+    )
+    parser.add_argument(
+        "--config",
+        type=Path,
+        metavar="FILE",
+        help="Path to config file (default: .depquiet.yaml in project root)",
+    )
+    args = parser.parse_args(argv)
+
+    if args.from_json:
+        if not args.from_json.is_file():
+            print(f"Error: file not found: {args.from_json}", file=sys.stderr)
+            return 1
+        try:
+            data = json.loads(args.from_json.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            print(f"Error: invalid JSON in {args.from_json}", file=sys.stderr)
+            return 1
+        stats = stats_from_json(data, top_n=args.top)
+    else:
+        config = load_config(args.path, config_path=args.config)
+        merged = config.merge_cli()
+        result = scan(
+            project=args.path,
+            epss_threshold=merged.epss_threshold,
+            skip_epss=merged.offline,
+            template_dirs=merged.template_dirs or None,
+            always_flag=merged.always_flag or None,
+        )
+        stats = compute_stats(
+            result.results,
+            result.total_dependencies,
+            top_n=args.top,
+        )
+
+    if args.json_output:
+        print(format_stats_json(stats))
+    else:
+        print(format_stats(stats))
+
+    return 0
+
+
 def init_main(argv: list[str]) -> int:
     """Run the `depquiet init` subcommand. Returns exit code."""
     from depquiet.init import init_command
@@ -238,6 +319,8 @@ def main(argv: list[str] | None = None) -> int:
         return init_main(effective[1:])
     if effective and effective[0] == "explain":
         return explain_main(effective[1:])
+    if effective and effective[0] == "stats":
+        return stats_main(effective[1:])
 
     parser = argparse.ArgumentParser(
         prog="depquiet",

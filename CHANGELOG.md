@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-11-04
+
+### Added
+
+- **`depquiet stats` aggregate statistics** — produces summary metrics from a scan or saved `--json` output for security dashboards and management reports
+- Verdict breakdown with visual bar charts (ACTION / REVIEW / FILTERED)
+- Severity distribution (critical / high / moderate / low / info)
+- Filter reason breakdown (unreachable, dev dependency, low EPSS, template, ignored)
+- Top affected packages ranking (`--top N` to control count)
+- EPSS score distribution across severity buckets
+- Fix availability summary (fixable vs. no fix)
+- Human-readable and `--json` output formats
+- 30 tests covering computation, formatting, JSON roundtrip, and CLI dispatch
+
 ## [0.26.0] - 2026-11-04
 
 ### Added
