@@ -11,8 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Release workflow now runs lint, format, mypy and the test suite, and checks that the
-  tag matches `depquiet.__version__`, before publishing to PyPI. Previously a tag
-  published even when CI was red (v0.24.0 through v0.27.0 shipped with failing lint).
+  tag matches `depquiet.__version__`, before publishing to PyPI. Previously any tag
+  published without checks, including a tag pointing at an older commit.
+
+### Note
+- 0.19.0 through 0.27.0 were never tagged, so they were not published to PyPI. 0.27.1
+  is the first PyPI release since 0.18.0 and includes every change listed below it.
 - Release permissions (`contents: write`, `id-token: write`) are scoped to the publish
   job instead of the whole workflow.
 - License scan no longer uses the deprecated `metadata["License"]` lookup, which will
