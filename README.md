@@ -383,6 +383,43 @@ Place `.depquiet-ignore` in the project root (auto-detected) or pass `--ignore p
 
 **Audit trail:** The `reason` field (recommended) explains why the risk was accepted. The `author` field records who made the decision.
 
+### Scan comparison (`depquiet diff`)
+
+Compare two depquiet scans to see exactly what changed — new vulnerabilities introduced, old ones fixed, and verdicts that shifted. This is the core of the CI review workflow: "was this PR safe to merge?"
+
+```bash
+# Compare a base branch scan against a PR branch scan
+depquiet diff base-scan.json pr-scan.json
+
+# Machine-readable output
+depquiet diff base-scan.json pr-scan.json --json
+
+# Fail CI only when new ACTION items appear
+depquiet diff base-scan.json pr-scan.json --fail-on-new
+```
+
+Typical CI workflow:
+
+```yaml
+- name: Scan base
+  run: git stash && depquiet --json > /tmp/base.json && git stash pop
+
+- name: Scan head
+  run: depquiet --json > /tmp/head.json
+
+- name: Diff
+  run: depquiet diff /tmp/base.json /tmp/head.json --fail-on-new
+```
+
+Output shows new, fixed, and changed findings with severity, EPSS scores, and verdict transitions:
+
+```
+🆕 2 new | ✅ 1 fixed | 🔄 1 changed | — 12 unchanged
+
+── New findings ──────────────────────────────────────
+  [HIGH] CVE-2024-0001 in lodash@4.17.20 — Prototype Pollution → ACTION (EPSS: 42.0%)
+```
+
 ### CISA KEV integration (`--kev`)
 
 The [CISA Known Exploited Vulnerabilities (KEV)](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) catalog lists CVEs with confirmed active exploitation. Under [BOD 22-01](https://www.cisa.gov/binding-operational-directive-22-01), federal agencies must remediate KEV-listed CVEs within strict deadlines — and any organization should treat them as top priority.

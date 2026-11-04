@@ -8,6 +8,7 @@ Usage:
     depquiet --json              # machine-readable JSON output
     depquiet --epss-threshold 0.05  # custom EPSS threshold
     cat audit.json | depquiet --stdin  # pipe in npm audit / pip-audit JSON
+    depquiet diff base.json head.json  # compare two scans
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ from typing import Any
 from depquiet import __version__
 from depquiet.baseline import apply_baseline, load_baseline
 from depquiet.config import load_config
+from depquiet.diff import diff_scans, diff_to_json, format_diff
 from depquiet.engine import scan
 from depquiet.fix import apply_fixes, print_fix_report
 from depquiet.ignore import apply_ignores, load_ignore, print_ignore_warnings
@@ -34,8 +36,61 @@ from depquiet.sbom import write_sbom
 from depquiet.summary import write_summary
 
 
+def diff_main(argv: list[str]) -> int:
+    """Run the `depquiet diff` subcommand. Returns exit code."""
+    parser = argparse.ArgumentParser(
+        prog="depquiet diff",
+        description="Compare two depquiet scans to show new, fixed, and changed findings.",
+    )
+    parser.add_argument(
+        "base",
+        type=Path,
+        help="Path to the base/before scan JSON (from depquiet --json)",
+    )
+    parser.add_argument(
+        "head",
+        type=Path,
+        help="Path to the head/after scan JSON (from depquiet --json)",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="Print machine-readable JSON diff to stdout",
+    )
+    parser.add_argument(
+        "--fail-on-new",
+        action="store_true",
+        help="Exit 1 if any new ACTION findings are detected",
+    )
+    args = parser.parse_args(argv)
+
+    # Validate input files exist
+    for path in (args.base, args.head):
+        if not path.is_file():
+            print(f"Error: file not found: {path}", file=sys.stderr)
+            return 1
+
+    diff = diff_scans(args.base, args.head)
+
+    if args.json_output:
+        json.dump(diff_to_json(diff), sys.stdout, indent=2)
+        print()  # trailing newline
+    else:
+        print(format_diff(diff))
+
+    if args.fail_on_new and diff.has_new_action:
+        return 1
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the depquiet CLI. Returns exit code."""
+    # Dispatch to subcommands before argparse sees them
+    effective = argv if argv is not None else sys.argv[1:]
+    if effective and effective[0] == "diff":
+        return diff_main(effective[1:])
+
     parser = argparse.ArgumentParser(
         prog="depquiet",
         description=(

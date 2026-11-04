@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-11-03
+
+### Added
+
+- **Scan comparison (`depquiet diff`)** — compare two `depquiet --json` outputs to show new, fixed, and changed findings. Answers the PR-level question: "did this change introduce new vulnerabilities?"
+- `depquiet diff base.json head.json` with human-readable output (emoji indicators, severity badges, EPSS scores)
+- `depquiet diff --json` for machine-readable diff output
+- `--fail-on-new` flag — exit 1 only when new ACTION findings appear (ideal for CI gates)
+- `DiffFinding` and `ScanDiff` dataclasses for programmatic diff access
+- 34 tests for the diff module covering dataclasses, scan comparison, formatting, JSON output, and CLI integration
+
 ## [0.16.0] - 2026-11-03
 
 ### Added
@@ -200,7 +211,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.13.0...v0.14.0
