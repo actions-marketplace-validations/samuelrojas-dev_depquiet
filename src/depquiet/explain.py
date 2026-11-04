@@ -1,0 +1,285 @@
+"""``depquiet explain`` — verdict explainer for a single CVE.
+
+Shows exactly why a vulnerability received its verdict: every contributing
+signal (EPSS score, reachability, dev-dependency status, template match,
+KEV listing, policy override, ignore rule) laid out step-by-step so
+developers and security teams can understand and audit triage decisions.
+
+Works in two modes:
+
+1. **Live** — runs a scan and explains the verdict for the given CVE.
+2. **From JSON** — reads a previous ``depquiet --json`` output file.
+
+Output is human-readable by default, or ``--json`` for machine consumption.
+"""
+
+from __future__ import annotations
+
+import json
+from dataclasses import asdict, dataclass, field
+from typing import Any
+
+from depquiet.models import FilterReason, ScanResult, TriageResult, Verdict
+
+# ---------------------------------------------------------------------------
+# Explanation model
+# ---------------------------------------------------------------------------
+
+@dataclass
+class Signal:
+    """One contributing signal to the verdict."""
+
+    name: str
+    value: str
+    effect: str  # "filtered", "escalated", "neutral", "not_applicable"
+    detail: str = ""
+
+
+@dataclass
+class Explanation:
+    """Full explanation for a CVE verdict."""
+
+    cve: str
+    package: str
+    version: str
+    severity: str
+    title: str
+    verdict: str
+    reason_summary: str
+    signals: list[Signal] = field(default_factory=list)
+    fix_available: bool = False
+    fix_version: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        d: dict[str, Any] = {
+            "cve": self.cve,
+            "package": self.package,
+            "version": self.version,
+            "severity": self.severity,
+            "title": self.title,
+            "verdict": self.verdict,
+            "reason_summary": self.reason_summary,
+            "fix_available": self.fix_available,
+            "fix_version": self.fix_version,
+            "signals": [asdict(s) for s in self.signals],
+        }
+        return d
+
+
+# ---------------------------------------------------------------------------
+# Explain logic
+# ---------------------------------------------------------------------------
+
+def explain_triage(tr: TriageResult) -> Explanation:
+    """Build an Explanation from a TriageResult."""
+    signals: list[Signal] = []
+
+    # 1. EPSS score
+    if tr.epss_score is not None:
+        pct = tr.epss_score * 100
+        if FilterReason.LOW_EPSS in tr.reasons:
+            effect = "filtered"
+            detail = "Below threshold — low probability of exploitation"
+        elif pct >= 50:
+            effect = "escalated"
+            detail = "High probability of exploitation"
+        else:
+            effect = "neutral"
+            detail = "Above threshold"
+        signals.append(Signal(
+            name="EPSS score",
+            value=f"{pct:.1f}%",
+            effect=effect,
+            detail=detail,
+        ))
+    else:
+        signals.append(Signal(
+            name="EPSS score",
+            value="unavailable",
+            effect="not_applicable",
+            detail="EPSS lookup was skipped or failed",
+        ))
+
+    # 2. Reachability
+    if tr.reachable_imports:
+        imports = ", ".join(tr.reachable_imports)
+        signals.append(Signal(
+            name="Reachability",
+            value="reachable",
+            effect="escalated",
+            detail=f"Imported by: {imports}",
+        ))
+    elif FilterReason.UNREACHABLE in tr.reasons:
+        signals.append(Signal(
+            name="Reachability",
+            value="unreachable",
+            effect="filtered",
+            detail="Vulnerable code is not imported in this project",
+        ))
+    else:
+        signals.append(Signal(
+            name="Reachability",
+            value="unknown",
+            effect="neutral",
+            detail="Reachability analysis did not run or was inconclusive",
+        ))
+
+    # 3. Dev dependency
+    if tr.vuln.is_dev:
+        effect = "filtered" if FilterReason.DEV_DEPENDENCY in tr.reasons else "neutral"
+        signals.append(Signal(
+            name="Dependency type",
+            value="devDependency",
+            effect=effect,
+            detail="Not included in production builds",
+        ))
+    else:
+        signals.append(Signal(
+            name="Dependency type",
+            value="production",
+            effect="neutral",
+            detail="Included in production builds",
+        ))
+
+    # 4. Community template match
+    if tr.template_id is not None:
+        signals.append(Signal(
+            name="Community template",
+            value=tr.template_id,
+            effect="filtered" if FilterReason.COMMUNITY_TEMPLATE in tr.reasons else "neutral",
+            detail=tr.template_reason or "Matched a known-benign pattern",
+        ))
+
+    # 5. KEV catalog
+    if tr.kev_entry is not None:
+        signals.append(Signal(
+            name="CISA KEV",
+            value="listed",
+            effect="escalated",
+            detail=f"Added {tr.kev_entry.date_added}, due {tr.kev_entry.due_date}",
+        ))
+    else:
+        signals.append(Signal(
+            name="CISA KEV",
+            value="not listed",
+            effect="neutral",
+        ))
+
+    # 6. Ignore rule
+    if FilterReason.IGNORED in tr.reasons:
+        signals.append(Signal(
+            name="Ignore rule",
+            value="suppressed",
+            effect="filtered",
+            detail="Matched an entry in the ignore file",
+        ))
+
+    return Explanation(
+        cve=tr.vuln.cve,
+        package=tr.vuln.package,
+        version=tr.vuln.version,
+        severity=tr.vuln.severity.value,
+        title=tr.vuln.title,
+        verdict=tr.verdict.value,
+        reason_summary=tr.reason_summary,
+        signals=signals,
+        fix_available=bool(tr.vuln.fix_version),
+        fix_version=tr.vuln.fix_version,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Lookup
+# ---------------------------------------------------------------------------
+
+def find_cve(result: ScanResult, cve_id: str) -> TriageResult | None:
+    """Find a TriageResult by CVE ID (case-insensitive)."""
+    target = cve_id.upper()
+    for tr in result.results:
+        if tr.vuln.cve.upper() == target:
+            return tr
+    return None
+
+
+def find_cve_in_json(data: dict[str, Any], cve_id: str) -> TriageResult | None:
+    """Find a CVE in a depquiet --json output dict.
+
+    Reconstructs a minimal TriageResult from the JSON shape for explain.
+    """
+    from depquiet.models import Severity, Vulnerability
+
+    target = cve_id.upper()
+    for entry in data.get("results", []):
+        if entry.get("cve", "").upper() == target:
+            vuln = Vulnerability(
+                cve=entry["cve"],
+                package=entry.get("package", ""),
+                version=entry.get("version", ""),
+                severity=Severity.from_str(entry.get("severity", "moderate")),
+                title=entry.get("title", ""),
+                fix_version=entry.get("fix_version", ""),
+                is_dev="dev_dependency" in entry.get("reasons", []),
+            )
+            reasons = [
+                FilterReason(r)
+                for r in entry.get("reasons", [])
+                if r in FilterReason._value2member_map_
+            ]
+            return TriageResult(
+                vuln=vuln,
+                verdict=Verdict(entry.get("verdict", "review")),
+                reasons=reasons,
+                epss_score=entry.get("epss_score"),
+                reachable_imports=entry.get("reachable_imports", []),
+            )
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Formatting
+# ---------------------------------------------------------------------------
+
+_EFFECT_ICONS = {
+    "filtered": "  ↓ ",
+    "escalated": "  ↑ ",
+    "neutral": "  · ",
+    "not_applicable": "  - ",
+}
+
+_VERDICT_ICONS = {
+    "action": "🔴",
+    "review": "🟡",
+    "filtered": "🟢",
+}
+
+
+def format_explanation(exp: Explanation) -> str:
+    """Format an Explanation as a human-readable string."""
+    lines: list[str] = []
+
+    icon = _VERDICT_ICONS.get(exp.verdict, "·")
+    lines.append(f"{icon} {exp.cve} — {exp.title}")
+    lines.append(f"   Package: {exp.package}@{exp.version}")
+    lines.append(f"   Severity: {exp.severity.upper()}")
+    lines.append(f"   Verdict: {exp.verdict.upper()} ({exp.reason_summary})")
+
+    if exp.fix_available:
+        lines.append(f"   Fix: upgrade to {exp.fix_version}")
+
+    lines.append("")
+    lines.append("   Signals:")
+
+    for sig in exp.signals:
+        icon_str = _EFFECT_ICONS.get(sig.effect, "  · ")
+        line = f"{icon_str}{sig.name}: {sig.value}"
+        if sig.detail:
+            line += f" — {sig.detail}"
+        lines.append(line)
+
+    lines.append("")
+    return "\n".join(lines)
+
+
+def format_explanation_json(exp: Explanation) -> str:
+    """Format an Explanation as JSON."""
+    return json.dumps(exp.to_dict(), indent=2)

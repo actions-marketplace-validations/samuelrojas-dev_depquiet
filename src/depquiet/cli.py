@@ -105,6 +105,95 @@ def diff_main(argv: list[str]) -> int:
     return 0
 
 
+def explain_main(argv: list[str]) -> int:
+    """Run the `depquiet explain` subcommand. Returns exit code."""
+    from depquiet.explain import (
+        explain_triage,
+        find_cve,
+        find_cve_in_json,
+        format_explanation,
+        format_explanation_json,
+    )
+
+    parser = argparse.ArgumentParser(
+        prog="depquiet explain",
+        description="Explain why a CVE received its verdict.",
+    )
+    parser.add_argument(
+        "cve",
+        help="CVE ID to explain (e.g. CVE-2021-44228)",
+    )
+    parser.add_argument(
+        "--from-json",
+        type=Path,
+        metavar="FILE",
+        dest="from_json",
+        help="Read from a previous depquiet --json output instead of scanning",
+    )
+    parser.add_argument(
+        "--path",
+        type=Path,
+        default=Path("."),
+        help="Project directory to scan (default: current directory)",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="Print machine-readable JSON explanation",
+    )
+    parser.add_argument(
+        "--config",
+        type=Path,
+        metavar="FILE",
+        help="Path to config file (default: .depquiet.yaml in project root)",
+    )
+    args = parser.parse_args(argv)
+
+    tr = None
+
+    if args.from_json:
+        # Load from a saved JSON scan
+        if not args.from_json.is_file():
+            print(f"Error: file not found: {args.from_json}", file=sys.stderr)
+            return 1
+        try:
+            data = json.loads(args.from_json.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            print(f"Error: invalid JSON in {args.from_json}", file=sys.stderr)
+            return 1
+        tr = find_cve_in_json(data, args.cve)
+    else:
+        # Run a live scan
+        config = load_config(args.path, config_path=args.config)
+        merged = config.merge_cli()
+        result = scan(
+            project=args.path,
+            epss_threshold=merged.epss_threshold,
+            skip_epss=merged.offline,
+            template_dirs=merged.template_dirs or None,
+            always_flag=merged.always_flag or None,
+        )
+        tr = find_cve(result, args.cve)
+
+    if tr is None:
+        print(f"CVE not found: {args.cve}", file=sys.stderr)
+        print(
+            "Hint: the CVE must appear in your project's vulnerability scan.",
+            file=sys.stderr,
+        )
+        return 1
+
+    exp = explain_triage(tr)
+
+    if args.json_output:
+        print(format_explanation_json(exp))
+    else:
+        print(format_explanation(exp))
+
+    return 0
+
+
 def init_main(argv: list[str]) -> int:
     """Run the `depquiet init` subcommand. Returns exit code."""
     from depquiet.init import init_command
@@ -147,6 +236,8 @@ def main(argv: list[str] | None = None) -> int:
         return diff_main(effective[1:])
     if effective and effective[0] == "init":
         return init_main(effective[1:])
+    if effective and effective[0] == "explain":
+        return explain_main(effective[1:])
 
     parser = argparse.ArgumentParser(
         prog="depquiet",

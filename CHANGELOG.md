@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-11-04
+
+### Added
+
+- **`depquiet explain` verdict explainer** — shows exactly why a CVE received its verdict, with every contributing signal laid out step-by-step
+- Six signal types: EPSS score, reachability, dependency type, community template, CISA KEV, ignore rule
+- Each signal shows its effect on the verdict: escalated (↑), filtered (↓), neutral (·), or not applicable (-)
+- Two modes: live scan or from saved `--json` output (`--from-json FILE`)
+- Human-readable output with verdict icons (🔴 ACTION / 🟡 REVIEW / 🟢 FILTERED)
+- Machine-readable `--json` output for CI integration
+- Fix availability and upgrade path shown when available
+- 33 tests covering signal extraction, formatting, JSON output, lookup, and CLI dispatch
+
 ## [0.25.0] - 2026-11-04
 
 ### Added

@@ -490,6 +490,36 @@ depquiet init -o configs/depquiet.yaml
 
 Detection covers 11 package managers (npm, pip, Go, Cargo, Maven, Gradle, Gem, Composer, Pub, NuGet), 6 CI providers (GitHub Actions, GitLab CI, Jenkins, CircleCI, Bitbucket, Azure DevOps), and 6 scanner tools (Snyk, Trivy, Grype, OSV-Scanner, Dependabot, Renovate). GitHub Actions projects automatically get SARIF and summary outputs enabled.
 
+### Verdict explainer (`depquiet explain`)
+
+Understand exactly why a CVE received its verdict. Every contributing signal — EPSS score, reachability, dependency type, community template, KEV status, ignore rules — is laid out step-by-step so developers and security teams can audit triage decisions.
+
+```bash
+# Explain a CVE from a previous scan (saved with --json)
+depquiet explain CVE-2024-3651 --from-json scan.json
+
+# Machine-readable output
+depquiet explain CVE-2024-3651 --from-json scan.json --json
+
+# Live scan and explain
+depquiet explain CVE-2024-3651 --path ./my-project
+```
+
+Each signal shows its effect on the final verdict:
+
+```
+🔴 CVE-2024-3651 — Inefficient Regular Expression Complexity
+   Package: idna@3.6
+   Severity: HIGH
+   Verdict: ACTION (EPSS above threshold, reachable)
+
+   Signals:
+  ↑ EPSS score: 72.3% — High probability of exploitation
+  ↑ Reachability: reachable — Imported by: app/auth.py, app/dns.py
+  · Dependency type: production — Included in production builds
+  · CISA KEV: not listed
+```
+
 ### CISA KEV integration (`--kev`)
 
 The [CISA Known Exploited Vulnerabilities (KEV)](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) catalog lists CVEs with confirmed active exploitation. Under [BOD 22-01](https://www.cisa.gov/binding-operational-directive-22-01), federal agencies must remediate KEV-listed CVEs within strict deadlines — and any organization should treat them as top priority.
