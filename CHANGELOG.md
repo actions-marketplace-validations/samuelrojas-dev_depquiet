@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-11-03
+
+### Added
+
+- **OpenVEX document generation (`--vex FILE`)** — generate standards-compliant VEX (Vulnerability Exploitability eXchange) documents following the OpenVEX v0.2.0 specification
+- Automatic verdict-to-VEX-status mapping: ACTION → affected, REVIEW → under_investigation, FILTERED → not_affected
+- Machine-readable justifications for not_affected findings: `vulnerable_code_not_in_execute_path` (unreachable/dev), `inline_mitigations_already_exist` (low EPSS), `component_not_present` (community template), `vulnerability_not_exploitable` (ignored)
+- Human-readable impact statements with EPSS scores and filter reason details
+- Action statements for affected findings include fix versions, EPSS scores, and CISA KEV status
+- Product and subcomponent identification using Package URL (purl) format
+- `vex` input for the GitHub Action — generates and uploads the VEX document as a workflow artifact
+- 57 tests for the VEX module covering status mapping, justifications, impact/action statements, JSON serialization, file output, and edge cases
+
 ## [0.20.0] - 2026-11-03
 
 ### Added
@@ -252,6 +265,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Automated release workflow with trusted PyPI publishing
 
 [Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.20.0...HEAD
+[0.21.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.17.0...v0.18.0

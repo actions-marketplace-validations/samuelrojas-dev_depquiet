@@ -36,6 +36,7 @@ from depquiet.policy import load_policy
 from depquiet.sarif import write_sarif
 from depquiet.sbom import write_sbom
 from depquiet.summary import write_summary
+from depquiet.vex import build_vex, write_vex
 
 
 def diff_main(argv: list[str]) -> int:
@@ -249,6 +250,12 @@ def main(argv: list[str] | None = None) -> int:
         help="Write GitHub Check Run annotations JSON to FILE",
     )
     parser.add_argument(
+        "--vex",
+        type=Path,
+        metavar="FILE",
+        help="Write an OpenVEX document to FILE (vulnerability exploitability exchange)",
+    )
+    parser.add_argument(
         "--fail-on",
         choices=["critical", "high", "moderate", "low", "none"],
         default=None,
@@ -363,6 +370,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.annotations:
         ann_report = build_annotations(result)
         write_annotations(ann_report, args.annotations)
+
+    if args.vex:
+        vex_doc = build_vex(result)
+        write_vex(vex_doc, args.vex)
 
     # License compliance
     if args.license_scan:

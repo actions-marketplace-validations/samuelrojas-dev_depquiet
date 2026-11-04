@@ -513,6 +513,35 @@ In the GitHub Action, just add `annotations: true`:
 
 Annotations are automatically posted via the Check Runs API. Critical/high findings appear as errors, moderate as warnings, and low/info as notices. Each annotation includes the CVE, severity, EPSS score, fix version, and a link to the NVD advisory.
 
+### OpenVEX documents (`--vex`)
+
+Generate [OpenVEX](https://openvex.dev) documents that communicate the exploitability status of every vulnerability in your project. VEX (Vulnerability Exploitability eXchange) is the CISA-recommended format for telling downstream consumers which CVEs actually affect your software — and which don't.
+
+```bash
+# Generate an OpenVEX document
+depquiet --vex vex.json
+```
+
+depquiet maps its triage verdicts to VEX statuses automatically:
+
+| depquiet verdict | VEX status | Justification |
+|---|---|---|
+| ACTION | `affected` | — (action statement with fix version) |
+| REVIEW | `under_investigation` | — |
+| FILTERED (unreachable) | `not_affected` | `vulnerable_code_not_in_execute_path` |
+| FILTERED (dev dep) | `not_affected` | `vulnerable_code_not_in_execute_path` |
+| FILTERED (low EPSS) | `not_affected` | `inline_mitigations_already_exist` |
+| FILTERED (template) | `not_affected` | `component_not_present` |
+
+The output is consumable by policy engines like Sigstore's policy-controller and OPA/Gatekeeper to gate container deployments.
+
+```yaml
+# In the GitHub Action
+- uses: samuelrojas-dev/depquiet@v1
+  with:
+    vex: depquiet-vex.json
+```
+
 ### Baseline diffing (`--baseline`)
 
 Adopting depquiet on an existing codebase? The `--baseline` flag lets you accept the current state and only fail on **new** vulnerabilities — just like Snyk's `--new-only` or Trivy's `--ignore-unfixed`.
@@ -589,7 +618,7 @@ The action installs depquiet, runs it, uploads SARIF to GitHub Code Scanning, up
 
 The action automatically writes a **Job Summary** to the PR checks page with severity badges, EPSS scores, fix versions, and a filtered breakdown.
 
-**Action inputs:** `path`, `epss-threshold`, `offline`, `sarif`, `templates`, `policy`, `sbom`, `sbom-format`, `ignore`, `license`, `baseline`, `kev`, `kev-file`, `html`, `annotations`, `fail-on-action`, `fail-on`, `python-version`.
+**Action inputs:** `path`, `epss-threshold`, `offline`, `sarif`, `templates`, `policy`, `sbom`, `sbom-format`, `ignore`, `license`, `baseline`, `kev`, `kev-file`, `html`, `annotations`, `vex`, `fail-on-action`, `fail-on`, `python-version`.
 
 > **Note:** `fail-on` (severity-based) supersedes `fail-on-action` (boolean). When `fail-on` is set, `fail-on-action` is ignored.
 

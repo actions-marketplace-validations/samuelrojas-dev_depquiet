@@ -67,6 +67,10 @@ inputs:
     description: "Post inline PR annotations via GitHub Check Runs API (true/false)"
     required: false
     default: "false"
+  vex:
+    description: "Path to write an OpenVEX document (vulnerability exploitability exchange)"
+    required: false
+    default: ""
   diff-base:
     description: "Path to a base scan JSON for diff comparison. When set, a diff summary is posted to the PR and GITHUB_STEP_SUMMARY."
     required: false
@@ -147,6 +151,7 @@ runs:
         INPUT_KEV_FILE: ${{ inputs.kev-file }}
         INPUT_HTML: ${{ inputs.html }}
         INPUT_ANNOTATIONS: ${{ inputs.annotations }}
+        INPUT_VEX: ${{ inputs.vex }}
       run: |
         ARGS="--path $INPUT_PATH --epss-threshold $INPUT_EPSS_THRESHOLD --json"
 
@@ -206,6 +211,10 @@ runs:
 
         if [ "$INPUT_ANNOTATIONS" = "true" ]; then
           ARGS="$ARGS --annotations /tmp/depquiet-annotations.json"
+        fi
+
+        if [ -n "$INPUT_VEX" ]; then
+          ARGS="$ARGS --vex $INPUT_VEX"
         fi
 
         # Job summary — always write when GITHUB_STEP_SUMMARY is available
@@ -409,3 +418,10 @@ print(f'Posted {len(annotations)} annotations to check run')
       with:
         name: depquiet-sbom
         path: ${{ inputs.sbom }}
+
+    - name: Upload VEX artifact
+      if: inputs.vex != '' && always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: depquiet-vex
+        path: ${{ inputs.vex }}
