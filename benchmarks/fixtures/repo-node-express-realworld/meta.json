@@ -1,0 +1,12 @@
+{
+  "repo": "gothinkster/node-express-realworld-example-app",
+  "commit": "30b68e1e881462b2f4164ea09ab4c4f5699c7b0b",
+  "commit_date": "2024-01-04",
+  "captured_at": "2026-11-04T20:56:48Z",
+  "tool": "npm 10.9.9",
+  "commands": [
+    "npm audit --json"
+  ],
+  "generated_lockfile": false,
+  "vulnerable_packages": 56
+}

@@ -1,0 +1,12 @@
+{
+  "repo": "sahat/hackathon-starter",
+  "commit": "fb53b17c28c99e6fbcd78106930c6e9b403eb9ec",
+  "commit_date": "2026-11-02",
+  "captured_at": "2026-11-04T20:56:45Z",
+  "tool": "npm 10.9.9",
+  "commands": [
+    "npm audit --json"
+  ],
+  "generated_lockfile": false,
+  "vulnerable_packages": 8
+}

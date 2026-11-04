@@ -37,6 +37,10 @@ Go                        go.mod              (none)
 Java (Maven)              pom.xml             (none)
 ========================  ==================  ==================
 
+Commands the project runs (``package.json`` scripts, ``Procfile``,
+``Dockerfile*``) are recorded too: a dependency invoked as a command, like
+``pm2 start``, is in use even though nothing imports it.
+
 \\* A requirements.txt where *every* line is pinned with ``==`` and that has no
 ``# via`` annotations is indistinguishable from ``pip freeze`` output, which
 lists transitive packages as if they were direct. Such files are not used as
@@ -93,6 +97,12 @@ class DependencyGraph:
     sources: list[str] = field(default_factory=list)
     # normalized key -> name as written in the manifest
     display: dict[str, str] = field(default_factory=dict)
+    # Executables each package installs (lockfile ``bin``): command -> packages.
+    bins: dict[str, set[str]] = field(default_factory=dict)
+    # Words appearing in commands the project runs: package.json scripts,
+    # Procfile, Dockerfiles. A dependency run as a command is in use even if
+    # nothing imports it (pm2, cross-env, next, ...).
+    commands: set[str] = field(default_factory=set)
 
     # -- construction -----------------------------------------------------
 
@@ -118,6 +128,9 @@ class DependencyGraph:
         self.sources.extend(other.sources)
         for key, name in other.display.items():
             self.display.setdefault(key, name)
+        for cmd, pkgs in other.bins.items():
+            self.bins.setdefault(cmd, set()).update(pkgs)
+        self.commands |= other.commands
 
     # -- queries ----------------------------------------------------------
 
@@ -139,6 +152,21 @@ class DependencyGraph:
         if any(keys & children for children in self.edges.values()):
             return "transitive"
         return "unknown"
+
+    def is_executed(self, package: str) -> bool:
+        """True when a command the project runs invokes one of the package's executables.
+
+        Uses the executables recorded in the lockfile, plus the package's own
+        name (``@scope/tool`` -> ``tool``), the usual binary name, for
+        lockfiles that don't record them. A spurious match only makes depquiet
+        filter less.
+        """
+        if not self.commands:
+            return False
+        keys = _keys(package)
+        names = {cmd for cmd, pkgs in self.bins.items() if pkgs & keys}
+        names.add(package.rsplit("/", 1)[-1].lower())
+        return bool(names & self.commands)
 
     def is_dev_only(self, names: list[str]) -> bool:
         """True when every name is a direct dependency declared as dev-only.
@@ -191,6 +219,8 @@ class DependencyGraph:
             loader = _LOADERS.get(path.name)
             if loader is None and path.name.startswith("requirements") and path.suffix == ".txt":
                 loader = _load_requirements_txt
+            if loader is None and path.name.startswith("Dockerfile."):
+                loader = _load_commands_file
             if loader is None:
                 continue
             try:
@@ -237,6 +267,29 @@ def _load_package_json(path: Path) -> DependencyGraph:
     for key in _NPM_DEP_KEYS:
         for name in data.get(key) or {}:
             g.add_direct(name, dev=key == "devDependencies")
+    for script in (data.get("scripts") or {}).values():
+        if isinstance(script, str):
+            g.commands |= _command_words(script)
+    return g
+
+
+_WORD = re.compile(r"[A-Za-z0-9@._/-]+")
+
+
+def _command_words(text: str) -> set[str]:
+    """Words of a shell command line, plus the basename of path-like words
+    (``./node_modules/.bin/pm2`` -> ``pm2``)."""
+    words: set[str] = set()
+    for w in _WORD.findall(text):
+        words.add(w.lower())
+        words.add(w.rsplit("/", 1)[-1].lower())
+    return words
+
+
+def _load_commands_file(path: Path) -> DependencyGraph:
+    """Procfile / Dockerfile: only contributes command words."""
+    g = DependencyGraph()
+    g.commands = _command_words(path.read_text(encoding="utf-8", errors="replace"))
     return g
 
 
@@ -259,6 +312,13 @@ def _load_package_lock(path: Path) -> DependencyGraph:
             if not key or not isinstance(info, dict):
                 continue
             parent = info.get("name") or _npm_name_from_key(key)
+            bin_field = info.get("bin")
+            if isinstance(bin_field, dict):
+                for cmd in bin_field:
+                    g.bins.setdefault(cmd.lower(), set()).add(_norm(parent))
+            elif isinstance(bin_field, str):
+                cmd = parent.rsplit("/", 1)[-1].lower()
+                g.bins.setdefault(cmd, set()).add(_norm(parent))
             for dep_key in ("dependencies", "optionalDependencies", "peerDependencies"):
                 for child in info.get(dep_key) or {}:
                     g.add_edge(parent, child)
@@ -579,4 +639,6 @@ _LOADERS: dict[str, Any] = {
     "pubspec.lock": _load_pubspec_lock,
     "go.mod": _load_go_mod,
     "pom.xml": _load_pom,
+    "Procfile": _load_commands_file,
+    "Dockerfile": _load_commands_file,
 }

@@ -56,7 +56,8 @@ class ReachabilityDecision:
     unreachable: bool
     dependency_type: str  # "direct" | "transitive" | "unknown"
     introduced_by: list[str] = field(default_factory=list)
-    # Direct dependencies (introduced_by) that the source code does import.
+    # Direct dependencies (introduced_by) that the source code imports or the
+    # project runs as a command.
     imported_ancestors: list[str] = field(default_factory=list)
 
 
@@ -1188,14 +1189,20 @@ class ReachabilityFilter:
         if kind == "unknown" and vuln.is_direct is False:
             kind = "transitive"  # the scanner knows (npm audit, Snyk)
 
+        def used(name: str) -> bool:
+            return self._imports_package(name) or graph.is_executed(name)
+
         if kind == "direct":
             # A package can be both direct and transitive: listed in the
             # manifest but unused by the app, while a dependency the app does
-            # use calls it. Any imported ancestor keeps it reachable.
+            # use calls it. Any imported ancestor keeps it reachable, and so
+            # does running it as a command (``pm2 start`` in package.json).
             ancestors = sorted(graph.direct_ancestors(vuln.package))
-            imported = [a for a in ancestors if self._imports_package(a)]
+            imported = [a for a in ancestors if used(a)]
             return ReachabilityDecision(
-                unreachable=not imported and self.check(vuln),
+                unreachable=not imported
+                and not graph.is_executed(vuln.package)
+                and self.check(vuln),
                 dependency_type="direct",
                 introduced_by=ancestors,
                 imported_ancestors=imported,
@@ -1203,7 +1210,7 @@ class ReachabilityFilter:
 
         if kind == "transitive":
             ancestors = sorted(graph.direct_ancestors(vuln.package))
-            imported = [a for a in ancestors if self._imports_package(a)]
+            imported = [a for a in ancestors if used(a)]
             return ReachabilityDecision(
                 unreachable=bool(ancestors) and self._has_source() and not imported,
                 dependency_type="transitive",

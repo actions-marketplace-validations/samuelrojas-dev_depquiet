@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-11-04
+
+### Fixed
+- Dependencies the project runs instead of imports (`pm2 start` in `npm start`,
+  `cross-env`, Procfile and Dockerfile commands) were treated as unused, so they and
+  everything they pull in were filtered as unreachable. On
+  hagopj13/node-express-boilerplate that was `pm2` and 45 alerts beneath it. A direct
+  dependency now counts as used when one of its executables (lockfile `bin`, or the package
+  name) appears in `package.json` scripts, a `Procfile` or a `Dockerfile`.
+
+### Added
+- Benchmark on three public Express projects pinned to a commit (hackathon-starter,
+  node-express-realworld-example-app, node-express-boilerplate). Across them and the
+  existing real scenario, `npm audit` reports 289 alerts; 0.27 filtered 202 and depquiet
+  now filters 74, all with a traceable reason. Their source is cloned at the pinned commit
+  at run time, not redistributed.
+
 ### Removed
 - "You just saved ~N minutes of triage time" from the scan output. The number was
   filtered alerts × 2 minutes, an assumption presented as a measurement.

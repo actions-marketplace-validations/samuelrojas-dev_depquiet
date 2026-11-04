@@ -256,10 +256,15 @@ depquiet builds a dependency graph from the project before filtering:
 
 Rules, in order:
 
-1. **Direct** dependency: filtered when nothing imports it *and* no imported direct dependency
-   also pulls it in.
+1. **Direct** dependency: filtered when nothing imports it, the project never runs it as a
+   command, *and* no used direct dependency also pulls it in.
 2. **Transitive** dependency: filtered only when none of the direct dependencies that pull it
-   in are imported. With no known path (Go, Dart, Maven), it is never filtered.
+   in are used. With no known path (Go, Dart, Maven), it is never filtered.
+
+A direct dependency is **used** when a source file imports it or the project runs one of its
+executables: `pm2 start` in a `package.json` script, a `Procfile` entry, or a Dockerfile
+command (executable names come from the lockfile's `bin` field, falling back to the package
+name). Tools like `pm2`, `cross-env` or `next` are rarely imported but run in production.
 3. **Unknown**: never filtered. This includes a `requirements.txt` where every line is pinned
    with `==` and there are no `# via` comments, since that is indistinguishable from
    `pip freeze` output.
@@ -937,21 +942,27 @@ All conditions on a rule must match (AND logic):
 
 ## Benchmarks
 
-A real Express project: `package.json` pinned to versions from 2022, lockfile resolved by
-npm and audited with `npm audit` (captured with `benchmarks/capture_real.py`):
+`npm audit` output for four real projects: three popular open-source Express apps pinned to
+a commit, plus a small Express app pinned to 2022 versions. Every verdict is listed in
+[benchmarks/RESULTS.md](benchmarks/RESULTS.md).
 
-| | Alerts | Filtered | Rate | Alerts in packages Express calls, filtered |
+| Project | Alerts | Filtered by 0.27 | Filtered now | Filtered by 0.27, kept now |
 |---|---:|---:|---:|---:|
-| depquiet 0.27 | 29 | 26 | 90% | **13** (false negatives) |
-| depquiet 0.28 | 29 | 13 | 45% | **0** |
+| [hagopj13/node-express-boilerplate](https://github.com/hagopj13/node-express-boilerplate) | 163 | 115 | 18 | 97 |
+| [gothinkster/node-express-realworld-example-app](https://github.com/gothinkster/node-express-realworld-example-app) | 95 | 59 | 41 | 18 |
+| Express app, 2022 versions | 29 | 26 | 13 | 13 |
+| [sahat/hackathon-starter](https://github.com/sahat/hackathon-starter) | 2 | 2 | 2 | 0 |
+| **Total** | **289** | **202 (70%)** | **74 (26%)** | **128** |
 
-0.27 treated "your code doesn't import it" as "unreachable" for transitive packages too, so it
-dismissed every `body-parser`, `path-to-regexp`, `qs`, `cookie`, `send` and `serve-static`
-advisory. 0.28 traces each package to the direct dependency that pulls it in. Every verdict
-is listed in [benchmarks/RESULTS.md](benchmarks/RESULTS.md).
+0.27 counted any package the app didn't import itself as unreachable. The 128 alerts it
+dismissed are in packages that a production dependency the app imports or runs pulls in:
+`path-to-regexp`, `qs` and `body-parser` under Express, or everything under `pm2`, which the
+boilerplate starts from `npm start`. The 74 filtered now are almost all in packages that only
+development tools (jest, eslint, nx, nodemon, coveralls) pull in.
 
-Run them yourself: `python -I benchmarks/run_benchmark.py` (offline). The synthetic fixtures
-in the same report are parser regression tests, not evidence.
+Run them yourself: `python -I benchmarks/run_benchmark.py`. The first run clones the pinned
+commits into `benchmarks/.cache/`; `benchmarks/capture_real.py` re-captures the audits. The
+synthetic fixtures in the same report are parser regression tests, not evidence.
 
 ## Compared to
 

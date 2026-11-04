@@ -300,5 +300,8 @@ def _import_sites(
     transitive package, the imports of the direct dependencies that pull it in."""
     sites = reachability.find_imports(vuln)
     for ancestor in decision.imported_ancestors:
-        sites += [s for s in reachability.find_imports_for(ancestor) if s not in sites]
+        found = reachability.find_imports_for(ancestor)
+        if not found:
+            found = [f"{ancestor} (run as a command)"]
+        sites += [s for s in found if s not in sites]
     return sites

@@ -671,3 +671,119 @@ class TestFixPackage:
         print_scan_result(scan(project, skip_epss=True, audit_json=self._audit()))
         out = capsys.readouterr().out
         assert "FIX: update express to 4.22.3" in out
+
+
+class TestExecutedDependencies:
+    """A dependency run as a command is in use even though nothing imports it."""
+
+    def _project(self, tmp: Path, scripts: dict[str, str] | None = None) -> Path:
+        (tmp / "package.json").write_text(
+            json.dumps(
+                {
+                    "dependencies": {"express": "4", "pm2": "5"},
+                    "scripts": scripts if scripts is not None else {"start": "pm2 start app.js"},
+                }
+            )
+        )
+        (tmp / "package-lock.json").write_text(
+            json.dumps(
+                {
+                    "packages": {
+                        "": {"dependencies": {"express": "4", "pm2": "5"}},
+                        "node_modules/express": {},
+                        "node_modules/pm2": {
+                            "bin": {"pm2": "bin/pm2", "pm2-runtime": "bin/pm2-runtime"},
+                            "dependencies": {"axios": "0.21"},
+                        },
+                        "node_modules/axios": {},
+                    }
+                }
+            )
+        )
+        (tmp / "app.js").write_text("const express = require('express');\n")
+        return tmp
+
+    def _decide(self, project: Path, pkg: str):  # type: ignore[no-untyped-def]
+        return ReachabilityFilter(project).decide(_vuln(pkg), DependencyGraph.from_project(project))
+
+    def test_direct_dep_run_in_scripts_is_reachable(self, tmp_path: Path) -> None:
+        d = self._decide(self._project(tmp_path), "pm2")
+        assert d.dependency_type == "direct"
+        assert d.unreachable is False
+
+    def test_transitive_of_executed_dep_is_reachable(self, tmp_path: Path) -> None:
+        d = self._decide(self._project(tmp_path), "axios")
+        assert d.unreachable is False
+        assert d.imported_ancestors == ["pm2"]
+
+    def test_alternate_bin_name(self, tmp_path: Path) -> None:
+        project = self._project(tmp_path, {"start": "pm2-runtime ecosystem.config.js"})
+        assert self._decide(project, "axios").unreachable is False
+
+    def test_bin_by_path(self, tmp_path: Path) -> None:
+        project = self._project(tmp_path, {"start": "./node_modules/.bin/pm2 start app.js"})
+        assert self._decide(project, "axios").unreachable is False
+
+    def test_not_run_anywhere_is_unreachable(self, tmp_path: Path) -> None:
+        project = self._project(tmp_path, {"start": "node app.js"})
+        assert self._decide(project, "pm2").unreachable is True
+        assert self._decide(project, "axios").unreachable is True
+
+    def test_dockerfile_cmd(self, tmp_path: Path) -> None:
+        project = self._project(tmp_path, {})
+        (project / "Dockerfile").write_text('FROM node:20\nCMD ["pm2-runtime", "app.js"]\n')
+        assert self._decide(project, "axios").unreachable is False
+
+    def test_procfile(self, tmp_path: Path) -> None:
+        project = self._project(tmp_path, {})
+        (project / "Procfile").write_text("web: pm2 start app.js --no-daemon\n")
+        assert self._decide(project, "pm2").unreachable is False
+
+    def test_name_fallback_without_lockfile_bins(self, tmp_path: Path) -> None:
+        project = self._project(tmp_path)
+        (project / "package-lock.json").unlink()
+        g = DependencyGraph.from_project(project)
+        assert g.is_executed("pm2") is True
+        assert g.is_executed("express") is False
+
+    def test_scoped_package_name_fallback(self, tmp_path: Path) -> None:
+        (tmp_path / "package.json").write_text(
+            json.dumps({"dependencies": {"@acme/tool": "1"}, "scripts": {"x": "tool run"}})
+        )
+        assert DependencyGraph.from_project(tmp_path).is_executed("@acme/tool") is True
+
+    def test_executed_dev_tool_is_still_dev_only(self, tmp_path: Path) -> None:
+        (tmp_path / "package.json").write_text(
+            json.dumps(
+                {
+                    "dependencies": {"express": "4"},
+                    "devDependencies": {"eslint": "8"},
+                    "scripts": {"lint": "eslint ."},
+                }
+            )
+        )
+        (tmp_path / "package-lock.json").write_text(
+            json.dumps(
+                {
+                    "packages": {
+                        "": {"dependencies": {"express": "4"}, "devDependencies": {"eslint": "8"}},
+                        "node_modules/eslint": {
+                            "bin": {"eslint": "bin/eslint.js"},
+                            "dependencies": {"minimatch": "3"},
+                        },
+                    }
+                }
+            )
+        )
+        (tmp_path / "app.js").write_text("require('express');\n")
+        audit = {
+            "vulnerabilities": {
+                "minimatch": {
+                    "severity": "high",
+                    "isDirect": False,
+                    "via": [{"title": "ReDoS", "url": "https://github.com/advisories/GHSA-m"}],
+                }
+            }
+        }
+        [tr] = scan(tmp_path, skip_epss=True, audit_json=audit).results
+        assert tr.reasons == [FilterReason.DEV_DEPENDENCY]  # dev-only, but not "unreachable"

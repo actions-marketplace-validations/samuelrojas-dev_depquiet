@@ -5,6 +5,10 @@ Two kinds of scenario:
 - **Real** (``fixtures/real-*/``): a project with a lockfile resolved by the
   real package manager and the real audit output for it, captured by
   ``capture_real.py``. These back every number quoted in the README.
+- **Public repos** (``fixtures/repo-*/``): well-known open-source projects at a
+  pinned commit, audited with npm. Their source is cloned at that commit into
+  ``benchmarks/.cache/`` on first run (needs network once; see
+  ``capture_real.py``), so it is never redistributed here.
 - **Synthetic** (``fixtures/*.json``): hand-written audit output for parsers
   we can't capture here (pip-audit, Trivy, Grype images). They have no
   lockfiles, so transitive packages can't be traced and are correctly left
@@ -28,6 +32,7 @@ from pathlib import Path
 
 # Ensure the project root is importable
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # capture_real
 
 from depquiet.engine import scan
 from depquiet.models import ScanResult, Verdict
@@ -47,7 +52,7 @@ SYNTHETIC = [
 class BenchResult:
     name: str
     parser: str
-    kind: str  # "real" | "synthetic"
+    kind: str  # "real" | "repo" | "synthetic"
     total: int
     action: int
     review: int
@@ -115,6 +120,23 @@ def run_real(fixture_dir: Path) -> BenchResult:
     return r
 
 
+def run_repo(fixture_dir: Path) -> BenchResult:
+    from capture_real import checkout
+
+    audit_json = json.loads((fixture_dir / "audit.json").read_text())
+    meta = json.loads((fixture_dir / "meta.json").read_text())
+    clone = checkout(str(meta["repo"]), str(meta["commit"]))
+    with tempfile.TemporaryDirectory() as tmp:
+        project = Path(tmp) / "project"
+        shutil.copytree(clone, project, ignore=shutil.ignore_patterns(".git"))
+        if (fixture_dir / "package-lock.json").exists():
+            shutil.copy2(fixture_dir / "package-lock.json", project / "package-lock.json")
+        result, elapsed = _timed_scan(project, audit_json)
+    r = _summarize(fixture_dir.name, "npm", "repo", result, elapsed)
+    r.meta = meta
+    return r
+
+
 def run_synthetic(name: str, parser: str) -> BenchResult:
     audit_json = json.loads((FIXTURES / f"{name}.json").read_text())
     with tempfile.TemporaryDirectory() as tmp:
@@ -173,6 +195,7 @@ def _alert_table(r: BenchResult) -> list[str]:
 
 def main() -> None:
     real = [run_real(d) for d in sorted(FIXTURES.glob("real-*")) if d.is_dir()]
+    repos = [run_repo(d) for d in sorted(FIXTURES.glob("repo-*")) if d.is_dir()]
     synthetic = [run_synthetic(name, parser) for name, parser in SYNTHETIC]
 
     lines = [
@@ -194,6 +217,28 @@ def main() -> None:
             "",
             f"Captured {r.meta.get('captured_at', '?')} with {r.meta.get('tool', '?')}. "
             "Each row is one alert from `npm audit`.",
+            "",
+        ]
+        lines += _alert_table(r)
+
+    lines += [
+        "",
+        "## Public repositories",
+        "",
+        "Open-source projects at a pinned commit, `npm audit` run on their own lockfile",
+        "(for yarn projects, the lockfile npm derives from `yarn.lock`).",
+        "",
+    ]
+    lines += _summary_table(repos)
+    for r in repos:
+        repo, commit = r.meta.get("repo", "?"), str(r.meta.get("commit", "?"))
+        lines += [
+            "",
+            f"### {r.name}",
+            "",
+            f"[{repo}](https://github.com/{repo}/tree/{commit}) at `{commit[:7]}` "
+            f"({r.meta.get('commit_date', '?')}), audited {r.meta.get('captured_at', '?')} "
+            f"with {r.meta.get('tool', '?')}.",
             "",
         ]
         lines += _alert_table(r)
@@ -229,10 +274,10 @@ def main() -> None:
             "meta": r.meta,
         }
 
-    real_total = sum(r.total for r in real)
-    real_filtered = sum(r.filtered for r in real)
+    real_total = sum(r.total for r in real + repos)
+    real_filtered = sum(r.filtered for r in real + repos)
     json_out = {
-        "scenarios": [as_json(r) for r in real + synthetic],
+        "scenarios": [as_json(r) for r in real + repos + synthetic],
         "real_overall": {
             "total_alerts": real_total,
             "total_filtered": real_filtered,
