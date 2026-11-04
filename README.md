@@ -420,6 +420,29 @@ Output shows new, fixed, and changed findings with severity, EPSS scores, and ve
   [HIGH] CVE-2024-0001 in lodash@4.17.20 — Prototype Pollution → ACTION (EPSS: 42.0%)
 ```
 
+### GitHub PR comments
+
+Post scan diff results directly on pull requests as rich Markdown comments — severity badges, EPSS scores, fix versions, and verdict changes at a glance.
+
+```bash
+# Markdown output for piping to gh pr comment
+depquiet diff base.json head.json --markdown
+
+# Write markdown to a file (e.g. for $GITHUB_STEP_SUMMARY)
+depquiet diff base.json head.json --summary diff-report.md
+```
+
+**GitHub Action** — automatic PR comments with the `diff-base` and `pr-comment` inputs:
+
+```yaml
+- uses: samuelrojas-dev/depquiet@v0
+  with:
+    diff-base: base-scan.json    # path to a base branch scan
+    pr-comment: true             # post/update a PR comment with the diff
+```
+
+The action auto-updates the comment on re-runs (deletes previous depquiet comments first), writes a diff summary to `$GITHUB_STEP_SUMMARY`, and exposes `diff-new` / `diff-fixed` outputs for downstream steps.
+
 ### CISA KEV integration (`--kev`)
 
 The [CISA Known Exploited Vulnerabilities (KEV)](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) catalog lists CVEs with confirmed active exploitation. Under [BOD 22-01](https://www.cisa.gov/binding-operational-directive-22-01), federal agencies must remediate KEV-listed CVEs within strict deadlines — and any organization should treat them as top priority.

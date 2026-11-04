@@ -59,6 +59,14 @@ inputs:
     description: "Path to a local KEV catalog JSON file (for air-gapped environments)"
     required: false
     default: ""
+  diff-base:
+    description: "Path to a base scan JSON for diff comparison. When set, a diff summary is posted to the PR and GITHUB_STEP_SUMMARY."
+    required: false
+    default: ""
+  pr-comment:
+    description: "Post scan diff as a PR comment (requires diff-base, GITHUB_TOKEN, and a pull_request event)"
+    required: false
+    default: "false"
   fail-on-action:
     description: "Fail the workflow if ACTION items are found (deprecated: use fail-on)"
     required: false
@@ -91,6 +99,12 @@ outputs:
   sbom-file:
     description: "Path to SBOM file (if generated)"
     value: ${{ steps.run.outputs.sbom_file }}
+  diff-new:
+    description: "Number of new findings in diff (when diff-base is set)"
+    value: ${{ steps.diff.outputs.new }}
+  diff-fixed:
+    description: "Number of fixed findings in diff (when diff-base is set)"
+    value: ${{ steps.diff.outputs.fixed }}
 
 runs:
   using: "composite"
@@ -208,6 +222,68 @@ runs:
         elif [ "$INPUT_FAIL_ON_ACTION" = "true" ] && [ "$EXIT_CODE" -ne 0 ]; then
           exit 1
         fi
+
+    - name: Save scan JSON for diff
+      if: inputs.diff-base != ''
+      id: save-scan
+      shell: bash
+      env:
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_EPSS_THRESHOLD: ${{ inputs.epss-threshold }}
+        INPUT_OFFLINE: ${{ inputs.offline }}
+        INPUT_TEMPLATES: ${{ inputs.templates }}
+        INPUT_POLICY: ${{ inputs.policy }}
+        INPUT_IGNORE: ${{ inputs.ignore }}
+        INPUT_KEV: ${{ inputs.kev }}
+        INPUT_KEV_FILE: ${{ inputs.kev-file }}
+        INPUT_BASELINE: ${{ inputs.baseline }}
+      run: |
+        ARGS="--path $INPUT_PATH --epss-threshold $INPUT_EPSS_THRESHOLD --json"
+        if [ "$INPUT_OFFLINE" = "true" ]; then ARGS="$ARGS --offline"; fi
+        if [ -n "$INPUT_TEMPLATES" ]; then ARGS="$ARGS --templates $INPUT_TEMPLATES"; fi
+        if [ -n "$INPUT_POLICY" ]; then ARGS="$ARGS --policy $INPUT_POLICY"; fi
+        if [ -n "$INPUT_IGNORE" ]; then ARGS="$ARGS --ignore $INPUT_IGNORE"; fi
+        if [ "$INPUT_KEV" = "true" ]; then ARGS="$ARGS --kev"; fi
+        if [ -n "$INPUT_KEV_FILE" ]; then ARGS="$ARGS --kev-file $INPUT_KEV_FILE"; fi
+        if [ -n "$INPUT_BASELINE" ]; then ARGS="$ARGS --baseline $INPUT_BASELINE"; fi
+        depquiet $ARGS > /tmp/depquiet-head-scan.json 2>/dev/null || true
+
+    - name: Run scan diff
+      if: inputs.diff-base != ''
+      id: diff
+      shell: bash
+      env:
+        INPUT_DIFF_BASE: ${{ inputs.diff-base }}
+      run: |
+        DIFF_ARGS="diff $INPUT_DIFF_BASE /tmp/depquiet-head-scan.json --json"
+        DIFF_OUTPUT=$(depquiet $DIFF_ARGS 2>/dev/null || echo '{"summary":{"new":0,"fixed":0,"changed":0,"unchanged":0}}')
+        NEW=$(echo "$DIFF_OUTPUT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('summary',{}).get('new',0))" 2>/dev/null || echo "0")
+        FIXED=$(echo "$DIFF_OUTPUT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('summary',{}).get('fixed',0))" 2>/dev/null || echo "0")
+        echo "new=$NEW" >> "$GITHUB_OUTPUT"
+        echo "fixed=$FIXED" >> "$GITHUB_OUTPUT"
+
+        # Write markdown diff to step summary
+        if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+          depquiet diff "$INPUT_DIFF_BASE" /tmp/depquiet-head-scan.json --summary "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+        fi
+
+    - name: Post PR comment
+      if: inputs.diff-base != '' && inputs.pr-comment == 'true' && github.event_name == 'pull_request'
+      shell: bash
+      env:
+        INPUT_DIFF_BASE: ${{ inputs.diff-base }}
+        GH_TOKEN: ${{ github.token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+      run: |
+        COMMENT=$(depquiet diff "$INPUT_DIFF_BASE" /tmp/depquiet-head-scan.json --markdown 2>/dev/null || echo "⚠️ depquiet diff failed")
+        # Delete previous depquiet comment if any
+        EXISTING=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" --jq '.[] | select(.body | startswith("## 🔍 depquiet")) | .id' 2>/dev/null || true)
+        if [ -n "$EXISTING" ]; then
+          for CID in $EXISTING; do
+            gh api -X DELETE "repos/$GITHUB_REPOSITORY/issues/comments/$CID" 2>/dev/null || true
+          done
+        fi
+        gh pr comment "$PR_NUMBER" --body "$COMMENT"
 
     - name: Upload SARIF to GitHub
       if: inputs.sarif != '' && always()

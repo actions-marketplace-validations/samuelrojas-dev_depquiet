@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-11-03
+
+### Added
+
+- **GitHub PR comment integration** — post scan diff results directly on pull requests with rich Markdown tables
+- `depquiet diff --markdown` for GitHub-flavored Markdown output with severity badges, EPSS scores, and fix versions
+- `depquiet diff --summary FILE` to write Markdown diff to a file (for `$GITHUB_STEP_SUMMARY`)
+- `diff-base` input for the GitHub Action — provide a base scan JSON to enable automatic diff comparison
+- `pr-comment` input for the GitHub Action — post scan diff as a PR comment (auto-updates on re-runs)
+- `diff-new` and `diff-fixed` outputs from the GitHub Action for downstream workflow steps
+- Severity badge mapping: 🔴 critical, 🟠 high, 🟡 moderate, 🔵 low, ⚪ info
+- 10 new tests for Markdown formatting and CLI markdown/summary flags (44 total diff tests)
+
 ## [0.17.0] - 2026-11-03
 
 ### Added
@@ -211,7 +224,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.17.0...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.18.0...HEAD
+[0.18.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.14.0...v0.15.0

@@ -22,7 +22,7 @@ from typing import Any
 from depquiet import __version__
 from depquiet.baseline import apply_baseline, load_baseline
 from depquiet.config import load_config
-from depquiet.diff import diff_scans, diff_to_json, format_diff
+from depquiet.diff import diff_scans, diff_to_json, format_diff, format_diff_markdown
 from depquiet.engine import scan
 from depquiet.fix import apply_fixes, print_fix_report
 from depquiet.ignore import apply_ignores, load_ignore, print_ignore_warnings
@@ -59,6 +59,17 @@ def diff_main(argv: list[str]) -> int:
         help="Print machine-readable JSON diff to stdout",
     )
     parser.add_argument(
+        "--markdown",
+        action="store_true",
+        help="Output GitHub-flavored Markdown (for PR comments or step summaries)",
+    )
+    parser.add_argument(
+        "--summary",
+        type=Path,
+        metavar="FILE",
+        help="Write Markdown diff summary to FILE (for $GITHUB_STEP_SUMMARY)",
+    )
+    parser.add_argument(
         "--fail-on-new",
         action="store_true",
         help="Exit 1 if any new ACTION findings are detected",
@@ -76,8 +87,15 @@ def diff_main(argv: list[str]) -> int:
     if args.json_output:
         json.dump(diff_to_json(diff), sys.stdout, indent=2)
         print()  # trailing newline
+    elif args.markdown:
+        print(format_diff_markdown(diff))
     else:
         print(format_diff(diff))
+
+    # Write summary file (for $GITHUB_STEP_SUMMARY)
+    if args.summary:
+        md = format_diff_markdown(diff)
+        args.summary.write_text(md + "\n", encoding="utf-8")
 
     if args.fail_on_new and diff.has_new_action:
         return 1
