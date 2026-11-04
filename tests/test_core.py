@@ -375,9 +375,46 @@ def test_cli_version(capsys):
 
 
 def test_cli_no_project(capsys):
+    """An empty directory must not be reported as clean."""
     with tempfile.TemporaryDirectory() as tmp:
         code = main(["--path", tmp])
-    assert code == 0  # no vulns → exit 0
+    assert code == 2
+    captured = capsys.readouterr()
+    assert "nothing scanned" in captured.err
+    assert "No vulnerabilities found" not in captured.out
+
+
+def test_cli_offline_lockfile_without_scanner_is_not_clean(capsys):
+    with tempfile.TemporaryDirectory() as tmp:
+        (Path(tmp) / "Cargo.lock").write_text('[[package]]\nname = "x"\nversion = "1.0.0"\n')
+        code = main(["--path", tmp, "--offline"])
+    assert code == 2
+    assert "--offline" in capsys.readouterr().err
+
+
+def test_cli_empty_audit_is_clean(capsys, monkeypatch):
+    import io
+
+    monkeypatch.setattr("sys.stdin", io.StringIO('{"vulnerabilities": {}}'))
+    with tempfile.TemporaryDirectory() as tmp:
+        code = main(["--path", tmp, "--offline", "--stdin"])
+    assert code == 0
+    assert "No vulnerabilities found" in capsys.readouterr().out
+
+
+def test_cli_output_survives_non_utf8_stdout(monkeypatch, tmp_path):
+    """Windows redirects stdout with cp1252, which can't encode the status symbols."""
+    import io
+    import sys
+
+    raw = io.BytesIO()
+    stream = io.TextIOWrapper(raw, encoding="cp1252")
+    monkeypatch.setattr(sys, "stdout", stream)
+    monkeypatch.setattr("sys.stdin", io.StringIO('{"vulnerabilities": {}}'))
+    code = main(["--path", str(tmp_path), "--offline", "--stdin"])
+    stream.flush()
+    assert code == 0
+    assert "✅".encode() in raw.getvalue()
 
 
 def test_cli_stdin_json(capsys):

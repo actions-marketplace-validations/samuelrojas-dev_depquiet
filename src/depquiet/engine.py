@@ -39,6 +39,7 @@ from depquiet.parsers.sbom import SbomParser, is_cyclonedx, is_spdx
 from depquiet.parsers.snyk import SnykParser
 from depquiet.parsers.trivy import TrivyParser
 from depquiet.policy import Policy
+from depquiet.scanners import ScanError, run_npm_audit, run_pip_audit
 
 
 def _osv_batch_query(
@@ -117,14 +118,27 @@ def scan(
         if not skip_epss and OsvScanner.detect(project):
             pm = "osv"
         else:
+            if OsvScanner.detect(project):
+                note = (
+                    "found a lockfile, but scanning it queries OSV.dev and --offline is set. "
+                    "Drop --offline, or pipe in scanner output with --stdin."
+                )
+            else:
+                note = (
+                    f"no supported manifest or lockfile in {project}. Run depquiet in a "
+                    "project directory, pass --path, or pipe in scanner output with --stdin."
+                )
             return ScanResult(
                 project_path=str(project),
                 package_manager="unknown",
                 total_dependencies=0,
                 results=[],
+                scanned=False,
+                note=note,
             )
 
     vulns: list[Vulnerability] = []
+    scan_note = ""
     if audit_json is not None:
         # Use provided JSON (piped input or testing)
         # Auto-detect format — check SBOMs first, then scanner outputs
@@ -153,13 +167,17 @@ def scan(
         else:
             vulns = NpmAuditParser.parse(audit_json, project)
     else:
-        if pm == "osv":
-            vulns = OsvScanner.scan(project)
-        elif pm:
-            for parser in _PARSERS:
-                if parser.name == pm:
-                    vulns = parser.scan(project)
-                    break
+        try:
+            vulns, pm, scan_note = _run_scanner(pm, project, offline=skip_epss)
+        except ScanError as e:
+            return ScanResult(
+                project_path=str(project),
+                package_manager=pm or "unknown",
+                total_dependencies=0,
+                results=[],
+                scanned=False,
+                note=str(e),
+            )
 
     if not vulns:
         return ScanResult(
@@ -167,6 +185,7 @@ def scan(
             package_manager=pm or "unknown",
             total_dependencies=0,
             results=[],
+            note=scan_note,
         )
 
     # Step 2: Initialize filters
@@ -290,7 +309,42 @@ def scan(
         package_manager=pm or "unknown",
         total_dependencies=len(set(v.package for v in vulns)),
         results=results,
+        note=scan_note,
     )
+
+
+def _run_scanner(
+    pm: str | None, project: Path, *, offline: bool
+) -> tuple[list[Vulnerability], str, str]:
+    """Run the detected scanner; fall back to OSV.dev lockfile scanning.
+
+    Returns (vulnerabilities, scanner used, note). Raises ScanError when no
+    scanner could produce a report, so the caller reports "not scanned"
+    instead of "no vulnerabilities".
+    """
+    runners = {
+        "npm": (run_npm_audit, NpmAuditParser.parse, "npm audit"),
+        "pip": (run_pip_audit, PipAuditParser.parse, "pip-audit"),
+    }
+    if pm in runners:
+        run, parse, label = runners[pm]
+        try:
+            return parse(run(project), project), str(pm), ""
+        except ScanError as e:
+            first = f"{label}: {e}"
+        if offline or not OsvScanner.detect(project):
+            hint = " OSV.dev fallback is disabled by --offline." if offline else ""
+            raise ScanError(
+                f"{first}{hint} You can also pipe a scanner's JSON in with --stdin."
+            ) from None
+        try:
+            vulns = OsvScanner.scan_checked(project)
+        except ScanError as e:
+            raise ScanError(f"{first} OSV.dev fallback failed too: {e}") from None
+        return vulns, "osv", f"{first} Scanned lockfiles with OSV.dev instead."
+    if pm == "osv":
+        return OsvScanner.scan_checked(project), "osv", ""
+    raise ScanError(f"no scanner available for {pm or 'this project'}.")
 
 
 def _import_sites(

@@ -924,10 +924,13 @@ class TestCliEdgeCases:
                 sys.stdin = old_stdin
         assert code == 1
 
-    def test_cli_exit_code_0_no_action(self, capsys):
+    def test_cli_exit_code_0_no_action(self, capsys, monkeypatch):
         """CLI returns 0 when no ACTION items."""
+        import io
+
+        monkeypatch.setattr("sys.stdin", io.StringIO('{"vulnerabilities": {}}'))
         with tempfile.TemporaryDirectory() as tmp:
-            code = main(["--path", tmp, "--offline"])
+            code = main([*["--path", tmp, "--offline"], "--stdin"])
         assert code == 0
 
     def test_cli_json_output_format(self, capsys):
@@ -945,19 +948,25 @@ class TestCliEdgeCases:
         assert "summary" in out
         assert "results" in out
 
-    def test_cli_custom_epss_threshold(self, capsys):
+    def test_cli_custom_epss_threshold(self, capsys, monkeypatch):
         """--epss-threshold is passed through."""
+        import io
+
+        monkeypatch.setattr("sys.stdin", io.StringIO('{"vulnerabilities": {}}'))
         with tempfile.TemporaryDirectory() as tmp:
-            code = main(["--path", tmp, "--offline", "--epss-threshold", "0.05"])
+            code = main([*["--path", tmp, "--offline", "--epss-threshold", "0.05"], "--stdin"])
         assert code == 0
 
-    def test_cli_custom_templates(self, capsys):
+    def test_cli_custom_templates(self, capsys, monkeypatch):
         """--templates flag is accepted."""
+        import io
+
+        monkeypatch.setattr("sys.stdin", io.StringIO('{"vulnerabilities": {}}'))
         with tempfile.TemporaryDirectory() as tmp:
             p = Path(tmp)
             td = p / "my-templates"
             td.mkdir()
-            code = main(["--path", tmp, "--offline", "--templates", str(td)])
+            code = main([*["--path", tmp, "--offline", "--templates", str(td)], "--stdin"])
         assert code == 0
 
 

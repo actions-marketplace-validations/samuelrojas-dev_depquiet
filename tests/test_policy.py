@@ -303,7 +303,7 @@ class TestPolicyEngineIntegration:
         )
 
         with (
-            patch("depquiet.engine.NpmAuditParser.scan", return_value=[crit_vuln]),
+            patch("depquiet.engine._run_scanner", return_value=([crit_vuln], "npm", "")),
             patch("depquiet.engine.EpssFilter.lookup"),
         ):
             result = scan(tmp_path, skip_epss=True, policy=policy)

@@ -65,3 +65,12 @@ jobs:
         with:
           generate_release_notes: true
           files: dist/*
+
+      # `uses: samuelrojas-dev/depquiet@v0` follows the latest v0.x release.
+      - name: Move major version tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          major="${TAG%%.*}"
+          git tag -f "$major" "$TAG"
+          git push -f origin "refs/tags/$major"

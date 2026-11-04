@@ -30,6 +30,11 @@ def _c(code: str, text: str) -> str:
 
 def print_scan_result(result: ScanResult) -> None:
     """Print the full triage result to stdout."""
+    if not result.scanned:
+        print(f"\n{_c(_YELLOW, '⚠️')}  Nothing scanned: {result.note}")
+        return
+    if result.note:
+        print(f"\n{_c(_YELLOW, '⚠️')}  {result.note}")
     if not result.results:
         print(f"\n{_c(_GREEN, '✅')} No vulnerabilities found.")
         return

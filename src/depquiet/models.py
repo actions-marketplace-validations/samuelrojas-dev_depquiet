@@ -107,6 +107,10 @@ class ScanResult:
     package_manager: str
     total_dependencies: int
     results: list[TriageResult]
+    # False when nothing was scanned (no supported project found). An empty
+    # result must never read as "no vulnerabilities" in that case.
+    scanned: bool = True
+    note: str = ""
 
     @property
     def action(self) -> list[TriageResult]:

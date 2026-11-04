@@ -595,7 +595,7 @@ class TestOsvScanner:
 class TestEngineOsvIntegration:
     """Test that engine.scan falls back to OSV when no scanner is detected."""
 
-    @patch("depquiet.engine.OsvScanner.scan")
+    @patch("depquiet.engine.OsvScanner.scan_checked")
     @patch("depquiet.engine.OsvScanner.detect", return_value=True)
     def test_osv_fallback(
         self, mock_detect: MagicMock, mock_scan: MagicMock, tmp_path: Path

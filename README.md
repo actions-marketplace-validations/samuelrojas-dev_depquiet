@@ -43,6 +43,20 @@ Total: 29 alerts — 13 actionable | 3 review | 13 filtered
 depquiet keeps it. The 13 filtered alerts are in packages that only build tools pull in
 (eslint, nodemon, webpack-dev-middleware) or that the app declares but never imports.
 
+## Quick start
+
+```bash
+pip install depquiet pip-audit             # pip-audit is optional; without it Python
+                                           # projects are scanned through OSV.dev
+cd your-project
+depquiet                                   # runs npm audit / pip-audit, or scans lockfiles via OSV.dev
+npm audit --json | depquiet --stdin        # or triage any scanner's output
+depquiet explain GHSA-9wv6-86v2-598j       # why did this alert get its verdict?
+```
+
+Works on npm, yarn, Python (uv, Poetry, pip-tools, Pipfile), Rust, Ruby, PHP, .NET, Dart, Go
+and Maven projects. In CI, use the [GitHub Action](#github-actions-marketplace).
+
 ## The problem
 
 Dependency scanners report every advisory that matches a version range, whether or not
@@ -781,6 +795,8 @@ depquiet --fail-on none --summary $GITHUB_STEP_SUMMARY
 
 - `0` — No ACTION items at or above the `--fail-on` threshold (safe to pass)
 - `1` — ACTION items found at or above the threshold (fail the build)
+- `2` — Nothing was scanned: no supported manifest or lockfile, or a lockfile that needs
+  OSV.dev while `--offline` is set. depquiet never reports an unscanned project as clean.
 
 ### GitHub Actions (Marketplace)
 

@@ -14,6 +14,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import sys
 from pathlib import Path
@@ -174,6 +175,9 @@ def explain_main(argv: list[str]) -> int:
             template_dirs=merged.template_dirs or None,
             always_flag=merged.always_flag or None,
         )
+        if not result.scanned:
+            print(f"depquiet: nothing scanned: {result.note}", file=sys.stderr)
+            return 2
         tr = find_cve(result, args.cve)
 
     if tr is None:
@@ -261,6 +265,9 @@ def stats_main(argv: list[str]) -> int:
             template_dirs=merged.template_dirs or None,
             always_flag=merged.always_flag or None,
         )
+        if not result.scanned:
+            print(f"depquiet: nothing scanned: {result.note}", file=sys.stderr)
+            return 2
         stats = compute_stats(
             result.results,
             result.total_dependencies,
@@ -311,8 +318,24 @@ def init_main(argv: list[str]) -> int:
     return init_command(args.path, yes=args.yes, force=args.force, output=args.output)
 
 
+def _utf8_streams() -> None:
+    """Never crash on output encoding.
+
+    Output uses symbols (✅, ⚠️, →) that Windows code pages such as cp1252
+    can't encode; with stdout redirected (``depquiet > report.txt``, CI logs)
+    Python falls back to that code page and printing raised
+    UnicodeEncodeError. Switch non-UTF-8 streams to UTF-8.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        enc = (getattr(stream, "encoding", None) or "").lower().replace("-", "")
+        if enc != "utf8" and hasattr(stream, "reconfigure"):
+            with contextlib.suppress(ValueError, OSError):
+                stream.reconfigure(encoding="utf-8", errors="replace")
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the depquiet CLI. Returns exit code."""
+    _utf8_streams()
     # Dispatch to subcommands before argparse sees them
     effective = argv if argv is not None else sys.argv[1:]
     if effective and effective[0] == "diff":
@@ -566,6 +589,9 @@ def main(argv: list[str] | None = None) -> int:
         always_flag=merged.always_flag or None,
         policy=policy,
     )
+    if not result.scanned:
+        print(f"depquiet: nothing scanned: {result.note}", file=sys.stderr)
+        return 2
 
     # Apply suppressions (from CLI, config, or project default)
     ignore_file = load_ignore(args.path, ignore_path=merged.ignore)

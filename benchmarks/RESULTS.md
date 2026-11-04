@@ -9,7 +9,7 @@ Lockfile resolved and audited by the real package manager (`capture_real.py`).
 
 | Scenario | Parser | Total | Action | Review | Filtered | Filter rate | Time |
 |----------|--------|------:|-------:|-------:|---------:|------------:|-----:|
-| real-npm-express | npm | 29 | 13 | 3 | 13 | **45%** | 441ms |
+| real-npm-express | npm | 29 | 13 | 3 | 13 | **45%** | 455ms |
 
 | Scenario | Unreachable | Dev-only | Low EPSS | Template |
 |----------|------------:|---------:|---------:|---------:|
@@ -59,11 +59,11 @@ projects: `pip-audit --no-deps` on every version pinned in `uv.lock`/`poetry.loc
 
 | Scenario | Parser | Total | Action | Review | Filtered | Filter rate | Time |
 |----------|--------|------:|-------:|-------:|---------:|------------:|-----:|
-| repo-hackathon-starter | npm | 2 | 0 | 0 | 2 | **100%** | 49ms |
-| repo-mealie | pip-audit | 229 | 201 | 0 | 28 | **12%** | 1445ms |
-| repo-node-express-boilerplate | npm | 163 | 140 | 5 | 18 | **11%** | 82ms |
-| repo-node-express-realworld | npm | 95 | 51 | 3 | 41 | **43%** | 53ms |
-| repo-paperless-ngx | pip-audit | 17 | 17 | 0 | 0 | **0%** | 1517ms |
+| repo-hackathon-starter | npm | 2 | 0 | 0 | 2 | **100%** | 44ms |
+| repo-mealie | pip-audit | 229 | 201 | 0 | 28 | **12%** | 1204ms |
+| repo-node-express-boilerplate | npm | 163 | 140 | 5 | 18 | **11%** | 75ms |
+| repo-node-express-realworld | npm | 95 | 51 | 3 | 41 | **43%** | 48ms |
+| repo-paperless-ngx | pip-audit | 17 | 17 | 0 | 0 | **0%** | 1460ms |
 
 | Scenario | Unreachable | Dev-only | Low EPSS | Template |
 |----------|------------:|---------:|---------:|---------:|
@@ -622,7 +622,7 @@ them on reachability. Kept as parser regression tests, not as evidence.
 
 | Scenario | Parser | Total | Action | Review | Filtered | Filter rate | Time |
 |----------|--------|------:|-------:|-------:|---------:|------------:|-----:|
-| npm-express-app | npm | 15 | 9 | 1 | 5 | **33%** | 2ms |
+| npm-express-app | npm | 15 | 9 | 1 | 5 | **33%** | 1ms |
 | pip-django-app | pip | 9 | 6 | 0 | 3 | **33%** | 1ms |
 | trivy-node-container | trivy | 8 | 0 | 0 | 8 | **100%** | 1ms |
 | grype-python-container | grype | 6 | 3 | 0 | 3 | **50%** | 1ms |

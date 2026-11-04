@@ -316,7 +316,21 @@ def _parse_packages_lock_json(path: Path) -> list[PackageInfo]:
 
 
 # Lockfile → parser mapping
+def _parse_python_lock(path: Path) -> list[PackageInfo]:
+    """Parse uv.lock / poetry.lock (every registry package they pin)."""
+    from depquiet.scanners import lock_pins
+
+    pins, dropped = lock_pins(path)
+    out: list[PackageInfo] = []
+    for pin in pins + dropped:
+        name, version = pin.split("==", 1)
+        out.append((name, version, _ECOSYSTEM_PYPI))
+    return out
+
+
 _LOCKFILE_PARSERS: list[tuple[str, Any]] = [
+    ("uv.lock", _parse_python_lock),
+    ("poetry.lock", _parse_python_lock),
     ("package-lock.json", _parse_package_lock),
     ("yarn.lock", _parse_yarn_lock),
     ("Pipfile.lock", _parse_pipfile_lock),
@@ -532,6 +546,27 @@ class OsvScanner:
         # This would need the packages list context, so it's a no-op
         # for the JSON piping path. OSV is used via scan().
         return []
+
+    @classmethod
+    def scan_checked(cls, project: Path) -> list[Vulnerability]:
+        """Like :meth:`scan`, but raise ScanError if any OSV.dev query fails.
+
+        A partial or failed lookup must not read as "no vulnerabilities".
+        """
+        from depquiet.scanners import ScanError
+
+        packages = parse_lockfiles(project)
+        if not packages:
+            raise ScanError("found lockfiles but could not read any packages from them.")
+        all_vulns: list[Vulnerability] = []
+        for i in range(0, len(packages), 1000):
+            batch = packages[i : i + 1000]
+            try:
+                response = query_osv_batch(batch)
+            except (OSError, json.JSONDecodeError, urllib.error.URLError) as e:
+                raise ScanError(f"could not reach OSV.dev ({e}).") from e
+            all_vulns.extend(parse_osv_response(response, batch))
+        return all_vulns
 
     @classmethod
     def scan(cls, project: Path) -> list[Vulnerability]:

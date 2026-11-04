@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.30.1] - 2026-11-04
+
+### Fixed
+- **A scanner that couldn't run looked like a clean project.** With pip-audit not
+  installed, `depquiet` in a Python project printed "No vulnerabilities found"; so did a
+  failed `npm audit` (no lockfile, network error), an OSV.dev network failure, and an
+  empty or wrong directory. depquiet now falls back to OSV.dev lockfile scanning when the
+  native scanner fails and says so, and otherwise reports "nothing scanned" with the reason
+  and exits with code 2. It never reports an unscanned project as clean.
+- pip-audit audited the environment depquiet ran in, not the project. It now audits the
+  project's `uv.lock` / `poetry.lock` pins (without resolving or installing),
+  `requirements.txt`, or `pyproject.toml`.
+- Output crashed with `UnicodeEncodeError` on Windows when redirected
+  (`depquiet > report.txt`, CI logs). Non-UTF-8 streams are switched to UTF-8.
+- The README's GitHub Action example used `@v0`, a tag that didn't exist. Releases now
+  move the `v0` tag to the latest version.
+
+### Added
+- OSV.dev lockfile scanning reads `uv.lock` and `poetry.lock`.
+- Exit code `2`: nothing was scanned.
+- Quick start section at the top of the README.
+
 ## [0.30.0] - 2026-11-04
 
 ### Fixed
