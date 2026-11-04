@@ -294,3 +294,41 @@ class TestPrintLicenseReport:
         print_license_report(report)
         captured = capsys.readouterr()
         assert "No dependencies" in captured.err
+
+
+class TestGetPipLicense:
+    """Regression: packages whose metadata has no License field."""
+
+    def _fake_meta(self, headers: list[tuple[str, str]]):
+        from email.message import Message
+
+        msg = Message()
+        for k, v in headers:
+            msg[k] = v
+        return msg
+
+    def test_missing_license_falls_back_to_classifier(self, monkeypatch):
+        import importlib.metadata
+
+        from depquiet.license import _get_pip_license
+
+        meta = self._fake_meta([("Classifier", "License :: OSI Approved :: MIT License")])
+        monkeypatch.setattr(importlib.metadata, "metadata", lambda _name: meta)
+        assert _get_pip_license("pkg") == "MIT"
+
+    def test_missing_license_and_classifiers_is_unknown(self, monkeypatch):
+        import importlib.metadata
+
+        from depquiet.license import _get_pip_license
+
+        monkeypatch.setattr(importlib.metadata, "metadata", lambda _name: self._fake_meta([]))
+        assert _get_pip_license("pkg") == "UNKNOWN"
+
+    def test_license_field_used_when_present(self, monkeypatch):
+        import importlib.metadata
+
+        from depquiet.license import _get_pip_license
+
+        meta = self._fake_meta([("License", " Apache-2.0 ")])
+        monkeypatch.setattr(importlib.metadata, "metadata", lambda _name: meta)
+        assert _get_pip_license("pkg") == "Apache-2.0"

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "depquiet"
-version = "0.27.0"
+version = "0.27.1"
 description = "Cut through vulnerability alert noise. Tells you which CVEs actually matter."
 readme = "README.md"
 license = "MIT"
@@ -72,6 +72,7 @@ packages = ["src/depquiet"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--strict-markers -v"
+filterwarnings = ["error::DeprecationWarning"]
 markers = [
     "live: requires network access (deselect with '-m not live')",
 ]

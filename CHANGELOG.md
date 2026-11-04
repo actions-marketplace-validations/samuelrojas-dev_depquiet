@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.27.1] - 2026-11-04
+
+### Fixed
+- Release workflow now runs lint, format, mypy and the test suite, and checks that the
+  tag matches `depquiet.__version__`, before publishing to PyPI. Previously a tag
+  published even when CI was red (v0.24.0 through v0.27.0 shipped with failing lint).
+- Release permissions (`contents: write`, `id-token: write`) are scoped to the publish
+  job instead of the whole workflow.
+- License scan no longer uses the deprecated `metadata["License"]` lookup, which will
+  raise `KeyError` for packages without a License field on future Python versions.
+- Formatting and mypy errors that kept CI red since v0.24.0.
+
+### Added
+- `.pre-commit-config.yaml` running ruff, ruff-format and mypy locally.
+- `DeprecationWarning` is now an error in the test suite.
+
 ## [0.27.0] - 2026-11-04
 
 ### Added

@@ -9,6 +9,7 @@ git clone https://github.com/samuelrojas-dev/depquiet.git
 cd depquiet
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
+pip install pre-commit && pre-commit install   # runs ruff + mypy on every commit
 python -m pytest tests/ -v
 ```
 

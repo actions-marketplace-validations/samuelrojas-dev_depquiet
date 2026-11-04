@@ -343,8 +343,9 @@ def _get_pip_license(package_name: str) -> str:
 
         meta = get_metadata(package_name)
         # Try License field first
-        raw_lic: str | None = meta["License"]
-        lic = raw_lic or ""
+        # get_all() returns None for a missing key; meta["License"] is
+        # deprecated for missing keys and will raise KeyError in future Pythons.
+        lic = (meta.get_all("License") or [""])[0] or ""
         if lic and lic.strip().lower() not in ("unknown", "", "none"):
             return str(lic.strip())
 
