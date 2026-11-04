@@ -39,6 +39,10 @@ inputs:
     description: "SBOM format: json (CycloneDX, default), xml (CycloneDX), or spdx (SPDX 2.3). Inferred from extension if omitted."
     required: false
     default: ""
+  from-sbom:
+    description: "Path to a CycloneDX or SPDX JSON SBOM to triage (instead of running a scanner)"
+    required: false
+    default: ""
   ignore:
     description: "Path to .depquiet-ignore suppression file"
     required: false
@@ -142,6 +146,7 @@ runs:
         INPUT_POLICY: ${{ inputs.policy }}
         INPUT_SBOM: ${{ inputs.sbom }}
         INPUT_SBOM_FORMAT: ${{ inputs.sbom-format }}
+        INPUT_FROM_SBOM: ${{ inputs.from-sbom }}
         INPUT_IGNORE: ${{ inputs.ignore }}
         INPUT_LICENSE: ${{ inputs.license }}
         INPUT_FAIL_ON_ACTION: ${{ inputs.fail-on-action }}
@@ -179,6 +184,10 @@ runs:
 
         if [ -n "$INPUT_SBOM_FORMAT" ]; then
           ARGS="$ARGS --sbom-format $INPUT_SBOM_FORMAT"
+        fi
+
+        if [ -n "$INPUT_FROM_SBOM" ]; then
+          ARGS="$ARGS --from-sbom $INPUT_FROM_SBOM"
         fi
 
         if [ -n "$INPUT_IGNORE" ]; then

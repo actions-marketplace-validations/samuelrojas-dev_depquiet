@@ -148,6 +148,16 @@ def main(argv: list[str] | None = None) -> int:
         help="Read audit JSON from stdin instead of running a scanner",
     )
     parser.add_argument(
+        "--from-sbom",
+        type=Path,
+        metavar="FILE",
+        dest="from_sbom",
+        help=(
+            "Read a CycloneDX or SPDX JSON SBOM as input. "
+            "Extracts vulnerabilities or queries OSV.dev for advisories."
+        ),
+    )
+    parser.add_argument(
         "--epss-threshold",
         type=float,
         default=0.1,
@@ -291,9 +301,18 @@ def main(argv: list[str] | None = None) -> int:
         offline=args.offline,
     )
 
-    # Read piped input
+    # Read piped input or SBOM file
     audit_json: dict[str, Any] | None = None
-    if args.stdin:
+    if args.from_sbom:
+        if not args.from_sbom.is_file():
+            print(f"Error: file not found: {args.from_sbom}", file=sys.stderr)
+            return 1
+        try:
+            audit_json = json.loads(args.from_sbom.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            print(f"Error: invalid JSON in {args.from_sbom}", file=sys.stderr)
+            return 1
+    elif args.stdin:
         try:
             raw = json.load(sys.stdin)
         except json.JSONDecodeError:

@@ -31,12 +31,27 @@ from depquiet.models import (
 from depquiet.parsers.dependabot import DependabotParser
 from depquiet.parsers.grype import GrypeParser
 from depquiet.parsers.npm import NpmAuditParser
-from depquiet.parsers.osv import OsvScanner
+from depquiet.parsers.osv import OsvScanner, parse_osv_response, query_osv_batch
 from depquiet.parsers.pip import PipAuditParser
 from depquiet.parsers.sarif import SarifParser
+from depquiet.parsers.sbom import SbomParser, is_cyclonedx, is_spdx
 from depquiet.parsers.snyk import SnykParser
 from depquiet.parsers.trivy import TrivyParser
 from depquiet.policy import Policy
+
+
+def _osv_batch_query(
+    packages: list[tuple[str, str, str]],
+) -> list[Vulnerability]:
+    """Query OSV.dev for vulnerabilities matching SBOM packages."""
+    if not packages:
+        return []
+    try:
+        response = query_osv_batch(packages)
+        return parse_osv_response(response, packages)
+    except Exception:
+        # Network errors, timeouts — return empty and let triage continue
+        return []
 
 
 class _Parser(Protocol):
@@ -111,9 +126,16 @@ def scan(
     vulns: list[Vulnerability] = []
     if audit_json is not None:
         # Use provided JSON (piped input or testing)
-        # Auto-detect format: Trivy has "Results", pip has "dependencies",
-        # npm has "vulnerabilities"
-        if "runs" in audit_json and (
+        # Auto-detect format — check SBOMs first, then scanner outputs
+        if is_cyclonedx(audit_json) or is_spdx(audit_json):
+            vulns = SbomParser.parse(audit_json, project)
+            if not vulns:
+                # SBOM has no vulnerability data — extract packages
+                # and query OSV.dev for advisories
+                packages = SbomParser.extract_packages(audit_json)
+                if packages and not skip_epss:
+                    vulns = _osv_batch_query(packages)
+        elif "runs" in audit_json and (
             "$schema" in audit_json or audit_json.get("version") == "2.1.0"
         ):
             vulns = SarifParser.parse(audit_json, project)

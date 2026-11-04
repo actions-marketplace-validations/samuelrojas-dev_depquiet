@@ -75,6 +75,8 @@ depquiet accepts output from any vulnerability scanner — natively or via SARIF
 | Snyk | JSON | `snyk test --json \| depquiet --stdin` |
 | Dependabot | API JSON | `gh api /repos/O/R/dependabot/alerts \| depquiet --stdin` |
 | **Any SARIF scanner** | **SARIF v2.1.0** | `<scanner> --sarif \| depquiet --stdin` |
+| **CycloneDX SBOM** | **JSON** | `depquiet --from-sbom vendor.cdx.json` |
+| **SPDX SBOM** | **JSON** | `depquiet --from-sbom vendor.spdx.json` |
 
 The SARIF parser handles output from CodeQL, Semgrep, Trivy SARIF, Grype SARIF, Snyk SARIF, Checkmarx, Fortify, and any other tool that emits SARIF v2.1.0. CVE, package name, severity (CVSS or level-based), and fix version are extracted automatically from the standard SARIF fields and common scanner-specific properties.
 
@@ -113,6 +115,25 @@ depquiet --sbom out.spdx --sbom-format spdx
 Both formats include full component inventory with Package URLs (purl), vulnerability references for known CVEs, depquiet triage verdicts, and tool creator metadata. CycloneDX additionally maps verdicts to analysis states; SPDX uses SECURITY external references with NVD links.
 
 SBOM output works alongside all other flags — combine `--sbom` with `--sarif` to generate both in one pass.
+
+### SBOM import — triage from third-party SBOMs
+
+depquiet can consume CycloneDX and SPDX SBOMs as input, enabling triage on third-party SBOMs from vendors, container registries, or build systems — without needing the original lockfile:
+
+```bash
+# Explicit file input
+depquiet --from-sbom vendor-sbom.cdx.json    # CycloneDX 1.4/1.5 JSON
+depquiet --from-sbom vendor-sbom.spdx.json   # SPDX 2.3 JSON
+
+# Piped via stdin (auto-detected)
+cat container-sbom.json | depquiet --stdin
+```
+
+Two-mode operation:
+- **Vulnerability mode** — if the SBOM contains vulnerability data (CycloneDX `vulnerabilities` array or SPDX SECURITY external refs), those are extracted and triaged directly
+- **Package mode** — if no vulnerability data is present, the package inventory is extracted and queried against OSV.dev for known advisories
+
+All standard depquiet flags work with SBOM input: `--epss-threshold`, `--kev`, `--sbom` (re-export), `--sarif`, `--html`, etc.
 
 ### Reachability analysis in depth
 

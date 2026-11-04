@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-11-04
+
+### Added
+
+- **SBOM import — triage from third-party SBOMs** (`--from-sbom FILE` or `--stdin` auto-detection) — read CycloneDX 1.4/1.5 JSON or SPDX 2.3 JSON as input, extract vulnerabilities or package inventories, and feed them through the full triage engine
+- New `parsers/sbom.py` module with `SbomParser`, `is_cyclonedx()`, `is_spdx()` detection, CycloneDX vulnerability + package extraction, SPDX SECURITY ref + package extraction, and purl parsing with ecosystem resolution
+- **Two-mode operation**: if the SBOM contains vulnerability data (CycloneDX `vulnerabilities` array or SPDX SECURITY external refs), those are triaged directly; if not, the package inventory is extracted and queried against OSV.dev for known advisories
+- Auto-detection in the engine dispatch chain — CycloneDX and SPDX SBOMs piped via `--stdin` are detected before scanner-specific formats
+- New `--from-sbom` CLI flag for explicit SBOM file input (alternative to piping via `--stdin`)
+- Purl parsing with support for scoped npm packages (`%40` → `@`), Go modules, Cargo, Maven, NuGet, Packagist, RubyGems, and Pub ecosystems
+- CycloneDX severity mapping from both string labels and CVSS scores, fix version extraction from `affects.versions`, and component resolution via `bom-ref` lookup
+- 53 tests covering purl parsing, format detection, CycloneDX/SPDX package and vulnerability extraction, severity mapping, engine integration, and the unified SbomParser API
+
 ## [0.22.0] - 2026-11-04
 
 ### Added
