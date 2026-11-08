@@ -2,8 +2,9 @@
 
 EPSS (Exploit Prediction Scoring System) from FIRST.org gives every CVE a
 probability score (0-1) of being exploited in the wild within the next 30 days.
-A CVE with EPSS 0.001 (0.1%) has essentially no known exploits and no one is
-targeting it. A CVE with EPSS 0.47 (47%) is actively being used.
+The score estimates observed exploitation activity in the next 30 days.
+It does not establish product impact, existing mitigations or the absence
+of exploits, even when the probability is low.
 
 The EPSS API is free, public, no auth needed:
   https://api.first.org/data/v1/epss?cve=CVE-2024-XXXXX
@@ -22,7 +23,7 @@ from pathlib import Path
 from depquiet.models import FilterReason, Vulnerability
 
 _EPSS_API = "https://api.first.org/data/v1/epss"
-_DEFAULT_THRESHOLD = 0.1  # 10% — below this, very unlikely to be exploited
+_DEFAULT_THRESHOLD = 0.1  # Remediation-priority threshold, not proof of non-affectedness
 
 
 class EpssFilter:

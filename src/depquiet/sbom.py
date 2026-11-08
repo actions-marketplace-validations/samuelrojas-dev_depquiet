@@ -30,6 +30,7 @@ from typing import Any
 from xml.etree.ElementTree import Element, SubElement, tostring
 
 from depquiet import __version__
+from depquiet.assessment import assess_finding
 from depquiet.models import ScanResult, TriageResult
 
 # Ecosystem → purl type mapping
@@ -71,6 +72,92 @@ def _purl_from_vuln(vuln_result: TriageResult) -> str:
     return f"pkg:generic/{v.package}@{v.version}" if v.package else ""
 
 
+def _components_with_references(
+    scan_result: ScanResult, packages: list[tuple[str, str, str]] | None
+) -> tuple[list[dict[str, Any]], dict[tuple[str, str], list[str]]]:
+    """Keep inventory references and add any finding contexts it does not contain."""
+    components: list[dict[str, Any]] = []
+    references: dict[tuple[str, str], list[str]] = {}
+    seen: set[str] = set()
+
+    def add(name: str, version: str, purl: str) -> None:
+        if purl in seen:
+            return
+        seen.add(purl)
+        components.append(
+            {"type": "library", "name": name, "version": version, "purl": purl, "bom-ref": purl}
+        )
+        references.setdefault((name, version), []).append(purl)
+
+    for name, version, ecosystem in packages or []:
+        add(name, version, _make_purl(name, version, ecosystem))
+    for tr in scan_result.results:
+        v = tr.vuln
+        if (v.package, v.version) not in references:
+            add(v.package, v.version, f"pkg:generic/{v.package}@{v.version}")
+    return components, references
+
+
+def _vulnerabilities_with_assessments(
+    scan_result: ScanResult, references: dict[tuple[str, str], list[str]]
+) -> list[dict[str, Any]]:
+    """Group advisory contexts without converting priority into impact claims."""
+    groups: dict[str, list[TriageResult]] = {}
+    for tr in scan_result.results:
+        if tr.vuln.cve:
+            groups.setdefault(tr.vuln.cve, []).append(tr)
+
+    vulnerabilities: list[dict[str, Any]] = []
+    severity_order = {"info": 0, "low": 1, "moderate": 2, "high": 3, "critical": 4}
+    for cve, findings in groups.items():
+        first = findings[0].vuln
+        affects: list[dict[str, str]] = []
+        seen_refs: set[str] = set()
+        details: list[str] = []
+        contexts: dict[str, dict[str, str]] = {}
+        for tr in findings:
+            v = tr.vuln
+            detail = assess_finding(tr).detail
+            details.append(f"{v.package}@{v.version}: {detail}" if len(findings) > 1 else detail)
+            for ref in references[(v.package, v.version)]:
+                if ref not in seen_refs:
+                    seen_refs.add(ref)
+                    affects.append({"ref": ref})
+                # Standard CycloneDX properties preserve machine-readable
+                # priority and reasons per component, apart from VEX state.
+                context = json.dumps(
+                    {
+                        "ref": ref,
+                        "priority": tr.verdict.value,
+                        "reasons": [reason.value for reason in tr.reasons],
+                    },
+                    sort_keys=True,
+                )
+                contexts[context] = {"name": "depquiet:triage", "value": context}
+
+        severity = max((tr.vuln.severity.value for tr in findings), key=severity_order.__getitem__)
+        vulnerabilities.append(
+            {
+                "id": cve,
+                "source": {
+                    "name": "depquiet",
+                    "url": first.url or "https://github.com/samuelrojas-dev/depquiet",
+                },
+                "description": first.title,
+                "ratings": [
+                    {
+                        "severity": "medium" if severity == "moderate" else severity,
+                        "source": {"name": "depquiet"},
+                    }
+                ],
+                "affects": affects,
+                "analysis": {"state": "in_triage", "detail": "\n".join(dict.fromkeys(details))},
+                "properties": list(contexts.values()),
+            }
+        )
+    return vulnerabilities
+
+
 def generate_cyclonedx_json(
     scan_result: ScanResult,
     packages: list[tuple[str, str, str]] | None = None,
@@ -85,83 +172,13 @@ def generate_cyclonedx_json(
     Returns:
         CycloneDX 1.5 JSON as a Python dict.
     """
+    if not scan_result.scanned:
+        raise ValueError("Cannot generate CycloneDX from an incomplete scan.")
     serial = str(uuid.uuid4())
     timestamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    # Build components list
-    components: list[dict[str, Any]] = []
-    seen: set[str] = set()
-
-    if packages:
-        for name, version, ecosystem in packages:
-            purl = _make_purl(name, version, ecosystem)
-            if purl in seen:
-                continue
-            seen.add(purl)
-            components.append(
-                {
-                    "type": "library",
-                    "name": name,
-                    "version": version,
-                    "purl": purl,
-                    "bom-ref": purl,
-                }
-            )
-    else:
-        # Fall back to scan results
-        for tr in scan_result.results:
-            v = tr.vuln
-            key = f"{v.package}@{v.version}"
-            if key in seen:
-                continue
-            seen.add(key)
-            purl = f"pkg:generic/{v.package}@{v.version}"
-            components.append(
-                {
-                    "type": "library",
-                    "name": v.package,
-                    "version": v.version,
-                    "purl": purl,
-                    "bom-ref": purl,
-                }
-            )
-
-    # Build vulnerabilities list from triage results
-    vuln_list: list[dict[str, Any]] = []
-    vuln_seen: set[str] = set()
-    for tr in scan_result.results:
-        v = tr.vuln
-        if v.cve in vuln_seen or not v.cve:
-            continue
-        vuln_seen.add(v.cve)
-
-        vuln_entry: dict[str, Any] = {
-            "id": v.cve,
-            "source": {"name": "depquiet", "url": "https://github.com/samuelrojas-dev/depquiet"},
-            "description": v.title,
-            "affects": [
-                {
-                    "ref": f"pkg:generic/{v.package}@{v.version}",
-                }
-            ],
-            "analysis": {
-                "state": _verdict_to_state(tr),
-                "detail": tr.reason_summary,
-            },
-        }
-
-        if v.severity:
-            vuln_entry["ratings"] = [
-                {
-                    "severity": v.severity.value,
-                    "source": {"name": "depquiet"},
-                }
-            ]
-
-        if v.url:
-            vuln_entry["source"]["url"] = v.url
-
-        vuln_list.append(vuln_entry)
+    components, references = _components_with_references(scan_result, packages)
+    vuln_list = _vulnerabilities_with_assessments(scan_result, references)
 
     bom: dict[str, Any] = {
         "bomFormat": "CycloneDX",
@@ -196,14 +213,8 @@ def generate_cyclonedx_json(
 
 
 def _verdict_to_state(tr: TriageResult) -> str:
-    """Map depquiet verdict to CycloneDX analysis state."""
-    from depquiet.models import Verdict
-
-    if tr.verdict == Verdict.FILTERED:
-        return "false_positive" if tr.reasons else "not_affected"
-    if tr.verdict == Verdict.REVIEW:
-        return "in_triage"
-    return "exploitable"
+    """Automatic prioritization does not establish product impact."""
+    return "in_triage"
 
 
 def generate_cyclonedx_xml(
@@ -215,13 +226,14 @@ def generate_cyclonedx_xml(
     Returns:
         UTF-8 encoded XML bytes.
     """
+    data = generate_cyclonedx_json(scan_result, packages)
     ns = "http://cyclonedx.org/schema/bom/1.5"
-    bom = Element("bom", xmlns=ns, version="1", serialNumber=f"urn:uuid:{uuid.uuid4()}")
+    bom = Element("bom", xmlns=ns, version="1", serialNumber=data["serialNumber"])
 
     # Metadata
     metadata = SubElement(bom, "metadata")
     ts = SubElement(metadata, "timestamp")
-    ts.text = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    ts.text = data["metadata"]["timestamp"]
 
     tools = SubElement(metadata, "tools")
     tools_components = SubElement(tools, "components")
@@ -235,56 +247,40 @@ def generate_cyclonedx_xml(
 
     # Components
     components_el = SubElement(bom, "components")
-    seen: set[str] = set()
-
-    if packages:
-        for name, version, ecosystem in packages:
-            purl = _make_purl(name, version, ecosystem)
-            if purl in seen:
-                continue
-            seen.add(purl)
-            comp = SubElement(components_el, "component", type="library")
-            SubElement(comp, "name").text = name
-            SubElement(comp, "version").text = version
-            SubElement(comp, "purl").text = purl
-    else:
-        for tr in scan_result.results:
-            v = tr.vuln
-            key = f"{v.package}@{v.version}"
-            if key in seen:
-                continue
-            seen.add(key)
-            comp = SubElement(components_el, "component", type="library")
-            SubElement(comp, "name").text = v.package
-            SubElement(comp, "version").text = v.version
-            SubElement(comp, "purl").text = f"pkg:generic/{v.package}@{v.version}"
+    for component in data["components"]:
+        comp = SubElement(
+            components_el, "component", {"type": "library", "bom-ref": component["bom-ref"]}
+        )
+        SubElement(comp, "name").text = component["name"]
+        SubElement(comp, "version").text = component["version"]
+        SubElement(comp, "purl").text = component["purl"]
 
     # Vulnerabilities
-    if scan_result.results:
+    if data.get("vulnerabilities"):
         vulns_el = SubElement(bom, "vulnerabilities")
-        vuln_seen: set[str] = set()
-        for tr in scan_result.results:
-            v = tr.vuln
-            if v.cve in vuln_seen or not v.cve:
-                continue
-            vuln_seen.add(v.cve)
-
-            vuln_el = SubElement(vulns_el, "vulnerability", ref=v.cve)
-            SubElement(vuln_el, "id").text = v.cve
+        for vulnerability in data["vulnerabilities"]:
+            vuln_el = SubElement(vulns_el, "vulnerability")
+            SubElement(vuln_el, "id").text = vulnerability["id"]
             source = SubElement(vuln_el, "source")
-            SubElement(source, "name").text = "depquiet"
-
-            if v.title:
-                SubElement(vuln_el, "description").text = v.title
-
-            if v.severity:
-                ratings = SubElement(vuln_el, "ratings")
+            SubElement(source, "name").text = vulnerability["source"]["name"]
+            SubElement(source, "url").text = vulnerability["source"]["url"]
+            ratings = SubElement(vuln_el, "ratings")
+            for rating_data in vulnerability["ratings"]:
                 rating = SubElement(ratings, "rating")
-                SubElement(rating, "severity").text = v.severity.value
+                SubElement(rating, "severity").text = rating_data["severity"]
+            if vulnerability["description"]:
+                SubElement(vuln_el, "description").text = vulnerability["description"]
 
             analysis = SubElement(vuln_el, "analysis")
-            SubElement(analysis, "state").text = _verdict_to_state(tr)
-            SubElement(analysis, "detail").text = tr.reason_summary
+            SubElement(analysis, "state").text = vulnerability["analysis"]["state"]
+            SubElement(analysis, "detail").text = vulnerability["analysis"]["detail"]
+            affects = SubElement(vuln_el, "affects")
+            for affected in vulnerability["affects"]:
+                target = SubElement(affects, "target")
+                SubElement(target, "ref").text = affected["ref"]
+            properties = SubElement(vuln_el, "properties")
+            for prop in vulnerability["properties"]:
+                SubElement(properties, "property", name=prop["name"]).text = prop["value"]
 
     return tostring(bom, encoding="unicode").encode("utf-8")
 
@@ -312,4 +308,4 @@ def write_sbom(
         output_path.write_bytes(data)
     else:
         bom = generate_cyclonedx_json(scan_result, packages)
-        output_path.write_text(json.dumps(bom, indent=2) + "\n")
+        output_path.write_text(json.dumps(bom, indent=2) + "\n", encoding="utf-8")

@@ -64,10 +64,10 @@ def print_scan_result(result: ScanResult) -> None:
                 by_reason[reason] = by_reason.get(reason, 0) + 1
 
         reason_labels = {
-            FilterReason.UNREACHABLE: "unreachable — not imported, directly or via a parent",
-            FilterReason.DEV_DEPENDENCY: "devDependency only — never reaches production",
-            FilterReason.LOW_EPSS: "EPSS < 10% — no known exploits in the wild",
-            FilterReason.COMMUNITY_TEMPLATE: "community template — confirmed false positive",
+            FilterReason.UNREACHABLE: "no usage observed in inspected imports or dependency roots",
+            FilterReason.DEV_DEPENDENCY: "development-only paths in available dependency metadata",
+            FilterReason.LOW_EPSS: "EPSS below configured threshold — lower remediation priority",
+            FilterReason.COMMUNITY_TEMPLATE: "community template — dismissal conditions matched",
         }
 
         ordered = sorted(by_reason.items(), key=lambda x: (-x[1], x[0].value))
@@ -127,4 +127,5 @@ def print_scan_result(result: ScanResult) -> None:
         parts.append(_c(_GREEN, f"{len(filtered)} filtered"))
 
     print(f"Total: {total} alerts — {' | '.join(parts)}")
+    print("Priority reflects dependency triage; product impact remains under investigation.")
     print()

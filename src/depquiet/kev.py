@@ -196,7 +196,7 @@ def apply_kev(
     Returns:
         KevResult with match statistics.
     """
-    from depquiet.models import Verdict
+    from depquiet.models import DecisionChange, Verdict
 
     total_checked = 0
     kev_matches = 0
@@ -216,6 +216,15 @@ def apply_kev(
 
         # Auto-escalate to ACTION if not already
         if tr.verdict != Verdict.ACTION:
+            tr.decision_trace.append(
+                DecisionChange(
+                    source="kev",
+                    previous_verdict=tr.verdict,
+                    verdict=Verdict.ACTION,
+                    rule_id=entry.cve_id,
+                    reason="Advisory is listed in the CISA KEV catalog.",
+                )
+            )
             tr.verdict = Verdict.ACTION
             escalated += 1
 

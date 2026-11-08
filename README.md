@@ -604,7 +604,7 @@ Each signal shows its effect on the final verdict:
 🔴 GHSA-9wv6-86v2-598j — path-to-regexp outputs backtracking regular expressions
    Package: path-to-regexp@<0.1.10
    Severity: HIGH
-   Verdict: ACTION (reachable, exploitable)
+   Verdict: ACTION (no automatic filter matched; product impact unverified)
    Fix: upgrade to express@4.22.3
 
    Signals:
@@ -728,16 +728,19 @@ Generate [OpenVEX](https://openvex.dev) documents that communicate the exploitab
 depquiet --vex vex.json
 ```
 
-depquiet maps its triage verdicts to VEX statuses automatically:
+Priority and product impact are separate. The current engine observes dependency
+relationships and imports; it does not prove vulnerable-function execution or
+product-specific mitigations. Automatic exports preserve this uncertainty:
 
-| depquiet verdict | VEX status | Justification |
+| Output | Automatic impact state | Priority and context |
 |---|---|---|
-| ACTION | `affected` | — (action statement with fix version) |
-| REVIEW | `under_investigation` | — |
-| FILTERED (unreachable) | `not_affected` | `vulnerable_code_not_in_execute_path` |
-| FILTERED (dev dep) | `not_affected` | `vulnerable_code_not_in_execute_path` |
-| FILTERED (low EPSS) | `not_affected` | `inline_mitigations_already_exist` |
-| FILTERED (template) | `not_affected` | `component_not_present` |
+| OpenVEX | `under_investigation` | `status_notes` contains priority, observations and limits |
+| CycloneDX JSON/XML | `in_triage` | `analysis.detail` and per-component `depquiet:triage` properties |
+| Scan JSON | `assessment.status: under_investigation` | Existing `verdict`, plus `evidence` and `decision_trace` |
+
+A low EPSS, dev-only metadata, baseline, ignore or policy match never becomes an
+automatic `not_affected` claim. The existing remediation priorities and exit-code
+policy remain available. See the [assessment contract](docs/assessment-contract.md).
 
 The output is consumable by policy engines like Sigstore's policy-controller and OPA/Gatekeeper to gate container deployments.
 
@@ -1024,17 +1027,20 @@ synthetic fixtures in the same report are parser regression tests, not evidence.
 
 ## Compared to
 
-| Tool | Approach | Limitation |
-|---|---|---|
-| `npm audit` | Flags everything | 80% false positives |
-| `pip-audit` | Flags everything | No triage, no context |
-| Trivy | Multi-scanner, flags everything | Great detection, no triage |
-| Grype | Container scanner, flags everything | Great detection, no triage |
-| Dependabot | GitHub-only, flags everything | No triage, overwhelming noise |
-| Snyk | SaaS, paid | Reachability analysis on paid plans |
-| GitHub Dependabot Reachability | AST analysis (Oct 2026) | JS/TS only, Enterprise Cloud ($21/user/mo), preview |
-| Mend / Black Duck | SaaS, paid | Enterprise pricing, vendor lock-in |
-| **depquiet** | Standalone lockfile scanner (OSV.dev), import-level reachability across 10 languages, transitive-aware via lockfiles, SARIF input (any scanner), CycloneDX + SPDX SBOM, deterministic triage, community templates | Free, offline-capable, works everywhere |
+depquiet ingests reports from npm audit, pip-audit, Trivy, Grype, Dependabot,
+Snyk and SARIF-producing tools. It adds dependency/import context, configurable
+priorities and decision history, and can query OSV directly from lockfiles.
+
+The alert-reduction figures above describe captured scans; they do not establish
+false-positive rates or superiority over another scanner. The new
+[reference evaluator](benchmarks/reference/README.md) checks labelled cases,
+including missing findings and unsafe dismissals. Its initial corpus contains two
+explicitly synthetic contract examples, not a real-world accuracy estimate:
+
+```bash
+python benchmarks/reference/run.py --output synthetic-scan.json
+python benchmarks/evaluate.py --labels benchmarks/reference/synthetic.labels.json --scan synthetic-scan.json --snapshot benchmarks/reference/synthetic.snapshot.json --json
+```
 
 ## License
 

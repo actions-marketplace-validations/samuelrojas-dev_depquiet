@@ -1125,7 +1125,7 @@ class TestModelsEdgeCases:
     def test_triage_result_reason_summary_empty(self):
         v = Vulnerability(cve="CVE-1", package="pkg", version="1.0", severity=Severity.HIGH)
         tr = TriageResult(vuln=v, verdict=Verdict.ACTION, reasons=[])
-        assert tr.reason_summary == "reachable, exploitable"
+        assert tr.reason_summary == "no automatic filter matched; product impact unverified"
 
     def test_triage_result_reason_summary_multiple(self):
         v = Vulnerability(cve="CVE-1", package="pkg", version="1.0", severity=Severity.HIGH)

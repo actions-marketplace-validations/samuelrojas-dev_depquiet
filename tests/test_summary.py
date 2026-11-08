@@ -66,9 +66,39 @@ class TestRenderSummary:
             reasons={"CVE-1": [FilterReason.UNREACHABLE]},
         )
         md = render_summary(result)
-        assert "All clear" in md
+        assert "No action-priority findings" in md
+        assert "All clear" not in md
         assert "1 alerts filtered" in md
-        assert "Unreachable code" in md
+        assert "No dependency usage observed" in md
+        assert "Product impact remains under investigation" in md
+
+    def test_low_epss_does_not_claim_an_all_clear(self):
+        result = _result(
+            [("CVE-1", "widget", Verdict.FILTERED, Severity.HIGH)],
+            reasons={"CVE-1": [FilterReason.LOW_EPSS]},
+        )
+        result.results[0].epss_score = 0.001
+        md = render_summary(result)
+        assert "No action-priority findings" in md
+        assert "All clear" not in md
+        assert "No vulnerabilities found" not in md
+        assert "Product impact remains under investigation" in md
+
+    def test_incomplete_scan_reports_the_reason_without_an_all_clear(self):
+        result = ScanResult(
+            project_path=".",
+            package_manager="osv",
+            total_dependencies=0,
+            results=[],
+            scanned=False,
+            note="OSV advisory details could not be fetched.",
+        )
+        md = render_summary(result)
+        assert "Scan incomplete" in md
+        assert result.note in md
+        assert "All clear" not in md
+        assert "No vulnerabilities found" not in md
+        assert "alerts scanned" not in md
 
     def test_action_items_table(self):
         result = _result(
@@ -120,6 +150,8 @@ class TestRenderSummary:
         md = render_summary(result)
         assert "### ⚠️ Review" in md
         assert "🟡 Moderate" in md
+        assert "No action-priority findings" in md
+        assert "All clear" not in md
 
     def test_review_collapsed_when_many(self):
         items = [(f"CVE-{i}", f"pkg-{i}", Verdict.REVIEW, Severity.LOW) for i in range(8)]

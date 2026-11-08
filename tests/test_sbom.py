@@ -125,24 +125,24 @@ class TestMakePurl:
 
 
 class TestVerdictToState:
-    def test_action_maps_to_exploitable(self):
+    def test_action_remains_in_triage(self):
         tr = _result(verdict=Verdict.ACTION)
-        assert _verdict_to_state(tr) == "exploitable"
+        assert _verdict_to_state(tr) == "in_triage"
 
     def test_review_maps_to_in_triage(self):
         tr = _result(verdict=Verdict.REVIEW)
         assert _verdict_to_state(tr) == "in_triage"
 
-    def test_filtered_with_reasons_maps_to_false_positive(self):
+    def test_filtered_with_reasons_remains_in_triage(self):
         tr = _result(
             verdict=Verdict.FILTERED,
             reasons=[FilterReason.UNREACHABLE],
         )
-        assert _verdict_to_state(tr) == "false_positive"
+        assert _verdict_to_state(tr) == "in_triage"
 
-    def test_filtered_without_reasons_maps_to_not_affected(self):
+    def test_filtered_without_reasons_remains_in_triage(self):
         tr = _result(verdict=Verdict.FILTERED, reasons=[])
-        assert _verdict_to_state(tr) == "not_affected"
+        assert _verdict_to_state(tr) == "in_triage"
 
 
 # -- JSON generation --
@@ -174,7 +174,7 @@ class TestGenerateCycloneDXJson:
             ("lodash", "4.17.21", "npm"),
             ("express", "4.18.2", "npm"),
         ]
-        bom = generate_cyclonedx_json(_scan_result(), packages=packages)
+        bom = generate_cyclonedx_json(_scan_result(results=[]), packages=packages)
         assert len(bom["components"]) == 2
         c0 = bom["components"][0]
         assert c0["name"] == "lodash"
@@ -188,7 +188,7 @@ class TestGenerateCycloneDXJson:
             ("lodash", "4.17.21", "npm"),
             ("lodash", "4.17.21", "npm"),
         ]
-        bom = generate_cyclonedx_json(_scan_result(), packages=packages)
+        bom = generate_cyclonedx_json(_scan_result(results=[]), packages=packages)
         assert len(bom["components"]) == 1
 
     def test_components_fallback_to_scan_results(self):
@@ -203,7 +203,7 @@ class TestGenerateCycloneDXJson:
         v = bom["vulnerabilities"][0]
         assert v["id"] == "CVE-2024-1234"
         assert v["description"] == "Prototype pollution"
-        assert v["analysis"]["state"] == "exploitable"
+        assert v["analysis"]["state"] == "in_triage"
 
     def test_vulnerabilities_with_severity_ratings(self):
         bom = generate_cyclonedx_json(_scan_result())
@@ -218,6 +218,10 @@ class TestGenerateCycloneDXJson:
         ]
         bom = generate_cyclonedx_json(_scan_result(results=results))
         assert len(bom["vulnerabilities"]) == 1
+        assert {entry["ref"] for entry in bom["vulnerabilities"][0]["affects"]} == {
+            "pkg:generic/a@4.17.20",
+            "pkg:generic/b@4.17.20",
+        }
 
     def test_empty_results_no_vulnerabilities_key(self):
         bom = generate_cyclonedx_json(_scan_result(results=[]))
@@ -235,7 +239,7 @@ class TestGenerateCycloneDXJson:
             reasons=[FilterReason.LOW_EPSS],
         )
         bom = generate_cyclonedx_json(_scan_result(results=[tr]))
-        assert bom["vulnerabilities"][0]["analysis"]["state"] == "false_positive"
+        assert bom["vulnerabilities"][0]["analysis"]["state"] == "in_triage"
 
 
 # -- XML generation --

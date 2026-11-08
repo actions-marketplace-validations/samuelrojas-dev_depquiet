@@ -20,11 +20,11 @@ class Severity(Enum):
 
 
 class Verdict(Enum):
-    """Triage verdict after all filters run."""
+    """Remediation priority, independent of proven product impact."""
 
     ACTION = "action"  # Fix this now
     REVIEW = "review"  # Worth looking at, not urgent
-    FILTERED = "filtered"  # Safe to ignore
+    FILTERED = "filtered"  # Deprioritized or suppressed; impact remains unverified
 
 
 class FilterReason(Enum):
@@ -74,6 +74,30 @@ class Vulnerability:
 
 
 @dataclass
+class DecisionChange:
+    """One priority decision, retained when a later rule overrides it."""
+
+    source: str
+    previous_verdict: Verdict | None
+    verdict: Verdict
+    rule_id: str = ""
+    reason: str = ""
+    path: str = ""
+    author: str = ""
+    expires: str = ""
+
+
+@dataclass
+class DependencyEvidence:
+    """Observations from dependency analysis, not proof of exploitability."""
+
+    analysis: str = "dependency_imports"
+    usage: str = "unknown"  # observed | not_observed | unknown
+    import_sites: list[str] = field(default_factory=list)
+    observations: list[str] = field(default_factory=list)
+
+
+@dataclass
 class TriageResult:
     """Result of triaging a single vulnerability."""
 
@@ -91,11 +115,13 @@ class TriageResult:
     dependency_type: str = ""
     # For transitive packages: the direct dependencies that pull them in.
     introduced_by: list[str] = field(default_factory=list)
+    evidence: DependencyEvidence = field(default_factory=DependencyEvidence)
+    decision_trace: list[DecisionChange] = field(default_factory=list)
 
     @property
     def reason_summary(self) -> str:
         if not self.reasons:
-            return "reachable, exploitable"
+            return "no automatic filter matched; product impact unverified"
         return ", ".join(r.value.replace("_", " ") for r in self.reasons)
 
 

@@ -17,11 +17,13 @@ import argparse
 import contextlib
 import json
 import sys
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
 from depquiet import __version__
 from depquiet.annotations import build_annotations, write_annotations
+from depquiet.assessment import assess_finding, decision_trace_to_json
 from depquiet.baseline import apply_baseline, load_baseline
 from depquiet.config import load_config
 from depquiet.diff import diff_scans, diff_to_json, format_diff, format_diff_markdown
@@ -602,7 +604,7 @@ def main(argv: list[str] | None = None) -> int:
     # Apply baseline — demote known findings to FILTERED
     if merged.baseline:
         baseline_keys = load_baseline(merged.baseline)
-        bl = apply_baseline(result, baseline_keys)
+        bl = apply_baseline(result, baseline_keys, source_path=str(merged.baseline))
         if not args.json_output:
             print(
                 f"\n📊 Baseline: {bl.known_findings} known findings suppressed, "
@@ -733,6 +735,8 @@ def _print_json(result: ScanResult, *, license_report: LicenseReport | None = No
         "project": result.project_path,
         "package_manager": result.package_manager,
         "total_dependencies": result.total_dependencies,
+        "scanned": result.scanned,
+        "note": result.note,
         "summary": {
             "total": len(result.results),
             "action": len(result.action),
@@ -752,14 +756,26 @@ def _print_json(result: ScanResult, *, license_report: LicenseReport | None = No
             "verdict": tr.verdict.value,
             "reasons": [r.value for r in tr.reasons],
             "epss_score": tr.epss_score,
+            "epss_percentile": tr.epss_percentile,
+            "is_dev": tr.vuln.is_dev,
+            "is_direct": tr.vuln.is_direct,
             "fix_version": tr.vuln.fix_version,
             "fix_package": tr.vuln.fix_package,
             "reachable_imports": tr.reachable_imports,
             "dependency_type": tr.dependency_type,
             "introduced_by": tr.introduced_by,
+            "template_id": tr.template_id,
+            "template_reason": tr.template_reason,
+            "assessment": assess_finding(tr).to_dict(),
+            "evidence": asdict(tr.evidence),
+            "decision_trace": decision_trace_to_json(tr),
         }
         if tr.kev_entry is not None:
             entry["kev"] = {
+                "vendor": tr.kev_entry.vendor,
+                "product": tr.kev_entry.product,
+                "name": tr.kev_entry.name,
+                "description": tr.kev_entry.description,
                 "date_added": tr.kev_entry.date_added,
                 "due_date": tr.kev_entry.due_date,
                 "required_action": tr.kev_entry.required_action,

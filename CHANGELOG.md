@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Structured dependency evidence and an ordered priority-decision history in scan
+  JSON and saved-scan explanations. Preserve observations through policy, baseline,
+  ignore and KEV decisions.
+- A snapshot-bound reference evaluator with explicit coverage denominators and
+  regression gates for unsafe or uncertain dismissals. Its initial two examples
+  are labelled synthetic contract cases, not real-world accuracy measurements.
+
+### Changed
+- Automatic VEX assessments now remain `under_investigation`; CycloneDX analyses
+  remain `in_triage`. Priority, EPSS and suppression rules no longer manufacture
+  product-impact or mitigation claims. Existing triage gates are unchanged.
+- VEX includes document version and assessment notes. CycloneDX retains all
+  package/version references and priorities when one advisory affects multiple
+  components. Incomplete scans cannot generate clean export artifacts.
+- Reports distinguish no action-priority findings from a completed empty scan.
+- CI evaluates controlled reference cases on every supported platform and runs
+  for pull requests targeting development branches as well as main.
+
 ### Fixed
 - SBOM inventories now report an incomplete scan with exit code 2 when offline,
   empty, or unable to complete an OSV lookup, instead of claiming no vulnerabilities.

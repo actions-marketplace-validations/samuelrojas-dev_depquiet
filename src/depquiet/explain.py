@@ -19,7 +19,16 @@ import json
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-from depquiet.models import FilterReason, ScanResult, TriageResult, Verdict
+from depquiet.assessment import assess_finding, decision_trace_to_json
+from depquiet.kev import KevEntry
+from depquiet.models import (
+    DecisionChange,
+    DependencyEvidence,
+    FilterReason,
+    ScanResult,
+    TriageResult,
+    Verdict,
+)
 
 # ---------------------------------------------------------------------------
 # Explanation model
@@ -50,6 +59,9 @@ class Explanation:
     signals: list[Signal] = field(default_factory=list)
     fix_available: bool = False
     fix_version: str = ""
+    assessment: dict[str, Any] = field(default_factory=dict)
+    evidence: dict[str, Any] = field(default_factory=dict)
+    decision_trace: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
@@ -63,6 +75,9 @@ class Explanation:
             "fix_available": self.fix_available,
             "fix_version": self.fix_version,
             "signals": [asdict(s) for s in self.signals],
+            "assessment": self.assessment,
+            "evidence": self.evidence,
+            "decision_trace": self.decision_trace,
         }
         return d
 
@@ -122,7 +137,7 @@ def explain_triage(tr: TriageResult) -> Explanation:
             )
         )
     elif FilterReason.UNREACHABLE in tr.reasons:
-        detail = "Vulnerable code is not imported in this project"
+        detail = "No package usage was observed in inspected project sources"
         if tr.dependency_type == "transitive" and via:
             detail = f"Transitive; none of the packages that pull it in are imported ({via})"
         signals.append(
@@ -169,7 +184,7 @@ def explain_triage(tr: TriageResult) -> Explanation:
     # 3. Dev dependency
     if tr.vuln.is_dev or FilterReason.DEV_DEPENDENCY in tr.reasons:
         effect = "filtered" if FilterReason.DEV_DEPENDENCY in tr.reasons else "neutral"
-        detail = "Not included in production builds"
+        detail = "Development dependency metadata; deployment contents were not verified"
         if not tr.vuln.is_dev and tr.introduced_by:
             detail = f"Only pulled in by devDependencies ({', '.join(tr.introduced_by)})"
         signals.append(
@@ -186,7 +201,7 @@ def explain_triage(tr: TriageResult) -> Explanation:
                 name="Dependency type",
                 value="production",
                 effect="neutral",
-                detail="Included in production builds",
+                detail="Not marked development-only by available metadata",
             )
         )
 
@@ -242,6 +257,9 @@ def explain_triage(tr: TriageResult) -> Explanation:
         signals=signals,
         fix_available=bool(tr.vuln.fix_version),
         fix_version=tr.vuln.fix_label,
+        assessment=assess_finding(tr).to_dict(),
+        evidence=asdict(tr.evidence),
+        decision_trace=decision_trace_to_json(tr),
     )
 
 
@@ -277,21 +295,66 @@ def find_cve_in_json(data: dict[str, Any], cve_id: str) -> TriageResult | None:
                 title=entry.get("title", ""),
                 fix_version=entry.get("fix_version", ""),
                 fix_package=entry.get("fix_package", ""),
-                is_dev="dev_dependency" in entry.get("reasons", []),
+                is_dev=entry.get("is_dev", "dev_dependency" in entry.get("reasons", [])),
+                is_direct=entry.get("is_direct", True),
             )
             reasons = [
                 FilterReason(r)
                 for r in entry.get("reasons", [])
                 if r in FilterReason._value2member_map_
             ]
+            raw_evidence = entry.get("evidence") or {}
+            evidence = DependencyEvidence(
+                analysis=raw_evidence.get("analysis", "dependency_imports"),
+                usage=raw_evidence.get("usage", "unknown"),
+                import_sites=raw_evidence.get("import_sites", []),
+                observations=raw_evidence.get("observations", []),
+            )
+            trace = [
+                DecisionChange(
+                    source=change["source"],
+                    previous_verdict=(
+                        Verdict(change["previous_verdict"])
+                        if change.get("previous_verdict")
+                        else None
+                    ),
+                    verdict=Verdict(change["verdict"]),
+                    rule_id=change.get("rule_id", ""),
+                    reason=change.get("reason", ""),
+                    path=change.get("path", ""),
+                    author=change.get("author", ""),
+                    expires=change.get("expires", ""),
+                )
+                for change in entry.get("decision_trace", [])
+            ]
+            raw_kev = entry.get("kev")
+            kev_entry = None
+            if raw_kev:
+                kev_entry = KevEntry(
+                    cve_id=vuln.cve,
+                    vendor=raw_kev.get("vendor", ""),
+                    product=raw_kev.get("product", ""),
+                    name=raw_kev.get("name", ""),
+                    description=raw_kev.get("description", ""),
+                    date_added=raw_kev.get("date_added", ""),
+                    due_date=raw_kev.get("due_date", ""),
+                    required_action=raw_kev.get("required_action", ""),
+                    ransomware_use=raw_kev.get("ransomware_use", False),
+                )
             return TriageResult(
                 vuln=vuln,
                 verdict=Verdict(entry.get("verdict", "review")),
                 reasons=reasons,
                 epss_score=entry.get("epss_score"),
+                epss_percentile=entry.get("epss_percentile"),
                 reachable_imports=entry.get("reachable_imports", []),
                 dependency_type=entry.get("dependency_type", ""),
                 introduced_by=entry.get("introduced_by", []),
+                template_id=entry.get("template_id"),
+                template_reason=entry.get("template_reason"),
+                evidence=evidence,
+                decision_trace=trace,
+                kev_entry=kev_entry,
             )
     return None
 
@@ -323,6 +386,9 @@ def format_explanation(exp: Explanation) -> str:
     lines.append(f"   Package: {exp.package}@{exp.version}")
     lines.append(f"   Severity: {exp.severity.upper()}")
     lines.append(f"   Verdict: {exp.verdict.upper()} ({exp.reason_summary})")
+    if exp.assessment:
+        status = exp.assessment.get("status", "under_investigation").replace("_", " ")
+        lines.append(f"   Product impact: {status} (dependency-level analysis)")
 
     if exp.fix_available:
         lines.append(f"   Fix: upgrade to {exp.fix_version}")
@@ -336,6 +402,16 @@ def format_explanation(exp: Explanation) -> str:
         if sig.detail:
             line += f" — {sig.detail}"
         lines.append(line)
+
+    if exp.decision_trace:
+        lines.append("")
+        lines.append("   Decision history:")
+        for change in exp.decision_trace:
+            previous = change.get("previous_verdict") or "unassigned"
+            detail = change.get("reason") or change.get("rule_id") or ""
+            lines.append(
+                f"   {change['source']}: {previous} -> {change['verdict']} {detail}".rstrip()
+            )
 
     lines.append("")
     return "\n".join(lines)
