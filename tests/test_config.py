@@ -132,23 +132,22 @@ class TestConfigErrors:
             cfg = load_config(p)
             assert cfg.epss_threshold == 0.1
 
-    def test_unreadable_file(self, capsys: pytest.CaptureFixture[str]) -> None:
-        import os
-
-        if os.getuid() == 0:
-            pytest.skip("chmod has no effect under root")
+    def test_unreadable_file(
+        self, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             p = Path(tmp)
             config_path = p / ".depquiet.yaml"
             config_path.write_text("epss_threshold: 0.05\n")
-            config_path.chmod(0o000)
-            try:
-                cfg = load_config(p)
-                assert cfg.epss_threshold == 0.1  # fallback
-                captured = capsys.readouterr()
-                assert "could not read" in captured.err
-            finally:
-                config_path.chmod(0o644)
+
+            def unreadable(*args: object, **kwargs: object) -> str:
+                raise PermissionError("Permission denied")
+
+            monkeypatch.setattr(Path, "read_text", unreadable)
+            cfg = load_config(p)
+            assert cfg.epss_threshold == 0.1  # fallback
+            captured = capsys.readouterr()
+            assert "could not read" in captured.err
 
     def test_single_string_template_dir(self) -> None:
         """template_dirs can be a single string, not a list."""

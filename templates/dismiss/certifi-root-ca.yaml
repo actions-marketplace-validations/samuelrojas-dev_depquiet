@@ -5,3 +5,4 @@ cves:
   - CVE-2023-37920
   - CVE-2024-39689
 package: certifi
+not-imported: ["certifi"]

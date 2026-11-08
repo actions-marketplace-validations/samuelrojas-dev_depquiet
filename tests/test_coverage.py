@@ -440,7 +440,7 @@ class TestEngineBranches:
         assert pkg[0].verdict == Verdict.FILTERED
         assert FilterReason.LOW_EPSS in pkg[0].reasons
 
-    def test_scan_with_template_dirs(self):
+    def test_scan_with_template_dirs(self, monkeypatch):
         """Extra template directories are loaded."""
         with tempfile.TemporaryDirectory() as tmp:
             p = Path(tmp)
@@ -451,12 +451,13 @@ class TestEngineBranches:
             )
             (p / "package-lock.json").write_text("{}")
             (p / "package.json").write_text('{"dependencies":{}}')
+            monkeypatch.setattr("depquiet.engine.run_npm_audit", lambda _: {"vulnerabilities": {}})
             result = scan(p, skip_epss=True, template_dirs=[td])
 
         assert result is not None
 
-    def test_scan_community_template_filters_vuln(self):
-        """A community template match results in FILTERED verdict."""
+    def test_scan_community_template_keeps_a_used_package(self):
+        """Absence of a function name cannot prove an imported package safe."""
         audit_json = {
             "vulnerabilities": {
                 "lodash": {
@@ -490,9 +491,8 @@ class TestEngineBranches:
 
         lodash = [r for r in result.results if r.vuln.package == "lodash"]
         assert len(lodash) == 1
-        # Should be filtered by community template (CVE-2020-8203 matches our template)
-        assert lodash[0].verdict == Verdict.FILTERED
-        assert FilterReason.COMMUNITY_TEMPLATE in lodash[0].reasons
+        assert lodash[0].verdict == Verdict.ACTION
+        assert FilterReason.COMMUNITY_TEMPLATE not in lodash[0].reasons
 
 
 # ── Reachability edge cases ────────────────────────────────────────────
@@ -933,12 +933,13 @@ class TestCliEdgeCases:
             code = main([*["--path", tmp, "--offline"], "--stdin"])
         assert code == 0
 
-    def test_cli_json_output_format(self, capsys):
+    def test_cli_json_output_format(self, capsys, monkeypatch):
         """JSON output includes all expected fields."""
         with tempfile.TemporaryDirectory() as tmp:
             p = Path(tmp)
             (p / "package-lock.json").write_text("{}")
             (p / "package.json").write_text('{"dependencies":{}}')
+            monkeypatch.setattr("depquiet.engine.run_npm_audit", lambda _: {"vulnerabilities": {}})
             main(["--path", tmp, "--offline", "--json"])
 
         captured = capsys.readouterr()

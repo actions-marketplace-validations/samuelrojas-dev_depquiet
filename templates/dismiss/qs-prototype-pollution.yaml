@@ -4,3 +4,4 @@ author: "@depquiet"
 cves:
   - CVE-2022-24999
 package: qs
+not-imported: ["qs"]

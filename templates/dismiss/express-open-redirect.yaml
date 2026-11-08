@@ -4,3 +4,4 @@ author: "@depquiet"
 cves:
   - CVE-2024-29041
 package: express
+not-imported: ["express"]

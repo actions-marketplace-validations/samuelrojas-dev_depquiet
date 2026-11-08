@@ -4,3 +4,4 @@ author: "@depquiet"
 cves:
   - CVE-2021-42740
 package: shell-quote
+not-imported: ["shell-quote"]

@@ -4,3 +4,4 @@ author: "@depquiet"
 cves:
   - CVE-2023-26136
 package: tough-cookie
+not-imported: ["tough-cookie"]

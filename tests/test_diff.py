@@ -625,7 +625,7 @@ class TestCliDiff:
 
         assert code == 0
         assert summary_file.exists()
-        content = summary_file.read_text()
+        content = summary_file.read_text(encoding="utf-8")
         assert "## 🔍 depquiet scan diff" in content
         assert "`CVE-2024-0001`" in content
 

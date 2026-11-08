@@ -1311,14 +1311,42 @@ class ReachabilityFilter:
         """True when there is source to inspect and none of it imports ``pkg``."""
         return self._has_source() and not self._imports_package(pkg)
 
+    def is_used(self, package: str, graph: DependencyGraph) -> bool:
+        """Whether project imports, commands or configuration name a package."""
+        return (
+            self._imports_package(package) or graph.is_executed(package) or self._mentioned(package)
+        )
+
+    def references_absent(self, names: list[str]) -> bool:
+        """Prove names absent from readable source, for template conditions.
+
+        A missing or unreadable source tree supplies no evidence for dismissing
+        an alert. Check the final component too: ``lodash.merge`` may be called
+        through a namespace alias such as ``_.merge``.
+        """
+        files = _source_files(self._project, _ALL_EXTENSIONS)
+        if not files or not names:
+            return False
+        needles = {part for name in names for part in (name, name.rsplit(".", 1)[-1])}
+        if "" in needles:
+            return False
+        for source in files:
+            try:
+                text = _read_text(source)
+            except OSError:
+                return False
+            if any(name in text for name in needles):
+                return False
+        return True
+
     def decide(self, vuln: Vulnerability, graph: DependencyGraph) -> ReachabilityDecision:
         """Reachability verdict that accounts for transitive dependencies.
 
         - **direct**: unreachable when no source file imports the package (or,
           if the advisory names vulnerable functions, none of them appear).
-        - **transitive**: the application never imports these itself, so the
-          import check says nothing about them. Unreachable only when every
-          direct dependency that pulls the package in is itself unused.
+        - **transitive**: unreachable only when the package itself and every
+          direct dependency that pulls it in are unused. Applications can
+          import hoisted dependencies even without declaring them directly.
         - **unknown**: no manifest tells us which it is. Never filtered.
         """
         kind = graph.directness(vuln.package)
@@ -1326,7 +1354,7 @@ class ReachabilityFilter:
             kind = "transitive"  # the scanner knows (npm audit, Snyk)
 
         def used(name: str) -> bool:
-            return self._imports_package(name) or graph.is_executed(name) or self._mentioned(name)
+            return self.is_used(name, graph)
 
         if kind == "direct":
             # A package can be both direct and transitive: listed in the
@@ -1349,7 +1377,10 @@ class ReachabilityFilter:
             ancestors = sorted(graph.direct_ancestors(vuln.package))
             imported = [a for a in ancestors if used(a)]
             return ReachabilityDecision(
-                unreachable=bool(ancestors) and self._has_source() and not imported,
+                unreachable=bool(ancestors)
+                and self._has_source()
+                and not imported
+                and not used(vuln.package),
                 dependency_type="transitive",
                 introduced_by=ancestors,
                 imported_ancestors=imported,

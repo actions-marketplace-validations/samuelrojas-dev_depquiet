@@ -75,9 +75,9 @@ depquiet applies four deterministic filters to separate signal from noise:
 | Filter | Filters an alert when |
 |---|---|
 | **Reachability** | No source file imports the package, and (for a transitive package) no source file imports any direct dependency that pulls it in |
-| **Dev dependencies** | The package is a devDependency, or every direct dependency that pulls it in is one |
+| **Dev dependencies** | Every known dependency path is for development, with no production parent |
 | **EPSS scoring** | The CVE's probability of exploitation is below the threshold (default 10%) |
-| **Community templates** | A reviewed YAML template documents the advisory as a false positive |
+| **Community templates** | A matching template's dismissal conditions can be verified against the project |
 
 See [benchmarks](#benchmarks) for measured results on a real project.
 
@@ -91,6 +91,9 @@ depquiet would rather let a false positive through than dismiss a real vulnerabi
   of them. See [Direct vs. transitive](#direct-vs-transitive-dependencies).
 - **Unknown means not filtered.** If no manifest or lockfile says whether a package is direct
   or transitive, or a file fails to parse, the alert is not filtered on reachability.
+- **Production paths override development labels.** A package listed in `devDependencies`
+  is still kept when a production dependency also pulls it in. A transitive package
+  imported by the application is kept even when its declared parent is unused.
 - **Import-level, not call-graph.** Reachability means "the package enters your app", not
   "the vulnerable function is called". It removes packages your app never loads; it does not
   prove an imported package's vulnerable function is unused. For Go, `govulncheck` does
@@ -130,7 +133,10 @@ When no scanner output is piped in and no native package manager is detected, de
 | `composer.lock` | Packagist (PHP) |
 | `packages.lock.json` | NuGet (C#) |
 
-Multiple lockfiles in the same project are merged and deduplicated. The OSV.dev batch API handles up to 1000 packages per request, so even large monorepos need only one or two HTTP calls. Use `--offline` to skip OSV.dev queries entirely.
+Multiple lockfiles in the same project are merged and deduplicated. OSV.dev queries
+are batched in groups of up to 1000 packages, then each distinct advisory is fetched
+for its severity, CVE aliases and fixed versions. All pages and advisory lookups must
+succeed before the scan is considered complete. Use `--offline` to skip OSV.dev queries.
 
 ### SBOM generation (CycloneDX + SPDX)
 
@@ -167,6 +173,9 @@ cat container-sbom.json | depquiet --stdin
 Two-mode operation:
 - **Vulnerability mode** — if the SBOM contains vulnerability data (CycloneDX `vulnerabilities` array or SPDX SECURITY external refs), those are extracted and triaged directly
 - **Package mode** — if no vulnerability data is present, the package inventory is extracted and queried against OSV.dev for known advisories
+
+An inventory-only SBOM cannot be scanned with `--offline`. Missing packages or a failed
+OSV.dev lookup produce "nothing scanned" and exit code `2`, rather than a clean report.
 
 All standard depquiet flags work with SBOM input: `--epss-threshold`, `--kev`, `--sbom` (re-export), `--sarif`, `--html`, etc.
 
@@ -459,6 +468,9 @@ Combine with JSON output for CI integration:
 ```bash
 depquiet --license --json
 ```
+
+With `--json`, the command emits one scan document. License results are included in its
+`license` field; the vulnerability `summary` and `results` fields keep their existing shape.
 
 ### Suppression file (`.depquiet-ignore`)
 
@@ -818,6 +830,10 @@ The action automatically writes a **Job Summary** to the PR checks page with sev
 
 > **Note:** `fail-on` (severity-based) supersedes `fail-on-action` (boolean). When `fail-on` is set, `fail-on-action` is ignored.
 
+`fail-on-action: false` only permits vulnerability findings. Scanner failures still fail
+the step. Diff summaries and PR comments use the saved scan, including when findings
+cause the scanning step to fail; they do not run another scan.
+
 ### GitHub Actions (manual)
 
 ```yaml
@@ -835,6 +851,12 @@ The action automatically writes a **Job Summary** to the PR checks page with sev
 ## Community templates
 
 depquiet ships with **21 built-in templates** and uses [nuclei-style](https://github.com/projectdiscovery/nuclei-templates) YAML to encode community knowledge about known false positives:
+
+Built-in templates require readable project source and evidence that the package and
+its dependency ancestors are unused. Absence of a vulnerable function name in application
+code does not prove that an imported library never calls it. Unverifiable conditions
+keep the alert. Custom templates without conditions are explicit unconditional dismissal
+rules, so add `not-imported` conditions when that is not your intention.
 
 | Template | CVE | What it catches |
 |---|---|---|

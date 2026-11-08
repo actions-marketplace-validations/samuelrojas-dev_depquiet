@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from depquiet.models import Severity, Vulnerability
 from depquiet.parsers.osv import (
     OsvScanner,
@@ -569,13 +571,13 @@ class TestOsvScanner:
         mock_query.assert_not_called()
 
     @patch("depquiet.parsers.osv.query_osv_batch")
-    def test_scan_network_failure_returns_empty(
-        self, mock_query: MagicMock, tmp_path: Path
-    ) -> None:
+    def test_scan_network_failure_raises(self, mock_query: MagicMock, tmp_path: Path) -> None:
         (tmp_path / "requirements.txt").write_text("flask==3.0.0\n")
         mock_query.side_effect = OSError("Network unreachable")
-        vulns = OsvScanner.scan(tmp_path)
-        assert vulns == []
+        from depquiet.scanners import ScanError
+
+        with pytest.raises(ScanError, match="Network unreachable"):
+            OsvScanner.scan(tmp_path)
 
     @patch("depquiet.parsers.osv.query_osv_batch")
     def test_scan_batches_large_projects(self, mock_query: MagicMock, tmp_path: Path) -> None:

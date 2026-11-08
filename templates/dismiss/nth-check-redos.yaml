@@ -4,3 +4,4 @@ author: "@depquiet"
 cves:
   - CVE-2021-3803
 package: nth-check
+not-imported: ["nth-check"]

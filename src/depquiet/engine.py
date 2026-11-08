@@ -48,12 +48,15 @@ def _osv_batch_query(
     """Query OSV.dev for vulnerabilities matching SBOM packages."""
     if not packages:
         return []
-    try:
-        response = query_osv_batch(packages)
-        return parse_osv_response(response, packages)
-    except Exception:
-        # Network errors, timeouts — return empty and let triage continue
-        return []
+    vulns: list[Vulnerability] = []
+    for start in range(0, len(packages), 1000):
+        batch = packages[start : start + 1000]
+        try:
+            response = query_osv_batch(batch)
+            vulns.extend(parse_osv_response(response, batch))
+        except (OSError, ValueError) as e:
+            raise ScanError(f"could not query OSV.dev for the SBOM ({e}).") from e
+    return vulns
 
 
 class _Parser(Protocol):
@@ -143,13 +146,24 @@ def scan(
         # Use provided JSON (piped input or testing)
         # Auto-detect format — check SBOMs first, then scanner outputs
         if is_cyclonedx(audit_json) or is_spdx(audit_json):
+            pm = pm or "sbom"
             vulns = SbomParser.parse(audit_json, project)
             if not vulns:
                 # SBOM has no vulnerability data — extract packages
                 # and query OSV.dev for advisories
                 packages = SbomParser.extract_packages(audit_json)
-                if packages and not skip_epss:
+                if not packages or skip_epss:
+                    note = (
+                        "SBOM has no embedded vulnerabilities and querying its packages "
+                        "requires OSV.dev; --offline is set."
+                        if skip_epss and packages
+                        else "SBOM has no embedded vulnerabilities or readable packages to scan."
+                    )
+                    return ScanResult(str(project), pm, 0, [], scanned=False, note=note)
+                try:
                     vulns = _osv_batch_query(packages)
+                except ScanError as e:
+                    return ScanResult(str(project), pm, 0, [], scanned=False, note=str(e))
         elif "runs" in audit_json and (
             "$schema" in audit_json or audit_json.get("version") == "2.1.0"
         ):
@@ -162,10 +176,21 @@ def scan(
             vulns = DependabotParser.parse(audit_json, project)
         elif "packageManager" in audit_json and isinstance(audit_json.get("vulnerabilities"), list):
             vulns = SnykParser.parse(audit_json, project)
-        elif pm == "pip" or "dependencies" in audit_json:
+        elif isinstance(audit_json.get("dependencies"), list):
+            pm = "pip"
             vulns = PipAuditParser.parse(audit_json, project)
-        else:
+        elif isinstance(audit_json.get("vulnerabilities"), dict):
+            pm = "npm"
             vulns = NpmAuditParser.parse(audit_json, project)
+        else:
+            return ScanResult(
+                str(project),
+                pm or "unknown",
+                0,
+                [],
+                scanned=False,
+                note="unrecognized scanner JSON format; no vulnerability report was read.",
+            )
     else:
         try:
             vulns, pm, scan_note = _run_scanner(pm, project, offline=skip_epss)
@@ -229,12 +254,12 @@ def scan(
         # them in, never by the app's own imports.
         decision = reachability.decide(vuln, graph)
 
-        # Filter 1: devDependency. Scanners only flag direct devDependencies;
-        # a transitive package is dev-only when every direct dependency that
-        # pulls it in is itself a devDependency.
-        if DevDepFilter.check(vuln) or (
-            decision.dependency_type == "transitive" and graph.is_dev_only(decision.introduced_by)
-        ):
+        # A package may be declared as dev and also be required by a production
+        # dependency. Every known root must be dev-only before suppressing it.
+        roots = list(decision.introduced_by)
+        if graph.directness(vuln.package) == "direct":
+            roots.append(vuln.package)
+        if graph.is_dev_only(roots) or (DevDepFilter.check(vuln) and not roots):
             reasons.append(FilterReason.DEV_DEPENDENCY)
 
         if decision.unreachable:
@@ -248,7 +273,9 @@ def scan(
             reasons.append(FilterReason.LOW_EPSS)
 
         # Filter 4: Community template match
-        tmpl = template_filter.find_match(vuln.cve, vuln.package)
+        tmpl = template_filter.find_match(
+            vuln.cve, vuln.package, project=project, graph=graph, reachability=reachability
+        )
         if tmpl:
             reasons.append(FilterReason.COMMUNITY_TEMPLATE)
             template_id = tmpl.id

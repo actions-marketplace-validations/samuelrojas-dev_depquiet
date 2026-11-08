@@ -6,3 +6,4 @@ cves:
   - CVE-2022-24772
   - CVE-2022-24773
 package: node-forge
+not-imported: ["node-forge"]

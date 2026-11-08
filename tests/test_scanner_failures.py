@@ -135,6 +135,36 @@ class TestScannerErrors:
         assert result.scanned is False
         assert "OSV.dev" in result.note
 
+    def test_npm_uses_resolved_windows_command(self, tmp_path: Path) -> None:
+        executable = r"C:\Program Files\nodejs\npm.cmd"
+        with (
+            patch("depquiet.scanners.shutil.which", return_value=executable),
+            patch(
+                "depquiet.scanners.subprocess.run",
+                return_value=self._completed('{"vulnerabilities": {}}'),
+            ) as run,
+        ):
+            run_npm_audit(tmp_path)
+        assert run.call_args.args[0] == [executable, "audit", "--json"]
+
+    @pytest.mark.parametrize("error", [FileNotFoundError("missing"), PermissionError("denied")])
+    def test_npm_launch_error_is_scan_error(self, tmp_path: Path, error: OSError) -> None:
+        with (
+            patch("depquiet.scanners.shutil.which", return_value="npm.cmd"),
+            patch("depquiet.scanners.subprocess.run", side_effect=error),
+            pytest.raises(ScanError, match="could not run npm audit"),
+        ):
+            run_npm_audit(tmp_path)
+
+    def test_pip_launch_error_is_scan_error(self, tmp_path: Path) -> None:
+        (tmp_path / "requirements.txt").write_text("django==4.2.0\n")
+        with (
+            patch("depquiet.scanners.shutil.which", return_value="pip-audit.exe"),
+            patch("depquiet.scanners.subprocess.run", side_effect=OSError("launch failed")),
+            pytest.raises(ScanError, match="could not run pip-audit"),
+        ):
+            run_pip_audit(tmp_path)
+
 
 class TestPipAuditTarget:
     def test_lock_pins_dedupes_platform_variants(self, tmp_path: Path) -> None:
@@ -145,12 +175,11 @@ class TestPipAuditTarget:
 
     def test_audits_lockfile_not_environment(self, tmp_path: Path) -> None:
         _py_project(tmp_path)
-        seen: dict[str, object] = {}
+        seen: list[tuple[list[str], str]] = []
 
         def fake_run(cmd, **kw):  # type: ignore[no-untyped-def]
-            seen["cmd"] = cmd
             req = Path(cmd[cmd.index("-r") + 1])
-            seen["req"] = req.read_text()
+            seen.append((cmd, req.read_text()))
             out = Path(cmd[cmd.index("-o") + 1])
             out.write_text(json.dumps({"dependencies": []}))
             return subprocess.CompletedProcess(cmd, 0, "", "")
@@ -161,9 +190,57 @@ class TestPipAuditTarget:
         ):
             data = run_pip_audit(tmp_path)
         assert data == {"dependencies": []}
-        assert "--no-deps" in seen["cmd"]  # type: ignore[operator]
-        assert "--disable-pip" in seen["cmd"]  # type: ignore[operator]
-        assert "django==4.2.0" in str(seen["req"])
+        assert all("--no-deps" in cmd and "--disable-pip" in cmd for cmd, _ in seen)
+        assert all(cmd[0] == "/usr/bin/pip-audit" for cmd, _ in seen)
+        assert "django==4.2.0" in seen[0][1]
+        assert "torch==2.0.0+cpu" in seen[1][1]
+
+    def test_all_lock_variants_audited_and_findings_combined(self, tmp_path: Path) -> None:
+        (tmp_path / "poetry.lock").write_text(
+            '[[package]]\nname = "Django"\nversion = "5.2.8"\n'
+            '[[package]]\nname = "Django"\nversion = "4.2.0"\n'
+        )
+        audited: list[str] = []
+
+        def fake_run(cmd, **kw):  # type: ignore[no-untyped-def]
+            req = Path(cmd[cmd.index("-r") + 1]).read_text()
+            audited.extend(req.splitlines())
+            version = "4.2.0" if "4.2.0" in req else "5.2.8"
+            vulns = [{"id": "CVE-2024-EXAMPLE"}] if version == "4.2.0" else []
+            Path(cmd[cmd.index("-o") + 1]).write_text(
+                json.dumps(
+                    {"dependencies": [{"name": "django", "version": version, "vulns": vulns}]}
+                )
+            )
+            return subprocess.CompletedProcess(cmd, bool(vulns), "", "")
+
+        with (
+            patch("depquiet.scanners.shutil.which", return_value="pip-audit.exe"),
+            patch("depquiet.scanners.subprocess.run", side_effect=fake_run),
+        ):
+            data = run_pip_audit(tmp_path)
+        assert audited == ["django==5.2.8", "django==4.2.0"]
+        assert len(data["dependencies"]) == 2
+        assert data["dependencies"][1]["vulns"] == [{"id": "CVE-2024-EXAMPLE"}]
+
+    def test_failure_in_additional_variant_is_not_partial_success(self, tmp_path: Path) -> None:
+        _py_project(tmp_path)
+        calls = 0
+
+        def fake_run(cmd, **kw):  # type: ignore[no-untyped-def]
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                Path(cmd[cmd.index("-o") + 1]).write_text('{"dependencies": []}')
+                return subprocess.CompletedProcess(cmd, 0, "", "")
+            return subprocess.CompletedProcess(cmd, 2, "", "lookup failed")
+
+        with (
+            patch("depquiet.scanners.shutil.which", return_value="pip-audit.exe"),
+            patch("depquiet.scanners.subprocess.run", side_effect=fake_run),
+            pytest.raises(ScanError, match="lookup failed"),
+        ):
+            run_pip_audit(tmp_path)
 
     def test_requirements_txt(self, tmp_path: Path) -> None:
         (tmp_path / "requirements.txt").write_text("django>=4\n")
@@ -178,6 +255,28 @@ class TestPipAuditTarget:
             patch("depquiet.scanners.subprocess.run", side_effect=fake_run),
         ):
             assert run_pip_audit(tmp_path) == {"dependencies": []}
+
+    @pytest.mark.parametrize("manifest", ["requirements.txt", "pyproject.toml"])
+    def test_relative_project_path_targets_project_once(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, manifest: str
+    ) -> None:
+        project = tmp_path / "project"
+        project.mkdir()
+        (project / manifest).write_text("django==4.2.0\n")
+        monkeypatch.chdir(tmp_path)
+
+        def fake_run(cmd, **kw):  # type: ignore[no-untyped-def]
+            assert kw["cwd"] == project
+            target = Path(cmd[cmd.index("-r") + 1]) if "-r" in cmd else Path(cmd[1])
+            assert target == (project / manifest if manifest == "requirements.txt" else project)
+            Path(cmd[cmd.index("-o") + 1]).write_text('{"dependencies": []}')
+            return subprocess.CompletedProcess(cmd, 0, "", "")
+
+        with (
+            patch("depquiet.scanners.shutil.which", return_value="pip-audit.exe"),
+            patch("depquiet.scanners.subprocess.run", side_effect=fake_run),
+        ):
+            assert run_pip_audit(Path("project")) == {"dependencies": []}
 
     def test_pip_audit_error_raises(self, tmp_path: Path) -> None:
         (tmp_path / "requirements.txt").write_text("django>=4\n")

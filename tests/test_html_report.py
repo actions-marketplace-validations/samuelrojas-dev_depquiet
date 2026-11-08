@@ -270,11 +270,11 @@ class TestCliHtmlFlag:
         import io
         import sys
 
-        stdin_data = io.StringIO('{"vulnerabilities": [], "metadata": {"totalDependencies": 0}}')
+        stdin_data = io.StringIO('{"vulnerabilities": {}, "metadata": {"totalDependencies": 0}}')
         old_stdin = sys.stdin
         try:
             sys.stdin = stdin_data
-            exit_code = main(["--stdin", "--offline", "--html", str(out)])
+            exit_code = main(["--path", str(tmp_path), "--stdin", "--offline", "--html", str(out)])
         finally:
             sys.stdin = old_stdin
 

@@ -32,13 +32,16 @@ from __future__ import annotations
 
 import json
 import re
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any
 
 from depquiet.models import Severity, Vulnerability
+from depquiet.scanners import ScanError
 
 _OSV_BATCH_URL = "https://api.osv.dev/v1/querybatch"
+_OSV_VULN_URL = "https://api.osv.dev/v1/vulns/"
 
 # Ecosystem names as OSV.dev expects them
 _ECOSYSTEM_NPM = "npm"
@@ -391,6 +394,41 @@ _SEVERITY_MAP: dict[str, Severity] = {
 }
 
 
+def _cvss3_base_score(vector: str) -> float | None:
+    """Compute CVSS 3.0/3.1 Base using FIRST's section 7.1 equations.
+
+    https://www.first.org/cvss/v3.1/specification-document#7-CVSS-v31-Equations
+    Temporal/environmental metrics do not lower the advisory's Base severity.
+    """
+    parts = vector.split("/")
+    if parts[0] not in ("CVSS:3.0", "CVSS:3.1"):
+        return None
+    try:
+        metrics = dict(part.split(":") for part in parts[1:])
+        if len(metrics) != len(parts) - 1 or metrics["S"] not in ("U", "C"):
+            return None
+        changed = metrics["S"] == "C"
+        av = {"N": 0.85, "A": 0.62, "L": 0.55, "P": 0.2}[metrics["AV"]]
+        ac = {"L": 0.77, "H": 0.44}[metrics["AC"]]
+        pr = {"N": 0.85, "L": 0.68 if changed else 0.62, "H": 0.5 if changed else 0.27}[
+            metrics["PR"]
+        ]
+        ui = {"N": 0.85, "R": 0.62}[metrics["UI"]]
+        impact_values = {"H": 0.56, "L": 0.22, "N": 0.0}
+        c, i, a = (impact_values[metrics[key]] for key in ("C", "I", "A"))
+    except (KeyError, ValueError):
+        return None
+    iss = 1 - (1 - c) * (1 - i) * (1 - a)
+    impact = 7.52 * (iss - 0.029) - 3.25 * (iss - 0.02) ** 15 if changed else 6.42 * iss
+    if impact <= 0:
+        return 0.0
+    exploitability = 8.22 * av * ac * pr * ui
+    base = min((1.08 if changed else 1) * (impact + exploitability), 10)
+    # FIRST Appendix A avoids floating-point errors when rounding up to tenths.
+    scaled = round(base * 100000)
+    return ((scaled + 9999) // 10000) / 10
+
+
 def _osv_severity(vuln_data: dict[str, Any]) -> Severity:
     """Extract severity from OSV vulnerability data."""
     # database_specific may have severity
@@ -399,23 +437,32 @@ def _osv_severity(vuln_data: dict[str, Any]) -> Severity:
     if sev and sev.upper() in _SEVERITY_MAP:
         return _SEVERITY_MAP[sev.upper()]
 
-    # CVSS from severity[] array
+    # CVSS from severity[] array: the API normally supplies vectors, not numbers.
+    scores: list[float] = []
+    unsupported = False
     for sev_entry in vuln_data.get("severity", []):
         score_str = sev_entry.get("score", "")
         if score_str:
-            # CVSS vector string: extract base score if possible
-            # Or it might just be a numeric score
+            score: float | None
             try:
                 score = float(score_str)
-                if score >= 9.0:
-                    return Severity.CRITICAL
-                if score >= 7.0:
-                    return Severity.HIGH
-                if score >= 4.0:
-                    return Severity.MODERATE
-                return Severity.LOW
-            except ValueError:
-                pass
+            except (ValueError, TypeError):
+                score = _cvss3_base_score(str(score_str))
+            if score is not None and 0 <= score <= 10:
+                scores.append(score)
+            else:
+                unsupported = True
+    if scores:
+        score = max(scores)
+        if score >= 9.0:
+            return Severity.CRITICAL
+        if score >= 7.0:
+            return Severity.HIGH
+        if score >= 4.0:
+            return Severity.MODERATE
+        return Severity.LOW if score > 0 else Severity.INFO
+    if unsupported:
+        raise ScanError(f"cannot determine OSV.dev severity for {vuln_data.get('id', 'advisory')}.")
 
     return Severity.MODERATE
 
@@ -434,37 +481,70 @@ def _extract_fix_version(vuln_data: dict[str, Any], package_name: str) -> str:
     return ""
 
 
+def _osv_request(req: urllib.request.Request, timeout: int) -> dict[str, Any]:
+    """Read one OSV response, preserving lookup failures as scan failures."""
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read())
+    except (OSError, ValueError) as e:
+        raise ScanError(f"could not query OSV.dev ({e}).") from e
+    if not isinstance(data, dict) or "error" in data:
+        raise ScanError("OSV.dev returned an invalid response.")
+    return data
+
+
 def query_osv_batch(packages: list[PackageInfo], timeout: int = 30) -> dict[str, Any]:
-    """Query OSV.dev batch API.
+    """Query package versions and hydrate every advisory with its full record.
 
-    Args:
-        packages: List of (name, version, ecosystem) tuples.
-        timeout: HTTP timeout in seconds.
-
-    Returns:
-        Raw OSV batch response as dict.
+    ``querybatch`` only returns advisory IDs and modification timestamps. The
+    detail endpoint supplies severity, aliases, fixes and descriptions needed
+    for triage. Pagination and 1000-query batches must both complete before a
+    report can be treated as scanned.
     """
-    queries = []
-    for name, version, ecosystem in packages:
-        queries.append(
-            {
-                "version": version,
-                "package": {"name": name, "ecosystem": ecosystem},
-            }
-        )
-
-    # OSV batch API accepts up to 1000 queries per request
-    payload = json.dumps({"queries": queries}).encode()
-    req = urllib.request.Request(
-        _OSV_BATCH_URL,
-        data=payload,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        result: dict[str, Any] = json.loads(resp.read())
-        return result
+    all_results: list[dict[str, Any]] = [{"vulns": []} for _ in packages]
+    details: dict[str, dict[str, Any]] = {}
+    for start in range(0, len(packages), 1000):
+        pending: list[tuple[int, dict[str, Any]]] = [
+            (start + i, {"version": version, "package": {"name": name, "ecosystem": ecosystem}})
+            for i, (name, version, ecosystem) in enumerate(packages[start : start + 1000])
+        ]
+        seen_tokens: set[tuple[int, str]] = set()
+        while pending:
+            req = urllib.request.Request(
+                _OSV_BATCH_URL,
+                data=json.dumps({"queries": [query for _, query in pending]}).encode(),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            response = _osv_request(req, timeout)
+            results = response.get("results")
+            if not isinstance(results, list) or len(results) != len(pending):
+                raise ScanError("OSV.dev returned an incomplete batch response.")
+            next_pending: list[tuple[int, dict[str, Any]]] = []
+            for (index, query), result in zip(pending, results, strict=True):
+                if not isinstance(result, dict) or not isinstance(result.get("vulns", []), list):
+                    raise ScanError("OSV.dev returned an invalid package result.")
+                for stub in result.get("vulns", []):
+                    vuln_id = stub.get("id") if isinstance(stub, dict) else None
+                    if not isinstance(vuln_id, str) or not vuln_id:
+                        raise ScanError("OSV.dev returned an advisory without an ID.")
+                    if vuln_id not in details:
+                        detail_req = urllib.request.Request(
+                            _OSV_VULN_URL + urllib.parse.quote(vuln_id, safe="")
+                        )
+                        detail = _osv_request(detail_req, timeout)
+                        if detail.get("id") != vuln_id:
+                            raise ScanError(f"OSV.dev returned an invalid record for {vuln_id}.")
+                        details[vuln_id] = detail
+                    all_results[index]["vulns"].append(details[vuln_id])
+                token = result.get("next_page_token")
+                if token:
+                    if not isinstance(token, str) or (index, token) in seen_tokens:
+                        raise ScanError("OSV.dev returned an invalid pagination token.")
+                    seen_tokens.add((index, token))
+                    next_pending.append((index, {**query, "page_token": token}))
+            pending = next_pending
+    return {"results": all_results}
 
 
 def parse_osv_response(
@@ -553,8 +633,6 @@ class OsvScanner:
 
         A partial or failed lookup must not read as "no vulnerabilities".
         """
-        from depquiet.scanners import ScanError
-
         packages = parse_lockfiles(project)
         if not packages:
             raise ScanError("found lockfiles but could not read any packages from them.")
@@ -570,20 +648,7 @@ class OsvScanner:
 
     @classmethod
     def scan(cls, project: Path) -> list[Vulnerability]:
-        """Scan lockfiles and query OSV.dev for vulnerabilities."""
-        packages = parse_lockfiles(project)
-        if not packages:
+        """Scan lockfiles, raising ScanError instead of returning partial results."""
+        if not cls.detect(project):
             return []
-
-        # Query in batches of 1000 (OSV API limit)
-        all_vulns: list[Vulnerability] = []
-        for i in range(0, len(packages), 1000):
-            batch = packages[i : i + 1000]
-            try:
-                response = query_osv_batch(batch)
-                all_vulns.extend(parse_osv_response(response, batch))
-            except (OSError, json.JSONDecodeError, urllib.error.URLError):
-                # Network failure — continue with what we have
-                continue
-
-        return all_vulns
+        return cls.scan_checked(project)

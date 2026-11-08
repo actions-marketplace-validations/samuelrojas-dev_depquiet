@@ -15,9 +15,9 @@ Template format:
 
 A template matches when ALL conditions in dismiss-if are met.
 Conditions:
-  - not-imported: list of function/module names — dismisses if NONE appear in source
+  - not-imported: function/module names absent from readable source; the package
+    and its dependency ancestors must also be unused
   - package: exact package name this template applies to
-  - severity-below: only dismiss if severity is below this level
 """
 
 from __future__ import annotations
@@ -26,7 +26,12 @@ from __future__ import annotations
 # Templates are simple enough to parse with basic string handling.
 # Will switch to PyYAML when the template format grows.
 from dataclasses import dataclass, field
+from importlib.resources import files
+from importlib.resources.abc import Traversable
 from pathlib import Path
+
+from depquiet.depgraph import DependencyGraph
+from depquiet.filters.reachability import ReachabilityFilter
 
 
 @dataclass
@@ -95,10 +100,10 @@ def _parse_yaml_simple(text: str) -> dict[str, object]:
     return result
 
 
-def _load_template(path: Path) -> Template | None:
+def _load_template(path: Traversable) -> Template | None:
     """Load a single template from a YAML file."""
     try:
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
         data = _parse_yaml_simple(text)
 
         # Also check for top-level not-imported (flattened format)
@@ -117,7 +122,7 @@ def _load_template(path: Path) -> Template | None:
             cves = [str(x) for x in raw_cves]
 
         return Template(
-            id=str(data.get("id", path.stem)),
+            id=str(data.get("id", path.name.rsplit(".", 1)[0])),
             reason=str(data.get("reason", "")),
             cves=cves,
             package=str(data.get("package", "")),
@@ -133,29 +138,62 @@ class TemplateFilter:
 
     def __init__(self, template_dirs: list[Path] | None = None):
         self._templates: list[Template] = []
-        dirs = template_dirs or []
-        # Always include bundled templates
-        bundled = Path(__file__).parent.parent.parent.parent / "templates" / "dismiss"
-        if bundled.is_dir():
-            dirs.insert(0, bundled)
+        # Wheels carry the same source templates as package resources. The
+        # repository path supports editable installs without copying files.
+        bundled = files("depquiet").joinpath("_templates", "dismiss")
+        if not bundled.is_dir():
+            bundled = Path(__file__).parent.parent.parent.parent / "templates" / "dismiss"
+        self._load_dir(bundled)
+        dirs = list(template_dirs or [])
         for d in dirs:
             self._load_dir(d)
 
-    def _load_dir(self, path: Path) -> None:
+    def _load_dir(self, path: Traversable) -> None:
         """Load all templates from a directory."""
         if not path.is_dir():
             return
-        for f in sorted(path.iterdir()):
-            if f.suffix in (".yaml", ".yml"):
+        for f in sorted(path.iterdir(), key=lambda entry: entry.name):
+            if f.is_file() and f.name.endswith((".yaml", ".yml")):
                 tmpl = _load_template(f)
                 if tmpl:
                     self._templates.append(tmpl)
 
-    def find_match(self, cve: str, package: str) -> Template | None:
-        """Find a template that matches this CVE and package."""
+    def find_match(
+        self,
+        cve: str,
+        package: str,
+        *,
+        project: Path | None = None,
+        graph: DependencyGraph | None = None,
+        reachability: ReachabilityFilter | None = None,
+    ) -> Template | None:
+        """Find a matching template whose conditions have project evidence.
+
+        Conditional templates cannot establish what an imported library calls
+        internally. Keep the alert when the package or an ancestor is in use,
+        its dependency relationship is unknown, or source cannot be inspected.
+        Custom templates without conditions remain explicit dismissal rules.
+        """
         for tmpl in self._templates:
             if tmpl.matches_cve(cve) and tmpl.matches_package(package):
-                return tmpl
+                if not tmpl.not_imported:
+                    return tmpl
+                if project is None:
+                    continue
+                project_graph = (
+                    graph if graph is not None else DependencyGraph.from_project(project)
+                )
+                source = reachability if reachability is not None else ReachabilityFilter(project)
+                kind = project_graph.directness(package)
+                ancestors = project_graph.direct_ancestors(package)
+                if kind == "unknown" or (kind == "transitive" and not ancestors):
+                    continue
+                if source.is_used(package, project_graph) or any(
+                    source.is_used(parent, project_graph) for parent in ancestors
+                ):
+                    continue
+                if source.references_absent(tmpl.not_imported):
+                    return tmpl
         return None
 
     @property
