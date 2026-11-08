@@ -505,7 +505,16 @@ Place `.depquiet-ignore` in the project root (auto-detected) or pass `--ignore p
 
 ### Scan comparison (`depquiet diff`)
 
-Compare two depquiet scans to see exactly what changed — new vulnerabilities introduced, old ones fixed, and verdicts that shifted. This is the core of the CI review workflow: "was this PR safe to merge?"
+Compare two saved depquiet reports to see new or absent finding contexts and
+verdict changes. Matching uses the exact advisory, package and reported version
+string, so adding another version of a package remains visible even when its
+advisory is already present. A scanner range stays a range; the diff does not
+infer an installed version or advisory aliases.
+
+The historical `fixed` field means a finding context is absent from the head
+report. It does not establish remediation or product non-affectedness. A version
+replacement can therefore appear as one absent context and one new context.
+Compare the same declared project/input scope when interpreting these changes.
 
 ```bash
 # Compare a base branch scan against a PR branch scan
@@ -517,6 +526,14 @@ depquiet diff base-scan.json pr-scan.json --json
 # Fail CI only when new ACTION items appear
 depquiet diff base-scan.json pr-scan.json --fail-on-new
 ```
+
+An explicit incomplete scan (`scanned: false`), malformed report or duplicate
+advisory/package/version identity is rejected with exit code **2** and a diagnostic
+on stderr, without a successful diff or overwriting an existing summary. Other
+operational errors also return **2**. Exit **1** is used for new ACTION findings
+with `--fail-on-new`; a missing input file retains its legacy exit code **1**.
+Older reports without `scanned` remain accepted when structurally valid, but
+their completion cannot be independently verified from that missing flag.
 
 Typical CI workflow:
 

@@ -428,7 +428,14 @@ def _collect_evidence(
     """Capture observed usage without asserting vulnerable code execution."""
     sites = _import_sites(reachability, vuln, decision)
     used = bool(sites or decision.imported_ancestors) or reachability.is_used(vuln.package, graph)
-    usage = "observed" if used else "not_observed" if decision.unreachable else "unknown"
+    coverage_complete = reachability.source_coverage_complete
+    usage = (
+        "observed"
+        if used
+        else "not_observed"
+        if decision.unreachable and coverage_complete
+        else "unknown"
+    )
     observations: list[str] = []
     if decision.imported_ancestors:
         observations.append(
@@ -440,4 +447,5 @@ def _collect_evidence(
         observations.append("Usage is inferred from project references, not a verified call path.")
     if decision.unreachable:
         observations.append("No dependency usage was observed in the inspected project sources.")
+    observations.extend(reachability.source_coverage_observations)
     return DependencyEvidence(usage=usage, import_sites=sites, observations=observations)

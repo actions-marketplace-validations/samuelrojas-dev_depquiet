@@ -40,11 +40,30 @@ Configuration/command references are observations, not fabricated file locations
 JSON can be reloaded with `depquiet explain --from-json`; old JSON defaults to an
 unverified assessment without inventing historical evidence.
 
+An unreadable included source file or a source-directory enumeration failure is
+recorded in `evidence.observations` with its path and error. Reachability and
+source-absence template conditions abstain when this source coverage is
+incomplete. Without positive usage evidence, `evidence.usage` remains `unknown`;
+real import observations may still be retained alongside the coverage limitation.
+Source reads and failures are shared within one filter instance. Other priority
+rules, such as explicit policy, development metadata or EPSS, remain separate.
+`scanned` describes completion of the vulnerability input, not proof of complete
+source or deployment analysis. This guard does not resolve dynamic imports,
+manifest discovery limits or all parser limitations.
+
 The decision history records engine rules, `always_flag`, policy overrides,
 ignore entries, baseline acceptance, and subsequent KEV escalations. A later
 escalation does not erase an earlier suppression or leave it presented as the
 current priority. Baseline identity remains `advisory:package` for compatibility;
 it does not distinguish installed versions.
+
+Saved-scan diffs match exact advisory/package/reported-version contexts and reject
+explicit incomplete reports, malformed inputs and duplicate identities. A new
+version context is visible even when the advisory/package pair already exists.
+The historical `fixed` output means a context is absent from the head report,
+not that product impact was resolved. Legacy reports without a completion flag
+remain supported with structural validation; they do not acquire a verified
+completion status merely by being accepted.
 
 ## Export behavior
 
