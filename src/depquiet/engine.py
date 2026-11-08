@@ -22,6 +22,8 @@ from depquiet.filters.epss import EpssFilter
 from depquiet.filters.reachability import ReachabilityDecision, ReachabilityFilter
 from depquiet.filters.templates import TemplateFilter
 from depquiet.models import (
+    DecisionChange,
+    DependencyEvidence,
     FilterReason,
     ScanResult,
     Severity,
@@ -232,6 +234,8 @@ def scan(
         epss_percentile = None
         template_id = None
         template_reason = None
+        decision = reachability.decide(vuln, graph)
+        evidence = _collect_evidence(reachability, vuln, graph, decision)
 
         # Skip all filters if package is in always_flag
         _always = set(always_flag) if always_flag else set()
@@ -244,7 +248,19 @@ def scan(
                     reasons=[],
                     epss_score=_epss[0] if _epss else None,
                     epss_percentile=_epss[1] if _epss else None,
-                    reachable_imports=reachability.find_imports(vuln),
+                    reachable_imports=list(evidence.import_sites),
+                    dependency_type=decision.dependency_type,
+                    introduced_by=decision.introduced_by,
+                    evidence=evidence,
+                    decision_trace=[
+                        DecisionChange(
+                            source="always_flag",
+                            previous_verdict=None,
+                            verdict=Verdict.ACTION,
+                            rule_id=vuln.package,
+                            reason="Package is configured to always require action.",
+                        )
+                    ],
                 )
             )
             continue
@@ -252,8 +268,6 @@ def scan(
         # Filter 2 runs first because filter 1 uses its dependency paths.
         # Transitive packages are judged by the direct dependencies that pull
         # them in, never by the app's own imports.
-        decision = reachability.decide(vuln, graph)
-
         # A package may be declared as dev and also be required by a production
         # dependency. Every known root must be dev-only before suppressing it.
         roots = list(decision.introduced_by)
@@ -292,6 +306,14 @@ def scan(
         else:
             verdict = Verdict.ACTION
 
+        trace = [
+            DecisionChange(
+                source="engine",
+                previous_verdict=None,
+                verdict=verdict,
+                reason=", ".join(r.value for r in reasons) or "No automatic filter matched.",
+            )
+        ]
         # Apply policy override (first matching rule wins)
         policy_id = None
         if policy is not None:
@@ -305,12 +327,21 @@ def scan(
             )
             policy_verdict, policy_id = policy.apply(_temp)
             if policy_id is not None:
+                rule = next(r for r in policy.rules if r.id == policy_id and r.matches(_temp))
+                trace.append(
+                    DecisionChange(
+                        source="policy",
+                        previous_verdict=verdict,
+                        verdict=policy_verdict,
+                        rule_id=policy_id,
+                        reason=rule.reason or rule.description,
+                        path=policy.path,
+                    )
+                )
                 verdict = policy_verdict
 
-        # For ACTION items, find where the package is imported
-        reachable_imports = []
-        if verdict == Verdict.ACTION:
-            reachable_imports = _import_sites(reachability, vuln, decision)
+        # Preserve observed import sites for every priority, before suppression.
+        reachable_imports = list(evidence.import_sites)
 
         results.append(
             TriageResult(
@@ -324,6 +355,8 @@ def scan(
                 template_reason=template_reason,
                 dependency_type=decision.dependency_type,
                 introduced_by=decision.introduced_by,
+                evidence=evidence,
+                decision_trace=trace,
             )
         )
 
@@ -382,7 +415,29 @@ def _import_sites(
     sites = reachability.find_imports(vuln)
     for ancestor in decision.imported_ancestors:
         found = reachability.find_imports_for(ancestor)
-        if not found:
-            found = [f"{ancestor} (run as a command or referenced in project files)"]
         sites += [s for s in found if s not in sites]
     return sites
+
+
+def _collect_evidence(
+    reachability: ReachabilityFilter,
+    vuln: Vulnerability,
+    graph: DependencyGraph,
+    decision: ReachabilityDecision,
+) -> DependencyEvidence:
+    """Capture observed usage without asserting vulnerable code execution."""
+    sites = _import_sites(reachability, vuln, decision)
+    used = bool(sites or decision.imported_ancestors) or reachability.is_used(vuln.package, graph)
+    usage = "observed" if used else "not_observed" if decision.unreachable else "unknown"
+    observations: list[str] = []
+    if decision.imported_ancestors:
+        observations.append(
+            "Project references dependency roots: " + ", ".join(decision.imported_ancestors) + "."
+        )
+    if graph.is_executed(vuln.package):
+        observations.append("Project commands reference this dependency's executable.")
+    if used and not sites:
+        observations.append("Usage is inferred from project references, not a verified call path.")
+    if decision.unreachable:
+        observations.append("No dependency usage was observed in the inspected project sources.")
+    return DependencyEvidence(usage=usage, import_sites=sites, observations=observations)

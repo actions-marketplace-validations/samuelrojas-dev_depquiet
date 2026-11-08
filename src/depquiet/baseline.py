@@ -18,7 +18,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from depquiet.models import ScanResult, Verdict
+from depquiet.models import DecisionChange, ScanResult, Verdict
 
 
 @dataclass
@@ -49,7 +49,9 @@ def load_baseline(path: Path) -> set[str]:
     return keys
 
 
-def apply_baseline(result: ScanResult, baseline_keys: set[str]) -> BaselineResult:
+def apply_baseline(
+    result: ScanResult, baseline_keys: set[str], *, source_path: str = ""
+) -> BaselineResult:
     """Demote ACTION/REVIEW items that exist in the baseline to FILTERED.
 
     Only items whose cve:package key appears in the baseline are demoted.
@@ -62,6 +64,16 @@ def apply_baseline(result: ScanResult, baseline_keys: set[str]) -> BaselineResul
 
     for tr in result.results:
         if tr.verdict in (Verdict.ACTION, Verdict.REVIEW) and tr.vuln.key in baseline_keys:
+            tr.decision_trace.append(
+                DecisionChange(
+                    source="baseline",
+                    previous_verdict=tr.verdict,
+                    verdict=Verdict.FILTERED,
+                    rule_id=tr.vuln.key,
+                    reason="Finding matches the accepted baseline by advisory and package.",
+                    path=source_path,
+                )
+            )
             tr.verdict = Verdict.FILTERED
             known += 1
 

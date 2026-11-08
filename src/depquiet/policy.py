@@ -91,6 +91,7 @@ class Policy:
     """A set of ordered rules that override triage verdicts."""
 
     rules: list[PolicyRule] = field(default_factory=list)
+    path: str = ""
 
     def apply(self, tr: TriageResult) -> tuple[Verdict, str | None]:
         """Apply the first matching rule to a triage result.
@@ -301,4 +302,4 @@ def _parse_policy(path: Path) -> Policy | None:
             )
         )
 
-    return Policy(rules=rules)
+    return Policy(rules=rules, path=str(path))

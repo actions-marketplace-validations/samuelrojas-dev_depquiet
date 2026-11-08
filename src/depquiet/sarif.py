@@ -11,15 +11,19 @@ becomes a result; FILTERED items are omitted (that's the point).
 from __future__ import annotations
 
 import json
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
 from depquiet import __version__
+from depquiet.assessment import assess_finding, decision_trace_to_json
 from depquiet.models import ScanResult, TriageResult, Verdict
 
 
 def to_sarif(result: ScanResult) -> dict[str, Any]:
     """Convert a ScanResult to a SARIF v2.1.0 document."""
+    if not result.scanned:
+        raise ValueError("Cannot generate SARIF from an incomplete scan.")
     rules: list[dict[str, Any]] = []
     results: list[dict[str, Any]] = []
     rule_index: dict[str, int] = {}
@@ -51,6 +55,11 @@ def to_sarif(result: ScanResult) -> dict[str, Any]:
                 "text": _build_message(tr),
             },
             "locations": _build_locations(tr, result.project_path, result.package_manager),
+            "properties": {
+                "assessment": assess_finding(tr).to_dict(),
+                "evidence": asdict(tr.evidence),
+                "decision_trace": decision_trace_to_json(tr),
+            },
         }
 
         if tr.epss_score is not None:
@@ -119,6 +128,8 @@ def _build_message(tr: TriageResult) -> str:
         parts.append("Verdict: REVIEW")
     else:
         parts.append("Verdict: ACTION REQUIRED")
+
+    parts.append("Product impact remains under investigation")
 
     return " | ".join(parts)
 

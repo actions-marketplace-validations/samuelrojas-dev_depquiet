@@ -6,6 +6,7 @@ from pathlib import Path
 
 from depquiet.html_report import render_html, write_html
 from depquiet.models import (
+    DecisionChange,
     FilterReason,
     ScanResult,
     Severity,
@@ -124,10 +125,34 @@ class TestRenderHtmlStructure:
 class TestRenderHtmlContent:
     """Verify the report shows correct data."""
 
-    def test_all_clear_badge_when_no_action(self) -> None:
+    def test_no_action_priority_badge_does_not_claim_an_all_clear(self) -> None:
         html = render_html(_make_result(review=2, filtered=5))
+        assert "No action-priority findings" in html
+        assert "All clear" not in html
+        assert "Product impact remains under investigation" in html
+
+    def test_low_epss_filter_does_not_claim_an_all_clear(self) -> None:
+        result = _make_result(filtered=1)
+        result.results[0].reasons = [FilterReason.LOW_EPSS]
+        html = render_html(result)
+        assert "No action-priority findings" in html
+        assert "All clear" not in html
+        assert "No vulnerabilities found" not in html
+        assert "Product impact remains under investigation" in html
+
+    def test_complete_empty_scan_can_be_all_clear(self) -> None:
+        html = render_html(_make_result())
         assert "All clear" in html
-        assert "badge-ok" in html
+
+    def test_incomplete_scan_shows_the_reason(self) -> None:
+        result = _make_result()
+        result.scanned = False
+        result.note = "Could not fetch <OSV> advisory details."
+        html = render_html(result)
+        assert "Scan incomplete" in html
+        assert "Could not fetch &lt;OSV&gt; advisory details." in html
+        assert "All clear" not in html
+        assert "No vulnerabilities found" not in html
 
     def test_action_required_badge(self) -> None:
         html = render_html(_make_result(action=3))
@@ -164,7 +189,7 @@ class TestRenderHtmlContent:
     def test_filtered_section_present(self) -> None:
         html = render_html(_make_result(filtered=3))
         assert "Filtered" in html
-        assert "noise reduction" in html
+        assert "priority filtering" in html
 
     def test_filtered_reason_breakdown(self) -> None:
         html = render_html(_make_result(filtered=2))
@@ -320,6 +345,36 @@ class TestFindingsJson:
         assert item["verdict"] == "action"
         assert item["epss"] == 0.85
         assert item["fix"] == "2.0.0"
+
+    def test_filtered_findings_retain_assessment_evidence_and_history(self) -> None:
+        import json
+
+        from depquiet.html_report import _build_findings_json
+
+        result = _make_result(filtered=1)
+        tr = result.results[0]
+        tr.evidence.usage = "observed"
+        tr.evidence.import_sites = ["app.js"]
+        tr.decision_trace.append(
+            DecisionChange(
+                source="ignore",
+                previous_verdict=Verdict.ACTION,
+                verdict=Verdict.FILTERED,
+                rule_id=tr.vuln.cve,
+                reason="Accepted until migration",
+                path=".depquiet-ignore",
+                author="security-team",
+            )
+        )
+        finding = json.loads(_build_findings_json(result))[0]
+        assert finding["assessment"]["status"] == "under_investigation"
+        assert finding["assessment"]["limitations"]
+        assert finding["evidence"]["usage"] == "observed"
+        assert finding["evidence"]["import_sites"] == ["app.js"]
+        assert finding["decision_trace"][0]["previous_verdict"] == "action"
+        assert finding["decision_trace"][0]["verdict"] == "filtered"
+        assert finding["decision_trace"][0]["author"] == "security-team"
+        assert finding["decision_trace"][0]["path"] == ".depquiet-ignore"
 
 
 # ---- XSS prevention ----

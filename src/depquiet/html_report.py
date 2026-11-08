@@ -13,8 +13,10 @@ from __future__ import annotations
 
 import html
 import json
+from dataclasses import asdict
 from pathlib import Path
 
+from depquiet.assessment import assess_finding, decision_trace_to_json
 from depquiet.models import FilterReason, ScanResult, TriageResult
 
 
@@ -31,6 +33,20 @@ def render_html(result: ScanResult) -> str:
 
     # Build filter reasons summary
     reason_rows = _build_reason_rows(result)
+
+    badge_class = "badge-alert"
+    context = ""
+    if not result.scanned:
+        status = "Scan incomplete"
+        context = f"<p>{_esc(result.note or 'The scan could not be completed.')}</p>"
+    elif not result.results:
+        status = "✓ All clear"
+        badge_class = "badge-ok"
+    else:
+        status = (
+            f"{action_count} action required" if action_count else "No action-priority findings"
+        )
+        context = "<p>Priorities guide triage. Product impact remains under investigation.</p>"
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -54,11 +70,13 @@ def render_html(result: ScanResult) -> str:
     <h1>depquiet</h1>
   </div>
   <div class="meta">
-    <span class="badge {"badge-ok" if action_count == 0 else "badge-alert"}">
-      {"✓ All clear" if action_count == 0 else f"{action_count} action required"}
+    <span class="badge {badge_class}">
+      {status}
     </span>
   </div>
 </header>
+
+{context}
 
 <section class="stats">
   <div class="stat-card">
@@ -149,6 +167,9 @@ def _build_findings_json(result: ScanResult) -> str:
                 "epss": tr.epss_score,
                 "fix": tr.vuln.fix_label,
                 "reachable": tr.reachable_imports,
+                "assessment": assess_finding(tr).to_dict(),
+                "evidence": asdict(tr.evidence),
+                "decision_trace": decision_trace_to_json(tr),
             }
         )
     # Escape < and > to prevent XSS in the embedded JSON blob.
@@ -168,7 +189,7 @@ def _build_reason_rows(result: ScanResult) -> str:
             by_reason[reason] = by_reason.get(reason, 0) + 1
 
     reason_labels = {
-        FilterReason.UNREACHABLE: "Unreachable code",
+        FilterReason.UNREACHABLE: "No dependency usage observed",
         FilterReason.DEV_DEPENDENCY: "Dev dependency only",
         FilterReason.LOW_EPSS: "Low EPSS score",
         FilterReason.COMMUNITY_TEMPLATE: "Community template match",
@@ -307,7 +328,7 @@ def _build_filtered_section(result: ScanResult, reason_rows: str) -> str:
     rows = "\n".join(_finding_row(tr) for tr in result.filtered)
     return f"""<section class="findings collapsed" id="filtered-section">
   <h2 class="toggle">✅ Filtered <span class="count">{len(result.filtered)}</span>
-    <span class="filter-rate">({result.filter_rate:.0f}% noise reduction)</span>
+    <span class="filter-rate">({result.filter_rate:.0f}% priority filtering)</span>
   </h2>
   <div class="collapsible">
     {

@@ -33,7 +33,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
-from depquiet.models import FilterReason, ScanResult, Verdict
+from depquiet.models import DecisionChange, FilterReason, ScanResult, Verdict
 
 
 @dataclass
@@ -264,8 +264,21 @@ def apply_ignores(result: ScanResult, ignore_file: IgnoreFile) -> ScanResult:
             continue
         entry = ignore_file.matches(tr.vuln.cve, tr.vuln.package)
         if entry is not None:
+            tr.decision_trace.append(
+                DecisionChange(
+                    source="ignore",
+                    previous_verdict=tr.verdict,
+                    verdict=Verdict.FILTERED,
+                    rule_id=entry.key,
+                    reason=entry.reason,
+                    path=ignore_file.path,
+                    author=entry.author,
+                    expires=entry.expires.isoformat() if entry.expires is not None else "",
+                )
+            )
             tr.verdict = Verdict.FILTERED
-            tr.reasons = [FilterReason.IGNORED]
+            if FilterReason.IGNORED not in tr.reasons:
+                tr.reasons.append(FilterReason.IGNORED)
     return result
 
 

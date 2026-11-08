@@ -1,9 +1,8 @@
-"""Filter: devDependencies never reach production.
+"""Development dependency metadata used as a remediation-priority signal.
 
-A vulnerability in a devDependency (test runner, linter, bundler) only affects
-the developer's machine during development, never the deployed application.
-This is one of the simplest and most reliable filters — if it's in
-devDependencies, it can't hurt users in production.
+The engine checks for shared production dependency paths before applying
+this filter. Metadata does not verify the contents of a deployed artifact
+or prove that development tooling is unaffected by a vulnerability.
 """
 
 from __future__ import annotations

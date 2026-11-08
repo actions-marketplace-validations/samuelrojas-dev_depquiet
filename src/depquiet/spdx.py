@@ -25,8 +25,9 @@ from pathlib import Path
 from typing import Any
 
 from depquiet import __version__
+from depquiet.assessment import assess_finding
 from depquiet.models import ScanResult, TriageResult
-from depquiet.sbom import _make_purl
+from depquiet.sbom import _components_with_references
 
 
 def _spdx_id(name: str, version: str) -> str:
@@ -40,11 +41,8 @@ def _spdx_id(name: str, version: str) -> str:
 
 
 def _verdict_to_annotation(tr: TriageResult) -> str:
-    """Build an annotation comment from a triage result."""
-    parts = [f"depquiet verdict: {tr.verdict.value}"]
-    if tr.reason_summary:
-        parts.append(tr.reason_summary)
-    return ". ".join(parts)
+    """Record prioritization observations without asserting product impact."""
+    return assess_finding(tr).detail
 
 
 def generate_spdx_json(
@@ -61,6 +59,8 @@ def generate_spdx_json(
     Returns:
         SPDX 2.3 JSON as a Python dict.
     """
+    if not scan_result.scanned:
+        raise ValueError("Cannot generate SPDX from an incomplete scan.")
     doc_uuid = str(uuid.uuid4())
     timestamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     project_name = Path(scan_result.project_path).name or "unknown"
@@ -69,7 +69,6 @@ def generate_spdx_json(
     # Build packages list
     spdx_packages: list[dict[str, Any]] = []
     relationships: list[dict[str, Any]] = []
-    seen: set[str] = set()
 
     # Build vulnerability lookup: CVE → list of TriageResults
     vuln_by_pkg: dict[str, list[TriageResult]] = {}
@@ -77,55 +76,21 @@ def generate_spdx_json(
         key = f"{tr.vuln.package}@{tr.vuln.version}"
         vuln_by_pkg.setdefault(key, []).append(tr)
 
-    if packages:
-        for name, version, ecosystem in packages:
-            purl = _make_purl(name, version, ecosystem)
-            if purl in seen:
-                continue
-            seen.add(purl)
-
-            spdx_id = _spdx_id(name, version)
-            pkg_entry = _build_package_entry(
-                spdx_id,
-                name,
-                version,
-                purl,
-                vuln_by_pkg.get(f"{name}@{version}", []),
-            )
-            spdx_packages.append(pkg_entry)
-            relationships.append(
-                {
-                    "spdxElementId": "SPDXRef-DOCUMENT",
-                    "relatedSpdxElement": spdx_id,
-                    "relationshipType": "DESCRIBES",
-                }
-            )
-    else:
-        # Fall back to scan results
-        for tr in scan_result.results:
-            v = tr.vuln
-            key = f"{v.package}@{v.version}"
-            if key in seen:
-                continue
-            seen.add(key)
-
-            purl = f"pkg:generic/{v.package}@{v.version}"
-            spdx_id = _spdx_id(v.package, v.version)
-            pkg_entry = _build_package_entry(
-                spdx_id,
-                v.package,
-                v.version,
-                purl,
-                vuln_by_pkg.get(key, []),
-            )
-            spdx_packages.append(pkg_entry)
-            relationships.append(
-                {
-                    "spdxElementId": "SPDXRef-DOCUMENT",
-                    "relatedSpdxElement": spdx_id,
-                    "relationshipType": "DESCRIBES",
-                }
-            )
+    components, _ = _components_with_references(scan_result, packages)
+    for component in components:
+        name, version = component["name"], component["version"]
+        spdx_id = _spdx_id(name, version)
+        pkg_entry = _build_package_entry(
+            spdx_id, name, version, component["purl"], vuln_by_pkg.get(f"{name}@{version}", [])
+        )
+        spdx_packages.append(pkg_entry)
+        relationships.append(
+            {
+                "spdxElementId": "SPDXRef-DOCUMENT",
+                "relatedSpdxElement": spdx_id,
+                "relationshipType": "DESCRIBES",
+            }
+        )
 
     doc: dict[str, Any] = {
         "spdxVersion": "SPDX-2.3",
@@ -201,4 +166,4 @@ def write_spdx(
         packages: Optional lockfile packages for component inventory.
     """
     doc = generate_spdx_json(scan_result, packages)
-    output_path.write_text(json.dumps(doc, indent=2) + "\n")
+    output_path.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")

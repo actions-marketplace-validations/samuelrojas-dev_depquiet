@@ -1,0 +1,46 @@
+{
+  "audit_json": {
+    "auditReportVersion": 2,
+    "vulnerabilities": {
+      "fixture-dev-tool": {
+        "fixAvailable": false,
+        "isDirect": true,
+        "name": "fixture-dev-tool",
+        "severity": "high",
+        "via": [
+          {
+            "name": "fixture-dev-tool",
+            "range": "1.0.0",
+            "severity": "high",
+            "title": "Synthetic filter contract; not a real advisory",
+            "url": "https://example.invalid/advisories/SYNTHETIC-FILTER-001"
+          }
+        ]
+      },
+      "fixture-runtime": {
+        "fixAvailable": false,
+        "isDirect": true,
+        "name": "fixture-runtime",
+        "severity": "high",
+        "via": [
+          {
+            "name": "fixture-runtime",
+            "range": "1.0.0",
+            "severity": "high",
+            "title": "Synthetic retain contract; not a real advisory",
+            "url": "https://example.invalid/advisories/SYNTHETIC-RETAIN-001"
+          }
+        ]
+      }
+    }
+  },
+  "description": "Invented packages and advisory IDs. Tests retention of an imported runtime dependency and filtering of a dev-only dependency. No real exploitability labels or accuracy claim.",
+  "files": {
+    "app.js": "const runtime = require('fixture-runtime');\nruntime.handleRequest();\n",
+    "package-lock.json": "{\n  \"name\": \"depquiet-synthetic-reference\",\n  \"version\": \"1.0.0\",\n  \"lockfileVersion\": 3,\n  \"packages\": {\n    \"\": {\n      \"name\": \"depquiet-synthetic-reference\",\n      \"version\": \"1.0.0\",\n      \"private\": true,\n      \"dependencies\": {\n        \"fixture-runtime\": \"1.0.0\"\n      },\n      \"devDependencies\": {\n        \"fixture-dev-tool\": \"1.0.0\"\n      }\n    },\n    \"node_modules/fixture-runtime\": {\n      \"version\": \"1.0.0\"\n    },\n    \"node_modules/fixture-dev-tool\": {\n      \"version\": \"1.0.0\",\n      \"dev\": true\n    }\n  }\n}\n",
+    "package.json": "{\n  \"name\": \"depquiet-synthetic-reference\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"dependencies\": {\n    \"fixture-runtime\": \"1.0.0\"\n  },\n  \"devDependencies\": {\n    \"fixture-dev-tool\": \"1.0.0\"\n  }\n}\n"
+  },
+  "kind": "synthetic",
+  "project": "synthetic/priority-contract-v1",
+  "schema_version": 1
+}

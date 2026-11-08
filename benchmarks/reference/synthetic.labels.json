@@ -1,0 +1,34 @@
+{
+  "cases": [
+    {
+      "advisory": "SYNTHETIC-RETAIN-001",
+      "label": "retain",
+      "package": "fixture-runtime",
+      "project": "synthetic/priority-contract-v1",
+      "provenance": {
+        "kind": "synthetic",
+        "reviewer": "depquiet synthetic contract author (not an independent review)",
+        "source": "synthetic.snapshot.json: files and audit_json authored together for this contract"
+      },
+      "reason": "By construction this invented high-priority advisory affects the imported runtime package. The contract must retain it for review; this is not a real exploitability judgment.",
+      "snapshot_sha256": "d1eae9ed833f91f1b1f2a7df923b515edcd16d2706ba8caceade7f82abb9f680",
+      "version": "1.0.0"
+    },
+    {
+      "advisory": "SYNTHETIC-FILTER-001",
+      "label": "filter",
+      "package": "fixture-dev-tool",
+      "project": "synthetic/priority-contract-v1",
+      "provenance": {
+        "kind": "synthetic",
+        "reviewer": "depquiet synthetic contract author (not an independent review)",
+        "source": "synthetic.snapshot.json: files and audit_json authored together for this contract"
+      },
+      "reason": "By construction this invented development tool is never part of the deployed application. Filtering is permitted in this controlled production-priority contract.",
+      "snapshot_sha256": "d1eae9ed833f91f1b1f2a7df923b515edcd16d2706ba8caceade7f82abb9f680",
+      "version": "1.0.0"
+    }
+  ],
+  "corpus": "synthetic-priority-contract-v1",
+  "schema_version": 1
+}

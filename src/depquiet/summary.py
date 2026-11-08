@@ -14,6 +14,9 @@ from depquiet.models import FilterReason, ScanResult
 
 def render_summary(result: ScanResult) -> str:
     """Return a complete GFM summary of the scan result."""
+    if not result.scanned:
+        note = result.note or "The scan could not be completed."
+        return f"## ⚠️ depquiet — Scan incomplete\n\n{note}"
     lines: list[str] = []
 
     total = len(result.results)
@@ -23,8 +26,10 @@ def render_summary(result: ScanResult) -> str:
     filter_rate = result.filter_rate
 
     # Title with status badge
-    if action_count == 0:
+    if not result.results:
         lines.append("## ✅ depquiet — All clear")
+    elif action_count == 0:
+        lines.append("## ⚠️ depquiet — No action-priority findings")
     else:
         lines.append(f"## 🔴 depquiet — {action_count} action required")
 
@@ -42,6 +47,9 @@ def render_summary(result: ScanResult) -> str:
     if not result.results:
         lines.append("No vulnerabilities found. 🎉")
         return "\n".join(lines)
+
+    lines.append("Priorities guide triage. Product impact remains under investigation.")
+    lines.append("")
 
     # Action items table
     if result.action:
@@ -89,7 +97,7 @@ def render_summary(result: ScanResult) -> str:
                 by_reason[reason] = by_reason.get(reason, 0) + 1
 
         reason_labels = {
-            FilterReason.UNREACHABLE: "Unreachable code",
+            FilterReason.UNREACHABLE: "No dependency usage observed",
             FilterReason.DEV_DEPENDENCY: "Dev dependency only",
             FilterReason.LOW_EPSS: "Low EPSS score",
             FilterReason.COMMUNITY_TEMPLATE: "Community template match",
