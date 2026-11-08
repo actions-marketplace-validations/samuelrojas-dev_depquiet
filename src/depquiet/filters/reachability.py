@@ -1,8 +1,8 @@
-"""Filter: is the vulnerable function actually imported/used?
+"""Dependency usage heuristics based on imports, commands and project mentions.
 
-This is the highest-value filter. 60-80% of CVEs flagged by scanners affect
-functions that the project never calls. A prototype pollution in lodash.merge()
-doesn't matter if you only use lodash.get().
+These observations do not establish vulnerable-function execution or product
+impact. Python imports use AST extraction with a regex fallback on parse errors;
+the other supported languages use import-pattern heuristics.
 
 Strategy (v7 — multi-language import analysis, conservative):
 1. Python files are parsed with ``ast`` to extract real import statements,
@@ -27,9 +27,9 @@ Strategy (v7 — multi-language import analysis, conservative):
     appear in the source (string search — conservative).
 12. Only mark as unreachable if we're confident the package/function isn't used.
 
-Conservative by design: we'd rather let a false positive through than dismiss
-a real vulnerability. Files that fail to parse are treated as *possibly*
-importing the package (safe fallback).
+Source read or enumeration errors leave coverage incomplete. In that case,
+absence of observed imports cannot justify an unreachable verdict. Regex
+fallbacks preserve their existing behavior and do not establish parse coverage.
 """
 
 from __future__ import annotations
@@ -37,8 +37,9 @@ from __future__ import annotations
 import ast
 import os
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from functools import lru_cache
+from functools import lru_cache, partial
 from pathlib import Path
 
 from depquiet.depgraph import DependencyGraph
@@ -46,6 +47,7 @@ from depquiet.models import FilterReason, Vulnerability
 from depquiet.pynames import import_candidates
 
 _TEXT_CACHE: dict[tuple[str, int, int], str] = {}
+_TextReader = Callable[[Path], str]
 
 
 def _read_text(f: Path) -> str:
@@ -136,10 +138,16 @@ _MENTION_MAX_BYTES = 512 * 1024
 _WORD = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_\-]*")
 
 
-def _mention_words(project: Path) -> set[str]:
+def _mention_words(
+    project: Path,
+    *,
+    read_text: _TextReader | None = None,
+    onerror: Callable[[OSError], None] | None = None,
+    on_read_error: Callable[[str, Path, OSError], None] | None = None,
+) -> set[str]:
     """Lower-cased words in the project's code, scripts and config files."""
     words: set[str] = set()
-    for root, dirs, files in os.walk(project):
+    for root, dirs, files in os.walk(project, onerror=onerror):
         dirs[:] = [
             d
             for d in dirs
@@ -154,10 +162,18 @@ def _mention_words(project: Path) -> set[str]:
             if suffix not in _MENTION_SUFFIXES and not extensionless:
                 continue
             try:
-                if path.stat().st_size > _MENTION_MAX_BYTES:
-                    continue
-                text = _read_text(path)
-            except OSError:
+                size = path.stat().st_size
+            except OSError as error:
+                if on_read_error is not None:
+                    on_read_error("inspect source metadata", path, error)
+                continue
+            if size > _MENTION_MAX_BYTES:
+                continue
+            try:
+                text = _read_text(path) if read_text is None else read_text(path)
+            except OSError as error:
+                if on_read_error is not None:
+                    on_read_error("read source", path, error)
                 continue
             if extensionless and "\x00" in text[:1024]:
                 continue  # binary
@@ -228,10 +244,15 @@ _SKIP_DIRS = {
 }
 
 
-def _source_files(project: Path, extensions: set[str]) -> list[Path]:
+def _source_files(
+    project: Path,
+    extensions: set[str],
+    *,
+    onerror: Callable[[OSError], None] | None = None,
+) -> list[Path]:
     """Walk project tree and collect source files, skipping vendored dirs."""
     files: list[Path] = []
-    for root, dirs, filenames in os.walk(project):
+    for root, dirs, filenames in os.walk(project, onerror=onerror):
         dirs[:] = [d for d in dirs if d not in _SKIP_DIRS]
         for f in filenames:
             p = Path(root) / f
@@ -240,13 +261,15 @@ def _source_files(project: Path, extensions: set[str]) -> list[Path]:
     return files
 
 
-def _file_mentions(files: list[Path], pattern: str) -> list[str]:
+def _file_mentions(
+    files: list[Path], pattern: str, *, read_text: _TextReader | None = None
+) -> list[str]:
     """Return file paths where pattern appears (case-sensitive)."""
     matches: list[str] = []
     regex = re.compile(re.escape(pattern))
     for f in files:
         try:
-            text = _read_text(f)
+            text = _read_text(f) if read_text is None else read_text(f)
             if regex.search(text):
                 matches.append(str(f))
         except OSError:
@@ -294,7 +317,13 @@ def _ast_imports(source: str) -> set[str] | None:
     return names
 
 
-def _py_imports_package(files: list[Path], package: str, project: Path | None = None) -> bool:
+def _py_imports_package(
+    files: list[Path],
+    package: str,
+    project: Path | None = None,
+    *,
+    read_text: _TextReader | None = None,
+) -> bool:
     """Check whether any Python file imports the given package using AST.
 
     Uses ``ast.parse()`` for proper import detection — immune to false
@@ -308,12 +337,14 @@ def _py_imports_package(files: list[Path], package: str, project: Path | None = 
     # The distribution name (PyYAML, Django) rarely equals the module name
     # (yaml, django); see depquiet.pynames.
     candidates = import_candidates(package, project)
-    return any(_py_text_imports(f, candidates) for f in files)
+    return any(_py_text_imports(f, candidates, read_text=read_text) for f in files)
 
 
-def _py_text_imports(f: Path, candidates: set[str]) -> bool:
+def _py_text_imports(
+    f: Path, candidates: set[str], *, read_text: _TextReader | None = None
+) -> bool:
     try:
-        text = _read_text(f)
+        text = _read_text(f) if read_text is None else read_text(f)
     except OSError:
         return False
     imports = _ast_imports(text)
@@ -448,7 +479,9 @@ def _js_package_name(specifier: str) -> str:
     return specifier.split("/")[0]
 
 
-def _js_imports_package(files: list[Path], package: str) -> bool:
+def _js_imports_package(
+    files: list[Path], package: str, *, read_text: _TextReader | None = None
+) -> bool:
     """Check whether any JS/TS file imports the given package.
 
     Uses comment/string stripping + regex for proper import detection —
@@ -456,7 +489,7 @@ def _js_imports_package(files: list[Path], package: str) -> bool:
     """
     for f in files:
         try:
-            text = _read_text(f)
+            text = _read_text(f) if read_text is None else read_text(f)
         except OSError:
             continue
         imports = _js_extract_imports(text)
@@ -465,18 +498,26 @@ def _js_imports_package(files: list[Path], package: str) -> bool:
     return False
 
 
-def _js_file_imports_package(f: Path, package: str) -> bool:
+def _js_file_imports_package(
+    f: Path, package: str, *, read_text: _TextReader | None = None
+) -> bool:
     """Check whether a single JS/TS file imports the given package."""
     try:
-        text = _read_text(f)
+        text = _read_text(f) if read_text is None else read_text(f)
     except OSError:
         return False
     return package in _js_extract_imports(text)
 
 
-def _py_file_imports_package(f: Path, package: str, project: Path | None = None) -> bool:
+def _py_file_imports_package(
+    f: Path,
+    package: str,
+    project: Path | None = None,
+    *,
+    read_text: _TextReader | None = None,
+) -> bool:
     """Check whether a single Python file imports the given package."""
-    return _py_text_imports(f, import_candidates(package, project))
+    return _py_text_imports(f, import_candidates(package, project), read_text=read_text)
 
 
 def _strip_go_comments(source: str) -> str:
@@ -548,7 +589,9 @@ def _go_module_name(import_path: str) -> str:
     return "/".join(parts[:3]) if len(parts) >= 3 else import_path
 
 
-def _go_imports_package(files: list[Path], package: str) -> bool:
+def _go_imports_package(
+    files: list[Path], package: str, *, read_text: _TextReader | None = None
+) -> bool:
     """Check whether any Go file imports the given package/module.
 
     Matches if the package name equals any imported module root or if the
@@ -556,7 +599,7 @@ def _go_imports_package(files: list[Path], package: str) -> bool:
     """
     for f in files:
         try:
-            text = _read_text(f)
+            text = _read_text(f) if read_text is None else read_text(f)
         except OSError:
             continue
         imports = _go_extract_imports(text)
@@ -568,10 +611,12 @@ def _go_imports_package(files: list[Path], package: str) -> bool:
     return False
 
 
-def _go_file_imports_package(f: Path, package: str) -> bool:
+def _go_file_imports_package(
+    f: Path, package: str, *, read_text: _TextReader | None = None
+) -> bool:
     """Check whether a single Go file imports the given package."""
     try:
-        text = _read_text(f)
+        text = _read_text(f) if read_text is None else read_text(f)
     except OSError:
         return False
     imports = _go_extract_imports(text)
@@ -630,7 +675,9 @@ def _rs_extract_imports(source: str) -> set[str]:
     return names
 
 
-def _rs_imports_package(files: list[Path], package: str) -> bool:
+def _rs_imports_package(
+    files: list[Path], package: str, *, read_text: _TextReader | None = None
+) -> bool:
     """Check whether any Rust file imports the given crate.
 
     Crate names in Cargo.toml use hyphens but Rust source uses underscores,
@@ -639,7 +686,7 @@ def _rs_imports_package(files: list[Path], package: str) -> bool:
     crate_name = package.replace("-", "_")
     for f in files:
         try:
-            text = _read_text(f)
+            text = _read_text(f) if read_text is None else read_text(f)
         except OSError:
             continue
         imports = _rs_extract_imports(text)
@@ -648,11 +695,13 @@ def _rs_imports_package(files: list[Path], package: str) -> bool:
     return False
 
 
-def _rs_file_imports_package(f: Path, package: str) -> bool:
+def _rs_file_imports_package(
+    f: Path, package: str, *, read_text: _TextReader | None = None
+) -> bool:
     """Check whether a single Rust file imports the given crate."""
     crate_name = package.replace("-", "_")
     try:
-        text = _read_text(f)
+        text = _read_text(f) if read_text is None else read_text(f)
     except OSError:
         return False
     return crate_name in _rs_extract_imports(text)
@@ -728,7 +777,9 @@ def _java_group_id(package: str) -> str:
     return package.split(":")[0]
 
 
-def _java_imports_package(files: list[Path], package: str) -> bool:
+def _java_imports_package(
+    files: list[Path], package: str, *, read_text: _TextReader | None = None
+) -> bool:
     """Check whether any Java/Kotlin file imports something from *package*.
 
     *package* can be a Maven coordinate (``group:artifact``) or a plain
@@ -738,7 +789,7 @@ def _java_imports_package(files: list[Path], package: str) -> bool:
     group = _java_group_id(package)
     for f in files:
         try:
-            text = _read_text(f)
+            text = _read_text(f) if read_text is None else read_text(f)
         except OSError:
             continue
         for imp in _java_extract_imports(text):
@@ -747,11 +798,13 @@ def _java_imports_package(files: list[Path], package: str) -> bool:
     return False
 
 
-def _java_file_imports_package(f: Path, package: str) -> bool:
+def _java_file_imports_package(
+    f: Path, package: str, *, read_text: _TextReader | None = None
+) -> bool:
     """Check whether a single Java/Kotlin file imports the given package."""
     group = _java_group_id(package)
     try:
-        text = _read_text(f)
+        text = _read_text(f) if read_text is None else read_text(f)
     except OSError:
         return False
     return any(imp == group or imp.startswith(group + ".") for imp in _java_extract_imports(text))
@@ -808,7 +861,9 @@ def _cs_extract_namespaces(source: str) -> set[str]:
     return namespaces
 
 
-def _cs_imports_package(files: list[Path], package: str) -> bool:
+def _cs_imports_package(
+    files: list[Path], package: str, *, read_text: _TextReader | None = None
+) -> bool:
     """Check whether any C# file uses a namespace matching *package*.
 
     NuGet package names typically match the root namespace (e.g. the
@@ -818,7 +873,7 @@ def _cs_imports_package(files: list[Path], package: str) -> bool:
     """
     for f in files:
         try:
-            text = _read_text(f)
+            text = _read_text(f) if read_text is None else read_text(f)
         except OSError:
             continue
         for ns in _cs_extract_namespaces(text):
@@ -827,10 +882,12 @@ def _cs_imports_package(files: list[Path], package: str) -> bool:
     return False
 
 
-def _cs_file_imports_package(f: Path, package: str) -> bool:
+def _cs_file_imports_package(
+    f: Path, package: str, *, read_text: _TextReader | None = None
+) -> bool:
     """Check whether a single C# file uses a namespace matching the package."""
     try:
-        text = _read_text(f)
+        text = _read_text(f) if read_text is None else read_text(f)
     except OSError:
         return False
     return any(ns == package or ns.startswith(package + ".") for ns in _cs_extract_namespaces(text))
@@ -884,7 +941,9 @@ def _php_extract_uses(source: str) -> set[str]:
     return packages
 
 
-def _php_imports_package(files: list[Path], package: str) -> bool:
+def _php_imports_package(
+    files: list[Path], package: str, *, read_text: _TextReader | None = None
+) -> bool:
     """Check whether any PHP file uses a namespace matching *package*.
 
     *package* should be in Composer format (``vendor/package``).  We match
@@ -894,7 +953,7 @@ def _php_imports_package(files: list[Path], package: str) -> bool:
     pkg_lower = package.lower()
     for f in files:
         try:
-            text = _read_text(f)
+            text = _read_text(f) if read_text is None else read_text(f)
         except OSError:
             continue
         if pkg_lower in _php_extract_uses(text):
@@ -902,10 +961,12 @@ def _php_imports_package(files: list[Path], package: str) -> bool:
     return False
 
 
-def _php_file_imports_package(f: Path, package: str) -> bool:
+def _php_file_imports_package(
+    f: Path, package: str, *, read_text: _TextReader | None = None
+) -> bool:
     """Check whether a single PHP file uses a namespace matching the package."""
     try:
-        text = _read_text(f)
+        text = _read_text(f) if read_text is None else read_text(f)
     except OSError:
         return False
     return package.lower() in _php_extract_uses(text)
@@ -973,7 +1034,9 @@ def _rb_gem_require_names(gem_name: str) -> set[str]:
     return names
 
 
-def _rb_imports_package(files: list[Path], package: str) -> bool:
+def _rb_imports_package(
+    files: list[Path], package: str, *, read_text: _TextReader | None = None
+) -> bool:
     """Check whether any Ruby file requires *package*.
 
     Matches when the required string (top-level segment) matches the gem
@@ -982,7 +1045,7 @@ def _rb_imports_package(files: list[Path], package: str) -> bool:
     require_names = _rb_gem_require_names(package)
     for f in files:
         try:
-            text = _read_text(f)
+            text = _read_text(f) if read_text is None else read_text(f)
         except OSError:
             continue
         extracted = _rb_extract_requires(text)
@@ -991,10 +1054,12 @@ def _rb_imports_package(files: list[Path], package: str) -> bool:
     return False
 
 
-def _rb_file_imports_package(f: Path, package: str) -> bool:
+def _rb_file_imports_package(
+    f: Path, package: str, *, read_text: _TextReader | None = None
+) -> bool:
     """Check whether a single Ruby file requires the package."""
     try:
-        text = _read_text(f)
+        text = _read_text(f) if read_text is None else read_text(f)
     except OSError:
         return False
     return bool(_rb_gem_require_names(package) & _rb_extract_requires(text))
@@ -1053,7 +1118,9 @@ def _swift_module_name(package: str) -> str:
     return package.replace("-", "_")
 
 
-def _swift_imports_package(files: list[Path], package: str) -> bool:
+def _swift_imports_package(
+    files: list[Path], package: str, *, read_text: _TextReader | None = None
+) -> bool:
     """Check whether any Swift file imports *package*.
 
     Matches the package name and its hyphen-to-underscore variant.
@@ -1061,7 +1128,7 @@ def _swift_imports_package(files: list[Path], package: str) -> bool:
     names = {package, _swift_module_name(package)}
     for f in files:
         try:
-            text = _read_text(f)
+            text = _read_text(f) if read_text is None else read_text(f)
         except OSError:
             continue
         if names & _swift_extract_imports(text):
@@ -1069,10 +1136,12 @@ def _swift_imports_package(files: list[Path], package: str) -> bool:
     return False
 
 
-def _swift_file_imports_package(f: Path, package: str) -> bool:
+def _swift_file_imports_package(
+    f: Path, package: str, *, read_text: _TextReader | None = None
+) -> bool:
     """Check whether a single Swift file imports the package."""
     try:
-        text = _read_text(f)
+        text = _read_text(f) if read_text is None else read_text(f)
     except OSError:
         return False
     return bool({package, _swift_module_name(package)} & _swift_extract_imports(text))
@@ -1117,14 +1186,16 @@ def _dart_extract_imports(source: str) -> set[str]:
     return packages
 
 
-def _dart_imports_package(files: list[Path], package: str) -> bool:
+def _dart_imports_package(
+    files: list[Path], package: str, *, read_text: _TextReader | None = None
+) -> bool:
     """Check whether any Dart file imports *package*."""
     # Dart pub packages use underscores; hyphens aren't allowed in package names
     # but some tools may report with hyphens
     names = {package, package.replace("-", "_")}
     for f in files:
         try:
-            text = _read_text(f)
+            text = _read_text(f) if read_text is None else read_text(f)
         except OSError:
             continue
         if names & _dart_extract_imports(text):
@@ -1132,10 +1203,12 @@ def _dart_imports_package(files: list[Path], package: str) -> bool:
     return False
 
 
-def _dart_file_imports_package(f: Path, package: str) -> bool:
+def _dart_file_imports_package(
+    f: Path, package: str, *, read_text: _TextReader | None = None
+) -> bool:
     """Check whether a single Dart file imports the package."""
     try:
-        text = _read_text(f)
+        text = _read_text(f) if read_text is None else read_text(f)
     except OSError:
         return False
     return bool({package, package.replace("-", "_")} & _dart_extract_imports(text))
@@ -1161,65 +1234,141 @@ class ReachabilityFilter:
         self._import_cache: dict[str, bool] = {}
         self._sites_cache: dict[str, list[str]] = {}
         self._words: set[str] | None = None
+        self._source_inventory: list[Path] | None = None
+        self._included_source_paths: set[Path] = set()
+        self._text_by_path: dict[Path, str] = {}
+        self._text_errors: dict[Path, OSError] = {}
+        self._coverage_errors: dict[tuple[str, Path], str] = {}
+
+    def _record_coverage_error(self, operation: str, path: Path, error: OSError) -> None:
+        try:
+            display_path = path.relative_to(self._project).as_posix() or "."
+        except ValueError:
+            display_path = str(path)
+        detail = " ".join(str(error).split())
+        self._coverage_errors[(operation, path)] = (
+            f"Source coverage incomplete: could not {operation} {display_path} "
+            f"({type(error).__name__}: {detail})."
+        )
+
+    def _enumeration_error(self, error: OSError) -> None:
+        path = Path(os.fsdecode(error.filename)) if error.filename else self._project
+        self._record_coverage_error("enumerate source directory", path, error)
+
+    def _mention_error(self, operation: str, path: Path, error: OSError) -> None:
+        if path in self._included_source_paths:
+            self._record_coverage_error(operation, path, error)
+
+    def _read_project_text(self, path: Path) -> str:
+        """Snapshot each attempted read once, including failures, for this scan."""
+        if path in self._text_by_path:
+            return self._text_by_path[path]
+        if path in self._text_errors:
+            raise self._text_errors[path]
+        try:
+            text = _read_text(path)
+        except OSError as error:
+            self._text_errors[path] = error
+            if path in self._included_source_paths:
+                self._record_coverage_error("read source", path, error)
+            raise
+        self._text_by_path[path] = text
+        return text
+
+    def _ensure_source_inventory(self) -> None:
+        if self._source_inventory is not None:
+            return
+        self._source_inventory = _source_files(
+            self._project, _ALL_EXTENSIONS, onerror=self._enumeration_error
+        )
+        self._included_source_paths = set(self._source_inventory)
+        for path in self._source_inventory:
+            try:
+                self._read_project_text(path)
+            except OSError:
+                # The failed path is retained in coverage evidence, not imports.
+                continue
+
+    def _files_for_extensions(self, extensions: set[str]) -> list[Path]:
+        self._ensure_source_inventory()
+        assert self._source_inventory is not None
+        return [
+            path
+            for path in self._source_inventory
+            if path.suffix in extensions and path not in self._text_errors
+        ]
+
+    @property
+    def source_coverage_complete(self) -> bool:
+        """Whether included source enumeration and reads completed without errors."""
+        self._ensure_source_inventory()
+        return not self._coverage_errors
+
+    @property
+    def source_coverage_observations(self) -> list[str]:
+        """Read/enumeration failures, without inventing import sites for them."""
+        self._ensure_source_inventory()
+        keys = sorted(self._coverage_errors, key=lambda key: (str(key[1]), key[0]))
+        return [self._coverage_errors[key] for key in keys]
 
     @property
     def js_files(self) -> list[Path]:
         if self._js_files is None:
-            self._js_files = _source_files(self._project, _JS_EXTENSIONS)
+            self._js_files = self._files_for_extensions(_JS_EXTENSIONS)
         return self._js_files
 
     @property
     def py_files(self) -> list[Path]:
         if self._py_files is None:
-            self._py_files = _source_files(self._project, _PY_EXTENSIONS)
+            self._py_files = self._files_for_extensions(_PY_EXTENSIONS)
         return self._py_files
 
     @property
     def go_files(self) -> list[Path]:
         if self._go_files is None:
-            self._go_files = _source_files(self._project, _GO_EXTENSIONS)
+            self._go_files = self._files_for_extensions(_GO_EXTENSIONS)
         return self._go_files
 
     @property
     def rs_files(self) -> list[Path]:
         if self._rs_files is None:
-            self._rs_files = _source_files(self._project, _RS_EXTENSIONS)
+            self._rs_files = self._files_for_extensions(_RS_EXTENSIONS)
         return self._rs_files
 
     @property
     def java_files(self) -> list[Path]:
         if self._java_files is None:
-            self._java_files = _source_files(self._project, _JAVA_EXTENSIONS)
+            self._java_files = self._files_for_extensions(_JAVA_EXTENSIONS)
         return self._java_files
 
     @property
     def cs_files(self) -> list[Path]:
         if self._cs_files is None:
-            self._cs_files = _source_files(self._project, _CS_EXTENSIONS)
+            self._cs_files = self._files_for_extensions(_CS_EXTENSIONS)
         return self._cs_files
 
     @property
     def php_files(self) -> list[Path]:
         if self._php_files is None:
-            self._php_files = _source_files(self._project, _PHP_EXTENSIONS)
+            self._php_files = self._files_for_extensions(_PHP_EXTENSIONS)
         return self._php_files
 
     @property
     def rb_files(self) -> list[Path]:
         if self._rb_files is None:
-            self._rb_files = _source_files(self._project, _RB_EXTENSIONS)
+            self._rb_files = self._files_for_extensions(_RB_EXTENSIONS)
         return self._rb_files
 
     @property
     def swift_files(self) -> list[Path]:
         if self._swift_files is None:
-            self._swift_files = _source_files(self._project, _SWIFT_EXTENSIONS)
+            self._swift_files = self._files_for_extensions(_SWIFT_EXTENSIONS)
         return self._swift_files
 
     @property
     def dart_files(self) -> list[Path]:
         if self._dart_files is None:
-            self._dart_files = _source_files(self._project, _DART_EXTENSIONS)
+            self._dart_files = self._files_for_extensions(_DART_EXTENSIONS)
         return self._dart_files
 
     def check(self, vuln: Vulnerability) -> bool:
@@ -1233,6 +1382,8 @@ class ReachabilityFilter:
         JS and Python source files so mixed-language projects work correctly.
         """
         pkg = vuln.package
+        if not self.source_coverage_complete:
+            return False
 
         # If we know which specific functions are vulnerable, check those
         # across all source files
@@ -1251,7 +1402,10 @@ class ReachabilityFilter:
             )
             if not all_files:
                 return False
-            return all(not _file_mentions(all_files, func) for func in vuln.vulnerable_functions)
+            return all(
+                not _file_mentions(all_files, func, read_text=self._read_project_text)
+                for func in vuln.vulnerable_functions
+            )
 
         return self._package_unused(pkg)
 
@@ -1281,16 +1435,21 @@ class ReachabilityFilter:
 
     def _imports_package_uncached(self, pkg: str) -> bool:
         checks = (
-            (self.js_files, _js_imports_package),
-            (self.py_files, lambda fs, p: _py_imports_package(fs, p, self._project)),
-            (self.go_files, _go_imports_package),
-            (self.rs_files, _rs_imports_package),
-            (self.java_files, _java_imports_package),
-            (self.cs_files, _cs_imports_package),
-            (self.php_files, _php_imports_package),
-            (self.rb_files, _rb_imports_package),
-            (self.swift_files, _swift_imports_package),
-            (self.dart_files, _dart_imports_package),
+            (self.js_files, partial(_js_imports_package, read_text=self._read_project_text)),
+            (
+                self.py_files,
+                partial(
+                    _py_imports_package, project=self._project, read_text=self._read_project_text
+                ),
+            ),
+            (self.go_files, partial(_go_imports_package, read_text=self._read_project_text)),
+            (self.rs_files, partial(_rs_imports_package, read_text=self._read_project_text)),
+            (self.java_files, partial(_java_imports_package, read_text=self._read_project_text)),
+            (self.cs_files, partial(_cs_imports_package, read_text=self._read_project_text)),
+            (self.php_files, partial(_php_imports_package, read_text=self._read_project_text)),
+            (self.rb_files, partial(_rb_imports_package, read_text=self._read_project_text)),
+            (self.swift_files, partial(_swift_imports_package, read_text=self._read_project_text)),
+            (self.dart_files, partial(_dart_imports_package, read_text=self._read_project_text)),
         )
         return any(files and func(files, pkg) for files, func in checks)
 
@@ -1301,7 +1460,13 @@ class ReachabilityFilter:
         filter less, never more.
         """
         if self._words is None:
-            self._words = _mention_words(self._project)
+            self._ensure_source_inventory()
+            self._words = _mention_words(
+                self._project,
+                read_text=self._read_project_text,
+                onerror=self._enumeration_error,
+                on_read_error=self._mention_error,
+            )
         names = {pkg.lower(), pkg.rsplit("/", 1)[-1].lower()}
         names |= import_candidates(pkg, self._project)
         names |= {n.replace("-", "_") for n in names}
@@ -1324,7 +1489,10 @@ class ReachabilityFilter:
         an alert. Check the final component too: ``lodash.merge`` may be called
         through a namespace alias such as ``_.merge``.
         """
-        files = _source_files(self._project, _ALL_EXTENSIONS)
+        self._ensure_source_inventory()
+        if not self.source_coverage_complete:
+            return False
+        files = self._source_inventory
         if not files or not names:
             return False
         needles = {part for name in names for part in (name, name.rsplit(".", 1)[-1])}
@@ -1332,7 +1500,7 @@ class ReachabilityFilter:
             return False
         for source in files:
             try:
-                text = _read_text(source)
+                text = self._read_project_text(source)
             except OSError:
                 return False
             if any(name in text for name in needles):
@@ -1380,7 +1548,8 @@ class ReachabilityFilter:
                 unreachable=bool(ancestors)
                 and self._has_source()
                 and not imported
-                and not used(vuln.package),
+                and not used(vuln.package)
+                and self.source_coverage_complete,
                 dependency_type="transitive",
                 introduced_by=ancestors,
                 imported_ancestors=imported,
@@ -1405,42 +1574,42 @@ class ReachabilityFilter:
         results: list[str] = []
         # Check JS/TS files by import/require detection
         for f in self.js_files:
-            if _js_file_imports_package(f, pkg):
+            if _js_file_imports_package(f, pkg, read_text=self._read_project_text):
                 results.append(str(f))
         # Check Python files by AST-based import detection
         for f in self.py_files:
-            if _py_file_imports_package(f, pkg, self._project):
+            if _py_file_imports_package(f, pkg, self._project, read_text=self._read_project_text):
                 results.append(str(f))
         # Check Go files by import detection
         for f in self.go_files:
-            if _go_file_imports_package(f, pkg):
+            if _go_file_imports_package(f, pkg, read_text=self._read_project_text):
                 results.append(str(f))
         # Check Rust files by import detection
         for f in self.rs_files:
-            if _rs_file_imports_package(f, pkg):
+            if _rs_file_imports_package(f, pkg, read_text=self._read_project_text):
                 results.append(str(f))
         # Check Java/Kotlin files by import detection
         for f in self.java_files:
-            if _java_file_imports_package(f, pkg):
+            if _java_file_imports_package(f, pkg, read_text=self._read_project_text):
                 results.append(str(f))
         # Check C# files by using-directive detection
         for f in self.cs_files:
-            if _cs_file_imports_package(f, pkg):
+            if _cs_file_imports_package(f, pkg, read_text=self._read_project_text):
                 results.append(str(f))
         # Check PHP files by use-statement detection
         for f in self.php_files:
-            if _php_file_imports_package(f, pkg):
+            if _php_file_imports_package(f, pkg, read_text=self._read_project_text):
                 results.append(str(f))
         # Check Ruby files by require detection
         for f in self.rb_files:
-            if _rb_file_imports_package(f, pkg):
+            if _rb_file_imports_package(f, pkg, read_text=self._read_project_text):
                 results.append(str(f))
         # Check Swift files by import detection
         for f in self.swift_files:
-            if _swift_file_imports_package(f, pkg):
+            if _swift_file_imports_package(f, pkg, read_text=self._read_project_text):
                 results.append(str(f))
         # Check Dart files by import detection
         for f in self.dart_files:
-            if _dart_file_imports_package(f, pkg):
+            if _dart_file_imports_package(f, pkg, read_text=self._read_project_text):
                 results.append(str(f))
         return results

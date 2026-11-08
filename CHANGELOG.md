@@ -34,6 +34,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for pull requests targeting development branches as well as main.
 
 ### Fixed
+- Reachability and source-absence template conditions no longer dismiss findings
+  based on included-source read/metadata errors or failed source-directory enumeration.
+  Evidence retains observed imports and records coverage errors; unresolved usage
+  stays unknown. Source content and read failures are shared within each scan.
+- Saved-scan diffs preserve distinct advisory/package/version contexts instead
+  of silently overwriting findings for another version. Adding a new affected
+  version can trigger the new-ACTION gate even if that advisory was already present.
+- Diffs reject explicit incomplete scans, malformed inputs and duplicate finding
+  identities. Invalid-input errors return exit code 2 without a successful report
+  or overwriting an existing summary; legacy reports without `scanned` remain supported.
 - SBOM inventories now report an incomplete scan with exit code 2 when offline,
   empty, or unable to complete an OSV lookup, instead of claiming no vulnerabilities.
 - OSV scans retrieve complete advisory records, including severity, CVE aliases and

@@ -16,7 +16,9 @@ from __future__ import annotations
 import argparse
 import contextlib
 import json
+import os
 import sys
+import tempfile
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -40,6 +42,29 @@ from depquiet.sarif import write_sarif
 from depquiet.sbom import write_sbom
 from depquiet.summary import write_summary
 from depquiet.vex import build_vex, write_vex
+
+
+def _write_diff_summary(path: Path, text: str) -> None:
+    """Replace a summary only after its complete UTF-8 text is written."""
+    temporary: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            newline="\n",
+            dir=path.parent,
+            prefix=".depquiet-diff-",
+            suffix=".tmp",
+            delete=False,
+        ) as stream:
+            temporary = Path(stream.name)
+            stream.write(text)
+        os.replace(temporary, path)
+        temporary = None
+    finally:
+        if temporary is not None:
+            with contextlib.suppress(OSError):
+                temporary.unlink(missing_ok=True)
 
 
 def diff_main(argv: list[str]) -> int:
@@ -88,20 +113,24 @@ def diff_main(argv: list[str]) -> int:
             print(f"Error: file not found: {path}", file=sys.stderr)
             return 1
 
-    diff = diff_scans(args.base, args.head)
+    try:
+        diff = diff_scans(args.base, args.head)
+        if args.json_output:
+            output = json.dumps(diff_to_json(diff), indent=2)
+        elif args.markdown:
+            output = format_diff_markdown(diff)
+        else:
+            output = format_diff(diff)
 
-    if args.json_output:
-        json.dump(diff_to_json(diff), sys.stdout, indent=2)
-        print()  # trailing newline
-    elif args.markdown:
-        print(format_diff_markdown(diff))
-    else:
-        print(format_diff(diff))
+        # Validate inputs and render before producing any successful artifact.
+        if args.summary:
+            md = format_diff_markdown(diff)
+            _write_diff_summary(args.summary, md + "\n")
+    except (OSError, ValueError, TypeError) as exc:
+        print(f"Error: cannot compare scans: {exc}", file=sys.stderr)
+        return 2
 
-    # Write summary file (for $GITHUB_STEP_SUMMARY)
-    if args.summary:
-        md = format_diff_markdown(diff)
-        args.summary.write_text(md + "\n", encoding="utf-8")
+    print(output)
 
     if args.fail_on_new and diff.has_new_action:
         return 1

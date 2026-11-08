@@ -12,7 +12,9 @@ This is the core of the CI review workflow:
 
 from __future__ import annotations
 
+import contextlib
 import json
+import math
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -57,15 +59,73 @@ class ScanDiff:
         return any(f.verdict == "action" for f in self.new)
 
 
-def _load_findings(path: Path) -> dict[str, dict[str, Any]]:
-    """Load a depquiet --json output and return findings keyed by cve:package."""
-    data = json.loads(path.read_text(encoding="utf-8"))
-    findings: dict[str, dict[str, Any]] = {}
-    for r in data.get("results", []):
+def _load_findings(path: Path) -> dict[tuple[str, str, str], dict[str, Any]]:
+    """Load an unambiguous report, preserving each reported version context.
+
+    Old reports did not include ``scanned``; they remain accepted if they have
+    a valid results array; only these legacy reports may skip rows without an
+    advisory or package. A present completion flag must be true and requires
+    nonempty advisory/package identities for every row. Version
+    strings are compared literally, including scanner-supplied ranges; no
+    installed version or advisory alias is inferred.
+    """
+
+    def unique_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f"Invalid scan {path}: duplicate JSON key {key!r}")
+            result[key] = value
+        return result
+
+    data = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=unique_keys)
+    if not isinstance(data, dict):
+        raise ValueError(f"Invalid scan {path}: report must be a JSON object")
+    if "scanned" in data:
+        if not isinstance(data["scanned"], bool):
+            raise ValueError(f"Invalid scan {path}: scanned must be a boolean")
+        if not data["scanned"]:
+            raise ValueError(f"Cannot compare incomplete scan {path}")
+    rows = data.get("results")
+    if not isinstance(rows, list):
+        raise ValueError(f"Invalid scan {path}: results must be an array")
+
+    findings: dict[tuple[str, str, str], dict[str, Any]] = {}
+    for index, r in enumerate(rows):
+        if not isinstance(r, dict):
+            raise ValueError(f"Invalid scan {path}: result {index} must be an object")
         cve = r.get("cve", "")
         pkg = r.get("package", "")
+        version = r.get("version", "")
+        if not all(isinstance(value, str) for value in (cve, pkg, version)):
+            raise ValueError(
+                f"Invalid scan {path}: result {index} advisory, package and version must be strings"
+            )
+        if "scanned" in data and (not cve.strip() or not pkg.strip()):
+            raise ValueError(
+                f"Invalid scan {path}: result {index} advisory and package must be nonempty"
+            )
         if cve and pkg:
-            key = f"{cve}:{pkg}"
+            verdict = r.get("verdict")
+            if not isinstance(verdict, str) or verdict not in {"action", "review", "filtered"}:
+                raise ValueError(f"Invalid scan {path}: result {index} has an invalid verdict")
+            for name in ("severity", "title", "fix_version", "fix_package"):
+                if name in r and not isinstance(r[name], str):
+                    raise ValueError(f"Invalid scan {path}: result {index}.{name} must be a string")
+            epss = r.get("epss_score")
+            if epss is not None:
+                finite = False
+                if isinstance(epss, (int, float)) and not isinstance(epss, bool):
+                    with contextlib.suppress(OverflowError):
+                        finite = math.isfinite(epss)
+                if not finite:
+                    raise ValueError(
+                        f"Invalid scan {path}: result {index}.epss_score "
+                        "must be a finite number or null"
+                    )
+            key = (cve, pkg, version)
+            if key in findings:
+                raise ValueError(f"Invalid scan {path}: duplicate finding identity {key!r}")
             findings[key] = r
     return findings
 
@@ -97,7 +157,9 @@ def diff_scans(base_path: Path, head_path: Path) -> ScanDiff:
         head_path: Path to the head/after scan JSON.
 
     Returns:
-        ScanDiff with new, fixed, changed, and unchanged counts.
+        ScanDiff with new, fixed, changed, and unchanged version-context counts.
+        ``fixed`` is the historical field for a context absent from the head
+        report, not proof of remediation or a non-affected product.
     """
     base = _load_findings(base_path)
     head = _load_findings(head_path)
@@ -181,7 +243,7 @@ def format_diff(diff: ScanDiff) -> str:
         for f in diff.changed:
             prev = (f.previous_verdict or "?").upper()
             curr = f.verdict.upper()
-            line = f"  {f.cve} in {f.package}: {prev} → {curr}"
+            line = f"  {f.cve} in {f.package}@{f.version}: {prev} → {curr}"
             lines.append(line)
         lines.append("")
 
@@ -263,7 +325,7 @@ def format_diff_markdown(diff: ScanDiff) -> str:
         for f in diff.changed:
             prev = (f.previous_verdict or "?").upper()
             curr = f.verdict.upper()
-            lines.append(f"| `{f.cve}` | `{f.package}` | {prev} | {curr} |")
+            lines.append(f"| `{f.cve}` | `{f.package}@{f.version}` | {prev} | {curr} |")
         lines.append("")
 
     # Footer
