@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "kind": "upstream_reference",
+  "project": "upstream/paperless-ngx@09d70ed7da7f56b9c197a57518fd363a1fddc3ff",
+  "source": {
+    "repository": "paperless-ngx/paperless-ngx",
+    "commit": "09d70ed7da7f56b9c197a57518fd363a1fddc3ff"
+  },
+  "audit": {
+    "path": "benchmarks/fixtures/repo-paperless-ngx/audit.json",
+    "sha256": "8dce1f961bb88c1147797f25ac81e28f1ade86ccd879f82ea85400412ff7ebcc"
+  },
+  "capture": {
+    "captured_at": "2026-11-04T21:29:34Z",
+    "tool": "pip-audit 2.10.1",
+    "commands": [
+      "name==version for every registry package in uv.lock",
+      "pip-audit -r requirements.txt --no-deps --disable-pip -f json"
+    ],
+    "recaptured_for_this_corpus": false,
+    "unexamined_duplicate_versions": [
+      "torch==2.14.0+cpu"
+    ]
+  },
+  "selection": [
+    {
+      "package": "tornado",
+      "version": "6.5.9",
+      "advisory": "CVE-2026-116577"
+    }
+  ],
+  "scope_note": "Selected retention expectations from frozen audits, not full-project accuracy."
+}

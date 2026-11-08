@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "kind": "upstream_reference",
+  "project": "upstream/node-express-boilerplate@179ae84efec61b14206d0305d941daed6c6d07f9",
+  "source": {
+    "repository": "hagopj13/node-express-boilerplate",
+    "commit": "179ae84efec61b14206d0305d941daed6c6d07f9"
+  },
+  "audit": {
+    "path": "benchmarks/fixtures/repo-node-express-boilerplate/audit.json",
+    "sha256": "dcd9cc42a25f0a2bc9cb3130812fafbbd1bd9f8fb31ac1b0dd8c718bec251916"
+  },
+  "capture": {
+    "captured_at": "2026-11-04T20:56:59Z",
+    "tool": "npm 10.9.9",
+    "commands": [
+      "npm install --package-lock-only --ignore-scripts --no-audit  # from the project's yarn.lock",
+      "npm audit --json"
+    ],
+    "recaptured_for_this_corpus": false,
+    "unexamined_duplicate_versions": []
+  },
+  "selection": [
+    {
+      "package": "pm2",
+      "version": "<7.0.0",
+      "advisory": "GHSA-x5gf-qvw8-r2rm"
+    },
+    {
+      "package": "jsonwebtoken",
+      "version": "<9.0.0",
+      "advisory": "GHSA-qwph-4952-7xr6"
+    },
+    {
+      "package": "validator",
+      "version": "<13.15.20",
+      "advisory": "GHSA-9965-vmph-33xx"
+    }
+  ],
+  "scope_note": "Selected retention expectations from frozen audits, not full-project accuracy.",
+  "overlay_files": [
+    {
+      "path": "benchmarks/fixtures/repo-node-express-boilerplate/package-lock.json",
+      "target": "package-lock.json",
+      "sha256": "aa12d062d907df4052f631695342cbdb396754e01385b6768c3a60bc83844de4"
+    }
+  ]
+}

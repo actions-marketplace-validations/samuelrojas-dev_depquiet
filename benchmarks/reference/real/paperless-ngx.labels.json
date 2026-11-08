@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "corpus": "upstream-retention-reference-v1",
+  "review_status": "agent_reviewed_human_pending",
+  "interpretation": "Selected retention expectations; not exploitability proof or an accuracy estimate.",
+  "cases": [
+    {
+      "id": "real-python-paperless-ngx-tornado-cve-2026-116577",
+      "project": "upstream/paperless-ngx@09d70ed7da7f56b9c197a57518fd363a1fddc3ff",
+      "package": "tornado",
+      "version": "6.5.9",
+      "advisory": "CVE-2026-116577",
+      "label": "unknown",
+      "reason": "The affected Tornado version is locked, Flower depends on it, and Flower is a declared production dependency. The container service starts Flower only when PAPERLESS_ENABLE_FLOWER is set. Neither the effective environment nor network/proxy exposure was captured, so runtime applicability is unknown rather than safe to dismiss from missing direct imports.",
+      "provenance": {
+        "kind": "reviewed",
+        "source": "https://github.com/paperless-ngx/paperless-ngx/tree/09d70ed7da7f56b9c197a57518fd363a1fddc3ff",
+        "reviewer": "Codex agent curation and root evidence verification; human review pending",
+        "review_date": "2026-11-08",
+        "method": "static_source_and_advisory_review",
+        "human_reviewed": false,
+        "independent_external_validation": false
+      },
+      "version_evidence": {
+        "reported_kind": "pip-audit reported package version",
+        "locked_versions": [
+          "6.5.9"
+        ],
+        "installation_observed": false,
+        "installed_versions": null,
+        "lockfile": {
+          "path": "uv.lock",
+          "content_sha256": "921185967c5e6b4ccd7a7cffa565867872846471ba1cfd88e561207723cc99fc",
+          "provenance": "Upstream lockfile at the pinned Git revision."
+        }
+      },
+      "primary_advisory": {
+        "url": "https://api.osv.dev/v1/vulns/GHSA-pcg2-g6cj-q92c",
+        "human_readable_url": "https://github.com/tornadoweb/tornado/security/advisories/GHSA-pcg2-g6cj-q92c",
+        "retrieved_at_utc": "2026-11-08T05:20:46.083841+00:00",
+        "id": "GHSA-pcg2-g6cj-q92c",
+        "summary": "Tornado: Quadratic CPU usage when parsing HTTP headers with line folding",
+        "affected_version_check": "6.5.9 is below the advisory's fixed 6.6; package-version match does not establish product impact.",
+        "published": "2026-10-28T22:43:41Z",
+        "modified": "2026-10-28T23:00:04.070057045Z",
+        "retrieved_document_sha256": "e09213cf41481ecfe539200164ea633a5fe5e66482723ebcbd47aaa97c4a89ec"
+      },
+      "reported_aliases": [
+        "GHSA-pcg2-g6cj-q92c"
+      ],
+      "verified_aliases": [
+        "CVE-2026-116577"
+      ],
+      "evidence": [
+        {
+          "kind": "upstream_git_blob",
+          "path": "uv.lock",
+          "git_blob": "da56c52cd824d3438f7704bf1b3701cf8e16274d",
+          "content_sha256": "921185967c5e6b4ccd7a7cffa565867872846471ba1cfd88e561207723cc99fc",
+          "url": "https://github.com/paperless-ngx/paperless-ngx/blob/09d70ed7da7f56b9c197a57518fd363a1fddc3ff/uv.lock#L5344-L5349",
+          "observation": "Resolved lockfile package/version; not observation of an installed deployment.",
+          "start_line": 5344,
+          "end_line": 5349
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "uv.lock",
+          "git_blob": "da56c52cd824d3438f7704bf1b3701cf8e16274d",
+          "content_sha256": "921185967c5e6b4ccd7a7cffa565867872846471ba1cfd88e561207723cc99fc",
+          "url": "https://github.com/paperless-ngx/paperless-ngx/blob/09d70ed7da7f56b9c197a57518fd363a1fddc3ff/uv.lock#L1352-L1361",
+          "observation": "Flower's locked dependency edge to Tornado.",
+          "start_line": 1352,
+          "end_line": 1361
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "pyproject.toml",
+          "git_blob": "17d9e92a3162f98950c086b1ba22b1030fa42d34",
+          "content_sha256": "e1e5da2340e018759cec0a58ba17a165e857bf004e082e7557ed954aea0648dd",
+          "url": "https://github.com/paperless-ngx/paperless-ngx/blob/09d70ed7da7f56b9c197a57518fd363a1fddc3ff/pyproject.toml#L43-L49",
+          "observation": "Flower is in project runtime dependencies.",
+          "start_line": 43,
+          "end_line": 49
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "docker/rootfs/etc/s6-overlay/s6-rc.d/svc-flower/run",
+          "git_blob": "202adbf684ad0290a0adca486cf0af5fa78391ae",
+          "content_sha256": "ee5a9d50a0e544dc635a49908e315a72d4a0c5409cc23abd6300db21979600b0",
+          "url": "https://github.com/paperless-ngx/paperless-ngx/blob/09d70ed7da7f56b9c197a57518fd363a1fddc3ff/docker/rootfs/etc/s6-overlay/s6-rc.d/svc-flower/run#L7-L26",
+          "observation": "Entrypoint conditionally executes celery flower based on deployment environment.",
+          "start_line": 7,
+          "end_line": 26
+        }
+      ],
+      "limitations": [
+        "The deployed value of PAPERLESS_ENABLE_FLOWER, service exposure, header limits and reverse-proxy normalization were not observed.",
+        "No runtime server or exploit was executed; resolved lockfile versions do not prove the deployed installation."
+      ],
+      "assessment_status": "under_investigation",
+      "snapshot_sha256": "53982c6c7a6e1b9da9b11f285fc01ff4ced1a6c03269d2b44e69ee4ffdc6a693"
+    }
+  ]
+}

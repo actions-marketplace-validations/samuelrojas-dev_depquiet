@@ -1,0 +1,481 @@
+{
+  "schema_version": 1,
+  "corpus": "upstream-retention-reference-v1",
+  "review_status": "agent_reviewed_human_pending",
+  "interpretation": "Selected retention expectations; not exploitability proof or an accuracy estimate.",
+  "cases": [
+    {
+      "id": "real-python-mealie-starlette-cve-2025-54121",
+      "project": "upstream/mealie@01713b04163e9524b2665ad8089148b6d2f90233",
+      "package": "starlette",
+      "version": "0.41.0",
+      "advisory": "PYSEC-2026-1941",
+      "label": "retain",
+      "reason": "The locked affected Starlette version is in the main dependency group and behind a FastAPI application with a registered multipart file-upload route. This is concrete usage evidence for keeping the alert visible for investigation rather than clearing it because the dependency is transitive.",
+      "provenance": {
+        "kind": "reviewed",
+        "source": "https://github.com/mealie-recipes/mealie/tree/01713b04163e9524b2665ad8089148b6d2f90233",
+        "reviewer": "Codex agent curation and root evidence verification; human review pending",
+        "review_date": "2026-11-08",
+        "method": "static_source_and_advisory_review",
+        "human_reviewed": false,
+        "independent_external_validation": false
+      },
+      "version_evidence": {
+        "reported_kind": "pip-audit reported package version",
+        "locked_versions": [
+          "0.41.0"
+        ],
+        "installation_observed": false,
+        "installed_versions": null,
+        "lockfile": {
+          "path": "poetry.lock",
+          "content_sha256": "cabbc4c38ee2cd4bcfebc97a74f36b79b8074a5cfcd925600299e23e0586427b",
+          "provenance": "Upstream lockfile at the pinned Git revision."
+        }
+      },
+      "primary_advisory": {
+        "url": "https://api.osv.dev/v1/vulns/GHSA-2c2j-9gv5-cj73",
+        "human_readable_url": "https://github.com/encode/starlette/security/advisories/GHSA-2c2j-9gv5-cj73",
+        "retrieved_at_utc": "2026-11-08T05:20:45.075005+00:00",
+        "id": "GHSA-2c2j-9gv5-cj73",
+        "summary": "Starlette has possible denial-of-service vector when parsing large files in multipart forms",
+        "affected_version_check": "0.41.0 is below the advisory's fixed 0.47.2; package-version match does not establish product impact.",
+        "published": "2025-07-21T19:34:23Z",
+        "modified": "2026-09-10T03:50:25.704876348Z",
+        "retrieved_document_sha256": "7b946a4b7a92f544cf96b8af5e1357c0d02b63f7bf16b525c8ad1ac90c713062"
+      },
+      "reported_aliases": [
+        "CVE-2025-54121",
+        "GHSA-2c2j-9gv5-cj73"
+      ],
+      "verified_aliases": [
+        "CVE-2025-54121",
+        "PYSEC-2026-1941"
+      ],
+      "evidence": [
+        {
+          "kind": "upstream_git_blob",
+          "path": "poetry.lock",
+          "git_blob": "35e519c9aebbedba7a023d68d220b2dcf2d865d1",
+          "content_sha256": "cabbc4c38ee2cd4bcfebc97a74f36b79b8074a5cfcd925600299e23e0586427b",
+          "url": "https://github.com/mealie-recipes/mealie/blob/01713b04163e9524b2665ad8089148b6d2f90233/poetry.lock#L3577-L3582",
+          "observation": "Resolved lockfile package/version; not observation of an installed deployment.",
+          "start_line": 3577,
+          "end_line": 3582
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "poetry.lock",
+          "git_blob": "35e519c9aebbedba7a023d68d220b2dcf2d865d1",
+          "content_sha256": "cabbc4c38ee2cd4bcfebc97a74f36b79b8074a5cfcd925600299e23e0586427b",
+          "url": "https://github.com/mealie-recipes/mealie/blob/01713b04163e9524b2665ad8089148b6d2f90233/poetry.lock#L741-L755",
+          "observation": "FastAPI's locked dependency edge to Starlette.",
+          "start_line": 741,
+          "end_line": 755
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "mealie/app.py",
+          "git_blob": "8ea6811a6765dff67ff5ea258763db176473177b",
+          "content_sha256": "25ebae5356812185f48b009af4049ff4aa9d99d730d6cb777c1a0bf44a9e0d07",
+          "url": "https://github.com/mealie-recipes/mealie/blob/01713b04163e9524b2665ad8089148b6d2f90233/mealie/app.py#L13-L25",
+          "observation": "FastAPI/Starlette and application router imports.",
+          "start_line": 13,
+          "end_line": 25
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "mealie/app.py",
+          "git_blob": "8ea6811a6765dff67ff5ea258763db176473177b",
+          "content_sha256": "25ebae5356812185f48b009af4049ff4aa9d99d730d6cb777c1a0bf44a9e0d07",
+          "url": "https://github.com/mealie-recipes/mealie/blob/01713b04163e9524b2665ad8089148b6d2f90233/mealie/app.py#L99-L109",
+          "observation": "ASGI app construction.",
+          "start_line": 99,
+          "end_line": 109
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "mealie/routes/admin/admin_backups.py",
+          "git_blob": "f548978211e4aac52eeb16907dae19af50d01225",
+          "content_sha256": "60ecc2e0f96de0e3e1f89f262cf2583f9a0a66c06bbf9ff8dc4c0318e032e7fc",
+          "url": "https://github.com/mealie-recipes/mealie/blob/01713b04163e9524b2665ad8089148b6d2f90233/mealie/routes/admin/admin_backups.py#L75-L93",
+          "observation": "Multipart UploadFile route consumes the uploaded stream.",
+          "start_line": 75,
+          "end_line": 93
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "mealie/routes/admin/__init__.py",
+          "git_blob": "c0ef59a9dcce067fb719329245a49430f718e2e5",
+          "content_sha256": "166cd35072e67ccfbd4099de884adf915a3e823ad7f9effc9d60b8a4ab06e11d",
+          "url": "https://github.com/mealie-recipes/mealie/blob/01713b04163e9524b2665ad8089148b6d2f90233/mealie/routes/admin/__init__.py#L18-L23",
+          "observation": "Backup router registration.",
+          "start_line": 18,
+          "end_line": 23
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "mealie/routes/__init__.py",
+          "git_blob": "c03ba0c34b15e238881796a37da92245289a5fdf",
+          "content_sha256": "546f0cd036b8e5bcf32132c591522b5e38c2fe90a0892b68257ca65fde30f7f8",
+          "url": "https://github.com/mealie-recipes/mealie/blob/01713b04163e9524b2665ad8089148b6d2f90233/mealie/routes/__init__.py#L22-L34",
+          "observation": "Application API includes admin router.",
+          "start_line": 22,
+          "end_line": 34
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "mealie/main.py",
+          "git_blob": "bd4414d3082f14ccc5f307cf8e1db6fa81f89128",
+          "content_sha256": "0f11f328924ade92fb2e1b0ebe7e13f42bba80cea2dffe4a5c5b9412a30abf23",
+          "url": "https://github.com/mealie-recipes/mealie/blob/01713b04163e9524b2665ad8089148b6d2f90233/mealie/main.py#L7-L18",
+          "observation": "Uvicorn production-style entrypoint for mealie.app:app.",
+          "start_line": 7,
+          "end_line": 18
+        }
+      ],
+      "limitations": [
+        "No exploit was executed, and large-file rollover behavior was not measured.",
+        "Authentication, reverse-proxy limits, effective installation, and deployed artifact configuration were not observed; retain does not mean confirmed exploitable."
+      ],
+      "assessment_status": "under_investigation",
+      "snapshot_sha256": "7cc93681aa3c0222de1264dcc80e6a69e3b35eb1558d9076e56d46facb6283bd"
+    },
+    {
+      "id": "real-python-mealie-pyjwt-cve-2026-32597",
+      "project": "upstream/mealie@01713b04163e9524b2665ad8089148b6d2f90233",
+      "package": "pyjwt",
+      "version": "2.10.1",
+      "advisory": "PYSEC-2026-120",
+      "label": "retain",
+      "reason": "PyJWT is a main locked dependency and the application's authentication dependency decodes caller-provided tokens using jwt.decode. The advisory concerns PyJWT critical-header validation; the authenticated code path is sufficient to retain the alert for review, without claiming a policy bypass is demonstrated.",
+      "provenance": {
+        "kind": "reviewed",
+        "source": "https://github.com/mealie-recipes/mealie/tree/01713b04163e9524b2665ad8089148b6d2f90233",
+        "reviewer": "Codex agent curation and root evidence verification; human review pending",
+        "review_date": "2026-11-08",
+        "method": "static_source_and_advisory_review",
+        "human_reviewed": false,
+        "independent_external_validation": false
+      },
+      "version_evidence": {
+        "reported_kind": "pip-audit reported package version",
+        "locked_versions": [
+          "2.10.1"
+        ],
+        "installation_observed": false,
+        "installed_versions": null,
+        "lockfile": {
+          "path": "poetry.lock",
+          "content_sha256": "cabbc4c38ee2cd4bcfebc97a74f36b79b8074a5cfcd925600299e23e0586427b",
+          "provenance": "Upstream lockfile at the pinned Git revision."
+        }
+      },
+      "primary_advisory": {
+        "url": "https://api.osv.dev/v1/vulns/GHSA-752w-5fwx-jx9f",
+        "human_readable_url": "https://github.com/jpadilla/pyjwt/security/advisories/GHSA-752w-5fwx-jx9f",
+        "retrieved_at_utc": "2026-11-08T05:20:47.063673+00:00",
+        "id": "GHSA-752w-5fwx-jx9f",
+        "summary": "PyJWT accepts unknown `crit` header extensions",
+        "affected_version_check": "2.10.1 is below the advisory's fixed 2.12.0; package-version match does not establish product impact.",
+        "published": "2026-03-13T20:05:04Z",
+        "modified": "2026-09-10T03:50:59.993704484Z",
+        "retrieved_document_sha256": "4b631558f25a59e06e4148856fecb92e2133f5209198c85bf181f0808e260b9f"
+      },
+      "reported_aliases": [
+        "GHSA-752w-5fwx-jx9f",
+        "CVE-2026-32597"
+      ],
+      "verified_aliases": [
+        "CVE-2026-32597",
+        "PYSEC-2026-120"
+      ],
+      "evidence": [
+        {
+          "kind": "upstream_git_blob",
+          "path": "poetry.lock",
+          "git_blob": "35e519c9aebbedba7a023d68d220b2dcf2d865d1",
+          "content_sha256": "cabbc4c38ee2cd4bcfebc97a74f36b79b8074a5cfcd925600299e23e0586427b",
+          "url": "https://github.com/mealie-recipes/mealie/blob/01713b04163e9524b2665ad8089148b6d2f90233/poetry.lock#L2708-L2713",
+          "observation": "Resolved lockfile package/version; not observation of an installed deployment.",
+          "start_line": 2708,
+          "end_line": 2713
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "pyproject.toml",
+          "git_blob": "dce7e97eb8ad819387dbac7e0cb09c85193a7b85",
+          "content_sha256": "54d9edff820a9a1406051912eb93fe36d84c450ca03b81089e1baac0e98b14e8",
+          "url": "https://github.com/mealie-recipes/mealie/blob/01713b04163e9524b2665ad8089148b6d2f90233/pyproject.toml#L48-L54",
+          "observation": "Production dependency declaration for PyJWT.",
+          "start_line": 48,
+          "end_line": 54
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "mealie/core/dependencies/dependencies.py",
+          "git_blob": "d7914cee36c69e7a31f6b7f5dfe8d799b976b3ef",
+          "content_sha256": "89e739d6fb0c4f0ddfc84eae878ce0708c4d6e7418ffb8b88e98cada6d0b9ed1",
+          "url": "https://github.com/mealie-recipes/mealie/blob/01713b04163e9524b2665ad8089148b6d2f90233/mealie/core/dependencies/dependencies.py#L8-L12",
+          "observation": "Distribution-to-module mapping: pyjwt is imported as jwt.",
+          "start_line": 8,
+          "end_line": 12
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "mealie/core/dependencies/dependencies.py",
+          "git_blob": "d7914cee36c69e7a31f6b7f5dfe8d799b976b3ef",
+          "content_sha256": "89e739d6fb0c4f0ddfc84eae878ce0708c4d6e7418ffb8b88e98cada6d0b9ed1",
+          "url": "https://github.com/mealie-recipes/mealie/blob/01713b04163e9524b2665ad8089148b6d2f90233/mealie/core/dependencies/dependencies.py#L88-L112",
+          "observation": "Authentication path reads token input and calls jwt.decode.",
+          "start_line": 88,
+          "end_line": 112
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "mealie/routes/auth/auth.py",
+          "git_blob": "89b3c09a7baee3fc572fdbd7722b8400bb2c6f08",
+          "content_sha256": "f9a88b7c06d92130b3c440a9757dac6a49dc06c1256c5c16a2d55f81467a30d7",
+          "url": "https://github.com/mealie-recipes/mealie/blob/01713b04163e9524b2665ad8089148b6d2f90233/mealie/routes/auth/auth.py#L11-L20",
+          "observation": "Auth routes import the user-authentication dependency.",
+          "start_line": 11,
+          "end_line": 20
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "mealie/main.py",
+          "git_blob": "bd4414d3082f14ccc5f307cf8e1db6fa81f89128",
+          "content_sha256": "0f11f328924ade92fb2e1b0ebe7e13f42bba80cea2dffe4a5c5b9412a30abf23",
+          "url": "https://github.com/mealie-recipes/mealie/blob/01713b04163e9524b2665ad8089148b6d2f90233/mealie/main.py#L7-L18",
+          "observation": "Application server entrypoint.",
+          "start_line": 7,
+          "end_line": 18
+        }
+      ],
+      "limitations": [
+        "Valid token-signature prerequisites and the deployment's use of critical extensions were not tested.",
+        "No exploit or complete call graph was produced; installation and effective gateway/token policy remain unobserved."
+      ],
+      "assessment_status": "under_investigation",
+      "snapshot_sha256": "7cc93681aa3c0222de1264dcc80e6a69e3b35eb1558d9076e56d46facb6283bd"
+    },
+    {
+      "id": "real-python-mealie-h11-cve-2025-43859",
+      "project": "upstream/mealie@01713b04163e9524b2665ad8089148b6d2f90233",
+      "package": "h11",
+      "version": "0.14.0",
+      "advisory": "PYSEC-2026-348",
+      "label": "unknown",
+      "reason": "The affected h11 version is locked in main and is a dependency of Uvicorn, but the reviewed entrypoint does not explicitly choose an HTTP parser. uvicorn[standard] and httptools are also in the frozen dependency configuration. The deployed parser/proxy combination needed to assess this request-smuggling advisory is not established.",
+      "provenance": {
+        "kind": "reviewed",
+        "source": "https://github.com/mealie-recipes/mealie/tree/01713b04163e9524b2665ad8089148b6d2f90233",
+        "reviewer": "Codex agent curation and root evidence verification; human review pending",
+        "review_date": "2026-11-08",
+        "method": "static_source_and_advisory_review",
+        "human_reviewed": false,
+        "independent_external_validation": false
+      },
+      "version_evidence": {
+        "reported_kind": "pip-audit reported package version",
+        "locked_versions": [
+          "0.14.0"
+        ],
+        "installation_observed": false,
+        "installed_versions": null,
+        "lockfile": {
+          "path": "poetry.lock",
+          "content_sha256": "cabbc4c38ee2cd4bcfebc97a74f36b79b8074a5cfcd925600299e23e0586427b",
+          "provenance": "Upstream lockfile at the pinned Git revision."
+        }
+      },
+      "primary_advisory": {
+        "url": "https://raw.githubusercontent.com/github/advisory-database/main/advisories/github-reviewed/2025/04/GHSA-vqfr-h8mv-ghfj/GHSA-vqfr-h8mv-ghfj.json",
+        "human_readable_url": "https://github.com/python-hyper/h11/security/advisories/GHSA-vqfr-h8mv-ghfj",
+        "retrieved_at_utc": "2026-11-08T05:23:24.873530+00:00",
+        "id": "GHSA-vqfr-h8mv-ghfj",
+        "summary": "h11 accepts some malformed Chunked-Encoding bodies",
+        "affected_version_check": "0.14.0 is below the advisory's fixed 0.16.0; package-version match does not establish product impact.",
+        "published": "2025-04-24T16:07:56Z",
+        "modified": "2026-10-27T16:31:14Z",
+        "retrieved_document_sha256": "0f78a3a1747c7ada8a078e73a497f522222e5a99bdae2f37db5148d09937f95b"
+      },
+      "reported_aliases": [
+        "GHSA-vqfr-h8mv-ghfj",
+        "CVE-2025-43859"
+      ],
+      "verified_aliases": [
+        "CVE-2025-43859"
+      ],
+      "evidence": [
+        {
+          "kind": "upstream_git_blob",
+          "path": "poetry.lock",
+          "git_blob": "35e519c9aebbedba7a023d68d220b2dcf2d865d1",
+          "content_sha256": "cabbc4c38ee2cd4bcfebc97a74f36b79b8074a5cfcd925600299e23e0586427b",
+          "url": "https://github.com/mealie-recipes/mealie/blob/01713b04163e9524b2665ad8089148b6d2f90233/poetry.lock#L908-L913",
+          "observation": "Resolved lockfile package/version; not observation of an installed deployment.",
+          "start_line": 908,
+          "end_line": 913
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "poetry.lock",
+          "git_blob": "35e519c9aebbedba7a023d68d220b2dcf2d865d1",
+          "content_sha256": "cabbc4c38ee2cd4bcfebc97a74f36b79b8074a5cfcd925600299e23e0586427b",
+          "url": "https://github.com/mealie-recipes/mealie/blob/01713b04163e9524b2665ad8089148b6d2f90233/poetry.lock#L3759-L3778",
+          "observation": "Uvicorn has h11 and optional httptools under its standard extra.",
+          "start_line": 3759,
+          "end_line": 3778
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "poetry.lock",
+          "git_blob": "35e519c9aebbedba7a023d68d220b2dcf2d865d1",
+          "content_sha256": "cabbc4c38ee2cd4bcfebc97a74f36b79b8074a5cfcd925600299e23e0586427b",
+          "url": "https://github.com/mealie-recipes/mealie/blob/01713b04163e9524b2665ad8089148b6d2f90233/poetry.lock#L991-L996",
+          "observation": "An alternative parser, httptools, is also locked in main.",
+          "start_line": 991,
+          "end_line": 996
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "pyproject.toml",
+          "git_blob": "dce7e97eb8ad819387dbac7e0cb09c85193a7b85",
+          "content_sha256": "54d9edff820a9a1406051912eb93fe36d84c450ca03b81089e1baac0e98b14e8",
+          "url": "https://github.com/mealie-recipes/mealie/blob/01713b04163e9524b2665ad8089148b6d2f90233/pyproject.toml#L40-L43",
+          "observation": "Project declares uvicorn[standard].",
+          "start_line": 40,
+          "end_line": 43
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "mealie/main.py",
+          "git_blob": "bd4414d3082f14ccc5f307cf8e1db6fa81f89128",
+          "content_sha256": "0f11f328924ade92fb2e1b0ebe7e13f42bba80cea2dffe4a5c5b9412a30abf23",
+          "url": "https://github.com/mealie-recipes/mealie/blob/01713b04163e9524b2665ad8089148b6d2f90233/mealie/main.py#L7-L18",
+          "observation": "Entrypoint does not set an explicit http implementation.",
+          "start_line": 7,
+          "end_line": 18
+        }
+      ],
+      "limitations": [
+        "The selected Uvicorn HTTP implementation, installed extras/platform, command overrides and reverse-proxy parsing behavior were not observed.",
+        "No direct h11 import is not clearance: the package can be loaded by the server or other libraries.",
+        "The current publisher page has historical patch-text inconsistency, but version 0.14.0 is inside both its stated affected versions and the reviewed database range below 0.16.0."
+      ],
+      "assessment_status": "under_investigation",
+      "snapshot_sha256": "7cc93681aa3c0222de1264dcc80e6a69e3b35eb1558d9076e56d46facb6283bd"
+    },
+    {
+      "id": "real-python-mealie-cryptography-cve-2024-0727",
+      "project": "upstream/mealie@01713b04163e9524b2665ad8089148b6d2f90233",
+      "package": "cryptography",
+      "version": "41.0.7",
+      "advisory": "PYSEC-2026-1285",
+      "label": "unknown",
+      "reason": "cryptography is locked in main and is pulled by Authlib. The advisory requires processing malicious PKCS12 input. A source-level relationship to authentication does not establish whether that format or an affected bundled OpenSSL implementation is used, and absence of an application-level PKCS12 reference would not justify dismissing the alert.",
+      "provenance": {
+        "kind": "reviewed",
+        "source": "https://github.com/mealie-recipes/mealie/tree/01713b04163e9524b2665ad8089148b6d2f90233",
+        "reviewer": "Codex agent curation and root evidence verification; human review pending",
+        "review_date": "2026-11-08",
+        "method": "static_source_and_advisory_review",
+        "human_reviewed": false,
+        "independent_external_validation": false
+      },
+      "version_evidence": {
+        "reported_kind": "pip-audit reported package version",
+        "locked_versions": [
+          "41.0.7"
+        ],
+        "installation_observed": false,
+        "installed_versions": null,
+        "lockfile": {
+          "path": "poetry.lock",
+          "content_sha256": "cabbc4c38ee2cd4bcfebc97a74f36b79b8074a5cfcd925600299e23e0586427b",
+          "provenance": "Upstream lockfile at the pinned Git revision."
+        }
+      },
+      "primary_advisory": {
+        "url": "https://api.osv.dev/v1/vulns/GHSA-9v9h-cgj8-h64p",
+        "human_readable_url": "https://github.com/advisories/GHSA-9v9h-cgj8-h64p",
+        "retrieved_at_utc": "2026-11-08T05:20:45.153818+00:00",
+        "id": "GHSA-9v9h-cgj8-h64p",
+        "summary": "Null pointer dereference in PKCS12 parsing",
+        "affected_version_check": "41.0.7 is below the advisory's fixed 42.0.2; package-version match does not establish product impact.",
+        "published": "2024-01-26T09:30:23Z",
+        "modified": "2026-09-10T03:50:09.410128409Z",
+        "retrieved_document_sha256": "2df2c59abe270e1eddc289a0a9c99171286869e38bb9d756862a7d03c528e1f3"
+      },
+      "reported_aliases": [
+        "GHSA-9v9h-cgj8-h64p",
+        "CVE-2024-0727"
+      ],
+      "verified_aliases": [
+        "CVE-2024-0727",
+        "PYSEC-2026-1285"
+      ],
+      "evidence": [
+        {
+          "kind": "upstream_git_blob",
+          "path": "poetry.lock",
+          "git_blob": "35e519c9aebbedba7a023d68d220b2dcf2d865d1",
+          "content_sha256": "cabbc4c38ee2cd4bcfebc97a74f36b79b8074a5cfcd925600299e23e0586427b",
+          "url": "https://github.com/mealie-recipes/mealie/blob/01713b04163e9524b2665ad8089148b6d2f90233/poetry.lock#L631-L636",
+          "observation": "Resolved lockfile package/version; not observation of an installed deployment.",
+          "start_line": 631,
+          "end_line": 636
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "poetry.lock",
+          "git_blob": "35e519c9aebbedba7a023d68d220b2dcf2d865d1",
+          "content_sha256": "cabbc4c38ee2cd4bcfebc97a74f36b79b8074a5cfcd925600299e23e0586427b",
+          "url": "https://github.com/mealie-recipes/mealie/blob/01713b04163e9524b2665ad8089148b6d2f90233/poetry.lock#L146-L158",
+          "observation": "Main Authlib package declares cryptography dependency.",
+          "start_line": 146,
+          "end_line": 158
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "pyproject.toml",
+          "git_blob": "dce7e97eb8ad819387dbac7e0cb09c85193a7b85",
+          "content_sha256": "54d9edff820a9a1406051912eb93fe36d84c450ca03b81089e1baac0e98b14e8",
+          "url": "https://github.com/mealie-recipes/mealie/blob/01713b04163e9524b2665ad8089148b6d2f90233/pyproject.toml#L43-L48",
+          "observation": "Authlib is a production dependency.",
+          "start_line": 43,
+          "end_line": 48
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "mealie/routes/auth/auth.py",
+          "git_blob": "89b3c09a7baee3fc572fdbd7722b8400bb2c6f08",
+          "content_sha256": "f9a88b7c06d92130b3c440a9757dac6a49dc06c1256c5c16a2d55f81467a30d7",
+          "url": "https://github.com/mealie-recipes/mealie/blob/01713b04163e9524b2665ad8089148b6d2f90233/mealie/routes/auth/auth.py#L1-L15",
+          "observation": "Application integrates Authlib's Starlette OAuth client.",
+          "start_line": 1,
+          "end_line": 15
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "mealie/main.py",
+          "git_blob": "bd4414d3082f14ccc5f307cf8e1db6fa81f89128",
+          "content_sha256": "0f11f328924ade92fb2e1b0ebe7e13f42bba80cea2dffe4a5c5b9412a30abf23",
+          "url": "https://github.com/mealie-recipes/mealie/blob/01713b04163e9524b2665ad8089148b6d2f90233/mealie/main.py#L7-L18",
+          "observation": "Application server entrypoint.",
+          "start_line": 7,
+          "end_line": 18
+        }
+      ],
+      "limitations": [
+        "No deployed wheel/OpenSSL build or runtime PKCS12 input path was inspected.",
+        "The review covers pinned project source and lockfile evidence, not internals of every installed dependency or all deployment configurations.",
+        "No exploitability or non-affectedness conclusion is made."
+      ],
+      "assessment_status": "under_investigation",
+      "snapshot_sha256": "7cc93681aa3c0222de1264dcc80e6a69e3b35eb1558d9076e56d46facb6283bd"
+    }
+  ]
+}

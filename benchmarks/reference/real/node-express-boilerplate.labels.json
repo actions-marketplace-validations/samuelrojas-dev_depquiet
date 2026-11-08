@@ -1,0 +1,302 @@
+{
+  "schema_version": 1,
+  "corpus": "upstream-retention-reference-v1",
+  "review_status": "agent_reviewed_human_pending",
+  "interpretation": "Selected retention expectations; not exploitability proof or an accuracy estimate.",
+  "cases": [
+    {
+      "id": "npm-boilerplate-pm2-production-command",
+      "project": "upstream/node-express-boilerplate@179ae84efec61b14206d0305d941daed6c6d07f9",
+      "package": "pm2",
+      "version": "<7.0.0",
+      "advisory": "GHSA-x5gf-qvw8-r2rm",
+      "label": "retain",
+      "reason": "Keep visible: npm start runs PM2 and its ecosystem configuration selects production. Command use is positive dependency-use evidence even without a JavaScript import. Attacker access to the advisory-specific PM2 configuration parsing path is not established.",
+      "provenance": {
+        "kind": "reviewed",
+        "source": "https://github.com/hagopj13/node-express-boilerplate/tree/179ae84efec61b14206d0305d941daed6c6d07f9",
+        "reviewer": "Codex agent curation and root evidence verification; human review pending",
+        "review_date": "2026-11-08",
+        "method": "static_source_and_advisory_review",
+        "human_reviewed": false,
+        "independent_external_validation": false
+      },
+      "version_evidence": {
+        "reported_kind": "npm via[].range; an advisory range, not an installed version",
+        "locked_versions": [
+          {
+            "node": "node_modules/pm2",
+            "version": "5.1.0",
+            "lockfile_line": 10377,
+            "url": "https://github.com/samuelrojas-dev/depquiet/blob/87fd7562afd7d5abb9936f72be8da4e3e38c50ca/benchmarks/fixtures/repo-node-express-boilerplate/package-lock.json#L10377"
+          }
+        ],
+        "installation_observed": false,
+        "installed_versions": null,
+        "lockfile": {
+          "path": "package-lock.json",
+          "content_sha256": "aa12d062d907df4052f631695342cbdb396754e01385b6768c3a60bc83844de4",
+          "provenance": "Captured npm-generated lockfile derived from upstream yarn.lock.",
+          "generated_lockfile": true
+        }
+      },
+      "primary_advisory": {
+        "kind": "Live primary-source advisory verification",
+        "verified_date": "2026-11-08",
+        "url": "https://github.com/advisories/GHSA-x5gf-qvw8-r2rm",
+        "current_reported_severity": "low",
+        "summary": "The reviewed advisory covers PM2 before 7.0.0 and identifies inefficient regular-expression processing in its configuration tooling.",
+        "selected_version_bound": "<7.0.0",
+        "all_selected_locked_versions_match_bound": true
+      },
+      "evidence": [
+        {
+          "kind": "upstream_git_blob",
+          "path": "package.json",
+          "git_blob": "2f4e6ac1c15bb43d37b302f2021272dfde80ae2c",
+          "content_sha256": "5f9c598ba96396222ddaf5fda55e4ea4fcf2a59dddef3cc7ef1d5b058948aa24",
+          "url": "https://github.com/hagopj13/node-express-boilerplate/blob/179ae84efec61b14206d0305d941daed6c6d07f9/package.json#L14",
+          "observation": "The application start command invokes PM2.",
+          "start_line": 14,
+          "end_line": 14
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "package.json",
+          "git_blob": "2f4e6ac1c15bb43d37b302f2021272dfde80ae2c",
+          "content_sha256": "5f9c598ba96396222ddaf5fda55e4ea4fcf2a59dddef3cc7ef1d5b058948aa24",
+          "url": "https://github.com/hagopj13/node-express-boilerplate/blob/179ae84efec61b14206d0305d941daed6c6d07f9/package.json#L70",
+          "observation": "PM2 is declared as a production dependency.",
+          "start_line": 70,
+          "end_line": 70
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "ecosystem.config.json",
+          "git_blob": "0966d285db7632756aa60aa7793d588b8db7bec6",
+          "content_sha256": "0457b9ed530c7f10125ed4b67326c3c620265682e2dfa70b6359e3996320764a",
+          "url": "https://github.com/hagopj13/node-express-boilerplate/blob/179ae84efec61b14206d0305d941daed6c6d07f9/ecosystem.config.json#L5",
+          "observation": "PM2 launches the application entry point.",
+          "start_line": 5,
+          "end_line": 5
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "ecosystem.config.json",
+          "git_blob": "0966d285db7632756aa60aa7793d588b8db7bec6",
+          "content_sha256": "0457b9ed530c7f10125ed4b67326c3c620265682e2dfa70b6359e3996320764a",
+          "url": "https://github.com/hagopj13/node-express-boilerplate/blob/179ae84efec61b14206d0305d941daed6c6d07f9/ecosystem.config.json#L11",
+          "observation": "The configured environment is production.",
+          "start_line": 11,
+          "end_line": 11
+        }
+      ],
+      "dependency_chains": [
+        [
+          "pm2"
+        ]
+      ],
+      "limitations": [
+        "Labels concern alert visibility or unresolved context, not exploitation or non-affectedness.",
+        "Only static source and lockfile inspection; no upstream code execution or dependency installation.",
+        "Deployment, request inputs and runtime call paths were not observed."
+      ],
+      "assessment_status": "under_investigation",
+      "snapshot_sha256": "388d3550aeb50357755b65af71d454b0e8b7b030818df87f24dcc5def9cdb4b3"
+    },
+    {
+      "id": "npm-boilerplate-jsonwebtoken-falsy-key-context",
+      "project": "upstream/node-express-boilerplate@179ae84efec61b14206d0305d941daed6c6d07f9",
+      "package": "jsonwebtoken",
+      "version": "<9.0.0",
+      "advisory": "GHSA-qwph-4952-7xr6",
+      "label": "unknown",
+      "reason": "Advisory-specific exposure is unresolved: the locked package and jwt.verify call are real, but the call supplies config.jwt.secret and configuration requires JWT_SECRET. The advisory also requires an unsigned token, absent algorithm restriction and a falsy key. Runtime/deployment behavior and every verification path were not established. This is neither a filter label nor proof of exploitation.",
+      "provenance": {
+        "kind": "reviewed",
+        "source": "https://github.com/hagopj13/node-express-boilerplate/tree/179ae84efec61b14206d0305d941daed6c6d07f9",
+        "reviewer": "Codex agent curation and root evidence verification; human review pending",
+        "review_date": "2026-11-08",
+        "method": "static_source_and_advisory_review",
+        "human_reviewed": false,
+        "independent_external_validation": false
+      },
+      "version_evidence": {
+        "reported_kind": "npm via[].range; an advisory range, not an installed version",
+        "locked_versions": [
+          {
+            "node": "node_modules/jsonwebtoken",
+            "version": "8.5.1",
+            "lockfile_line": 8318,
+            "url": "https://github.com/samuelrojas-dev/depquiet/blob/87fd7562afd7d5abb9936f72be8da4e3e38c50ca/benchmarks/fixtures/repo-node-express-boilerplate/package-lock.json#L8318"
+          }
+        ],
+        "installation_observed": false,
+        "installed_versions": null,
+        "lockfile": {
+          "path": "package-lock.json",
+          "content_sha256": "aa12d062d907df4052f631695342cbdb396754e01385b6768c3a60bc83844de4",
+          "provenance": "Captured npm-generated lockfile derived from upstream yarn.lock.",
+          "generated_lockfile": true
+        }
+      },
+      "primary_advisory": {
+        "kind": "Live primary-source advisory verification",
+        "verified_date": "2026-11-08",
+        "url": "https://github.com/advisories/GHSA-qwph-4952-7xr6",
+        "current_reported_severity": "moderate",
+        "summary": "The advisory covers versions before 9.0.0. Its bypass requires an unsigned token, no specified algorithms, and a falsy secret or key passed to verification.",
+        "selected_version_bound": "<9.0.0",
+        "all_selected_locked_versions_match_bound": true
+      },
+      "evidence": [
+        {
+          "kind": "upstream_git_blob",
+          "path": "src/services/token.service.js",
+          "git_blob": "e5e8fba22f5f03901f1d4daa90caca9a8a34171f",
+          "content_sha256": "63d240b22b8c6fffd1ed737f0628bdafb8117ae31b818068a7151a6019998e22",
+          "url": "https://github.com/hagopj13/node-express-boilerplate/blob/179ae84efec61b14206d0305d941daed6c6d07f9/src/services/token.service.js#L1",
+          "observation": "The token service imports jsonwebtoken.",
+          "start_line": 1,
+          "end_line": 1
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "src/services/token.service.js",
+          "git_blob": "e5e8fba22f5f03901f1d4daa90caca9a8a34171f",
+          "content_sha256": "63d240b22b8c6fffd1ed737f0628bdafb8117ae31b818068a7151a6019998e22",
+          "url": "https://github.com/hagopj13/node-express-boilerplate/blob/179ae84efec61b14206d0305d941daed6c6d07f9/src/services/token.service.js#L55",
+          "observation": "Verification passes the configured secret.",
+          "start_line": 55,
+          "end_line": 55
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "src/config/config.js",
+          "git_blob": "a34e9d0100feb3c323af57b05fd93b451da3165b",
+          "content_sha256": "26f18c5f221dca610b444b98dc2ad1e104fd874895b43e780a3470fe1932c80d",
+          "url": "https://github.com/hagopj13/node-express-boilerplate/blob/179ae84efec61b14206d0305d941daed6c6d07f9/src/config/config.js#L12",
+          "observation": "Configuration validation requires JWT_SECRET.",
+          "start_line": 12,
+          "end_line": 12
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "src/config/config.js",
+          "git_blob": "a34e9d0100feb3c323af57b05fd93b451da3165b",
+          "content_sha256": "26f18c5f221dca610b444b98dc2ad1e104fd874895b43e780a3470fe1932c80d",
+          "url": "https://github.com/hagopj13/node-express-boilerplate/blob/179ae84efec61b14206d0305d941daed6c6d07f9/src/config/config.js#L47",
+          "observation": "The JWT configuration exposes that secret.",
+          "start_line": 47,
+          "end_line": 47
+        }
+      ],
+      "dependency_chains": [
+        [
+          "jsonwebtoken"
+        ],
+        [
+          "passport-jwt",
+          "jsonwebtoken"
+        ]
+      ],
+      "limitations": [
+        "Labels concern alert visibility or unresolved context, not exploitation or non-affectedness.",
+        "Only static source and lockfile inspection; no upstream code execution or dependency installation.",
+        "Deployment, request inputs and runtime call paths were not observed."
+      ],
+      "assessment_status": "under_investigation",
+      "snapshot_sha256": "388d3550aeb50357755b65af71d454b0e8b7b030818df87f24dcc5def9cdb4b3"
+    },
+    {
+      "id": "npm-boilerplate-validator-isurl-context",
+      "project": "upstream/node-express-boilerplate@179ae84efec61b14206d0305d941daed6c6d07f9",
+      "package": "validator",
+      "version": "<13.15.20",
+      "advisory": "GHSA-9965-vmph-33xx",
+      "label": "unknown",
+      "reason": "Advisory-specific exposure is unresolved: validator appears at two locked locations and application code imports it for email validation. The advisory concerns isURL. The evidence does not map that function through all application and transitive consumers, including the nested z-schema copy. Observing isEmail does not justify filtering the isURL advisory or declaring the application unaffected.",
+      "provenance": {
+        "kind": "reviewed",
+        "source": "https://github.com/hagopj13/node-express-boilerplate/tree/179ae84efec61b14206d0305d941daed6c6d07f9",
+        "reviewer": "Codex agent curation and root evidence verification; human review pending",
+        "review_date": "2026-11-08",
+        "method": "static_source_and_advisory_review",
+        "human_reviewed": false,
+        "independent_external_validation": false
+      },
+      "version_evidence": {
+        "reported_kind": "npm via[].range; an advisory range, not an installed version",
+        "locked_versions": [
+          {
+            "node": "node_modules/validator",
+            "version": "13.6.0",
+            "lockfile_line": 13771,
+            "url": "https://github.com/samuelrojas-dev/depquiet/blob/87fd7562afd7d5abb9936f72be8da4e3e38c50ca/benchmarks/fixtures/repo-node-express-boilerplate/package-lock.json#L13771"
+          },
+          {
+            "node": "node_modules/z-schema/node_modules/validator",
+            "version": "12.2.0",
+            "lockfile_line": 14296,
+            "url": "https://github.com/samuelrojas-dev/depquiet/blob/87fd7562afd7d5abb9936f72be8da4e3e38c50ca/benchmarks/fixtures/repo-node-express-boilerplate/package-lock.json#L14296"
+          }
+        ],
+        "installation_observed": false,
+        "installed_versions": null,
+        "lockfile": {
+          "path": "package-lock.json",
+          "content_sha256": "aa12d062d907df4052f631695342cbdb396754e01385b6768c3a60bc83844de4",
+          "provenance": "Captured npm-generated lockfile derived from upstream yarn.lock.",
+          "generated_lockfile": true
+        }
+      },
+      "primary_advisory": {
+        "kind": "Live primary-source advisory verification",
+        "verified_date": "2026-11-08",
+        "url": "https://github.com/advisories/GHSA-9965-vmph-33xx",
+        "current_reported_severity": "moderate",
+        "summary": "The reviewed advisory covers validator releases before 13.15.20 and identifies URL parsing differences in the isURL function.",
+        "selected_version_bound": "<13.15.20",
+        "all_selected_locked_versions_match_bound": true
+      },
+      "evidence": [
+        {
+          "kind": "upstream_git_blob",
+          "path": "src/models/user.model.js",
+          "git_blob": "185711c585b383ceb7bf5ce908642c75c90e2190",
+          "content_sha256": "f0f36b37a1160e3888d1933aa67266d2386fe5715dbda5c74c6de2893bfde9e8",
+          "url": "https://github.com/hagopj13/node-express-boilerplate/blob/179ae84efec61b14206d0305d941daed6c6d07f9/src/models/user.model.js#L2",
+          "observation": "The application model imports validator.",
+          "start_line": 2,
+          "end_line": 2
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "src/models/user.model.js",
+          "git_blob": "185711c585b383ceb7bf5ce908642c75c90e2190",
+          "content_sha256": "f0f36b37a1160e3888d1933aa67266d2386fe5715dbda5c74c6de2893bfde9e8",
+          "url": "https://github.com/hagopj13/node-express-boilerplate/blob/179ae84efec61b14206d0305d941daed6c6d07f9/src/models/user.model.js#L21",
+          "observation": "The observed model use invokes email validation.",
+          "start_line": 21,
+          "end_line": 21
+        }
+      ],
+      "dependency_chains": [
+        [
+          "validator"
+        ],
+        [
+          "z-schema",
+          "validator"
+        ]
+      ],
+      "limitations": [
+        "Labels concern alert visibility or unresolved context, not exploitation or non-affectedness.",
+        "Only static source and lockfile inspection; no upstream code execution or dependency installation.",
+        "Deployment, request inputs and runtime call paths were not observed."
+      ],
+      "assessment_status": "under_investigation",
+      "snapshot_sha256": "388d3550aeb50357755b65af71d454b0e8b7b030818df87f24dcc5def9cdb4b3"
+    }
+  ]
+}

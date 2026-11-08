@@ -14,6 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A snapshot-bound reference evaluator with explicit coverage denominators and
   regression gates for unsafe or uncertain dismissals. Its initial two examples
   are labelled synthetic contract cases, not real-world accuracy measurements.
+- Ten selected upstream advisory contexts across four pinned npm/Python projects,
+  with frozen audit hashes, source evidence and explicit review provenance. Five
+  require retention and five remain uncertain; human review is pending and no
+  safe-dismissal or full-project accuracy claims are made.
+- An offline upstream replay harness and CI matrix that check exact Git blobs and
+  artifact hashes, keep missing selected findings visible to the evaluator and
+  upload scan/evaluation evidence without running upstream code or installing it.
 
 ### Changed
 - Automatic VEX assessments now remain `under_investigation`; CycloneDX analyses

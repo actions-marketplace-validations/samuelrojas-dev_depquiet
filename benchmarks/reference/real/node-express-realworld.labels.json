@@ -1,0 +1,219 @@
+{
+  "schema_version": 1,
+  "corpus": "upstream-retention-reference-v1",
+  "review_status": "agent_reviewed_human_pending",
+  "interpretation": "Selected retention expectations; not exploitability proof or an accuracy estimate.",
+  "cases": [
+    {
+      "id": "npm-realworld-body-parser-urlencoded",
+      "project": "upstream/node-express-realworld@30b68e1e881462b2f4164ea09ab4c4f5699c7b0b",
+      "package": "body-parser",
+      "version": "<1.20.3",
+      "advisory": "GHSA-qwcr-r2fm-qrc7",
+      "label": "retain",
+      "reason": "Keep visible: the production entry point imports body-parser and enables URL-encoded request parsing, the feature identified by the advisory. This is source/configuration evidence, not a demonstrated denial of service.",
+      "provenance": {
+        "kind": "reviewed",
+        "source": "https://github.com/gothinkster/node-express-realworld-example-app/tree/30b68e1e881462b2f4164ea09ab4c4f5699c7b0b",
+        "reviewer": "Codex agent curation and root evidence verification; human review pending",
+        "review_date": "2026-11-08",
+        "method": "static_source_and_advisory_review",
+        "human_reviewed": false,
+        "independent_external_validation": false
+      },
+      "version_evidence": {
+        "reported_kind": "npm via[].range; an advisory range, not an installed version",
+        "locked_versions": [
+          {
+            "node": "node_modules/body-parser",
+            "version": "1.20.2",
+            "lockfile_line": 4808,
+            "url": "https://github.com/gothinkster/node-express-realworld-example-app/blob/30b68e1e881462b2f4164ea09ab4c4f5699c7b0b/package-lock.json#L4808"
+          },
+          {
+            "node": "node_modules/express/node_modules/body-parser",
+            "version": "1.20.1",
+            "lockfile_line": 6051,
+            "url": "https://github.com/gothinkster/node-express-realworld-example-app/blob/30b68e1e881462b2f4164ea09ab4c4f5699c7b0b/package-lock.json#L6051"
+          }
+        ],
+        "installation_observed": false,
+        "installed_versions": null,
+        "lockfile": {
+          "path": "package-lock.json",
+          "content_sha256": "1fbe3ed3b932a4bc6daba7eed3a5648622f801e8cf33b65eefa654a42c1054da",
+          "provenance": "Upstream package-lock.json at the pinned commit.",
+          "generated_lockfile": false
+        }
+      },
+      "primary_advisory": {
+        "kind": "Live primary-source advisory verification",
+        "verified_date": "2026-11-08",
+        "url": "https://github.com/advisories/GHSA-qwcr-r2fm-qrc7",
+        "current_reported_severity": "high",
+        "summary": "The advisory covers body-parser releases before 1.20.3 and identifies URL-encoded request parsing as the relevant condition.",
+        "selected_version_bound": "<1.20.3",
+        "all_selected_locked_versions_match_bound": true
+      },
+      "evidence": [
+        {
+          "kind": "upstream_git_blob",
+          "path": "src/main.ts",
+          "git_blob": "0c2752fccf6ace80a5bb844f9a6d7305b0489b6d",
+          "content_sha256": "61bd12b5b278695a96d2207a684b3e2067ebf4b0ff11910654628329ea64f825",
+          "url": "https://github.com/gothinkster/node-express-realworld-example-app/blob/30b68e1e881462b2f4164ea09ab4c4f5699c7b0b/src/main.ts#L3",
+          "observation": "The application entry point imports body-parser.",
+          "start_line": 3,
+          "end_line": 3
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "src/main.ts",
+          "git_blob": "0c2752fccf6ace80a5bb844f9a6d7305b0489b6d",
+          "content_sha256": "61bd12b5b278695a96d2207a684b3e2067ebf4b0ff11910654628329ea64f825",
+          "url": "https://github.com/gothinkster/node-express-realworld-example-app/blob/30b68e1e881462b2f4164ea09ab4c4f5699c7b0b/src/main.ts#L15",
+          "observation": "The application installs URL-encoded parsing middleware.",
+          "start_line": 15,
+          "end_line": 15
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "src/main.ts",
+          "git_blob": "0c2752fccf6ace80a5bb844f9a6d7305b0489b6d",
+          "content_sha256": "61bd12b5b278695a96d2207a684b3e2067ebf4b0ff11910654628329ea64f825",
+          "url": "https://github.com/gothinkster/node-express-realworld-example-app/blob/30b68e1e881462b2f4164ea09ab4c4f5699c7b0b/src/main.ts#L55",
+          "observation": "The entry point starts the HTTP listener.",
+          "start_line": 55,
+          "end_line": 55
+        }
+      ],
+      "dependency_chains": [
+        [
+          "body-parser"
+        ],
+        [
+          "express",
+          "body-parser"
+        ]
+      ],
+      "limitations": [
+        "Labels concern alert visibility or unresolved context, not exploitation or non-affectedness.",
+        "Only static source and lockfile inspection; no upstream code execution or dependency installation.",
+        "Deployment, request inputs and runtime call paths were not observed."
+      ],
+      "assessment_status": "under_investigation",
+      "snapshot_sha256": "38632ceed5cfbe5d42419e9e23414524c00008c58e2a6fb9ab6a7af08b7c4266"
+    },
+    {
+      "id": "npm-realworld-path-to-regexp-transitive",
+      "project": "upstream/node-express-realworld@30b68e1e881462b2f4164ea09ab4c4f5699c7b0b",
+      "package": "path-to-regexp",
+      "version": "<0.1.10",
+      "advisory": "GHSA-9wv6-86v2-598j",
+      "label": "retain",
+      "reason": "Keep visible: the HTTP entry point instantiates Express and application routes use its Router. The lockfile connects Express to path-to-regexp 0.1.7. A missing direct import of this transitive package is insufficient grounds to hide its alert. The reviewed routes do not establish the advisory-specific unsafe multi-parameter route pattern.",
+      "provenance": {
+        "kind": "reviewed",
+        "source": "https://github.com/gothinkster/node-express-realworld-example-app/tree/30b68e1e881462b2f4164ea09ab4c4f5699c7b0b",
+        "reviewer": "Codex agent curation and root evidence verification; human review pending",
+        "review_date": "2026-11-08",
+        "method": "static_source_and_advisory_review",
+        "human_reviewed": false,
+        "independent_external_validation": false
+      },
+      "version_evidence": {
+        "reported_kind": "npm via[].range; an advisory range, not an installed version",
+        "locked_versions": [
+          {
+            "node": "node_modules/path-to-regexp",
+            "version": "0.1.7",
+            "lockfile_line": 8496,
+            "url": "https://github.com/gothinkster/node-express-realworld-example-app/blob/30b68e1e881462b2f4164ea09ab4c4f5699c7b0b/package-lock.json#L8496"
+          }
+        ],
+        "installation_observed": false,
+        "installed_versions": null,
+        "lockfile": {
+          "path": "package-lock.json",
+          "content_sha256": "1fbe3ed3b932a4bc6daba7eed3a5648622f801e8cf33b65eefa654a42c1054da",
+          "provenance": "Upstream package-lock.json at the pinned commit.",
+          "generated_lockfile": false
+        }
+      },
+      "primary_advisory": {
+        "kind": "Live primary-source advisory verification",
+        "verified_date": "2026-11-08",
+        "url": "https://github.com/advisories/GHSA-9wv6-86v2-598j",
+        "current_reported_severity": "high",
+        "summary": "For the 0.1 release line the advisory covers versions before 0.1.10. It describes pathological backtracking for certain route patterns with multiple parameters in one segment.",
+        "selected_version_bound": "<0.1.10",
+        "all_selected_locked_versions_match_bound": true
+      },
+      "evidence": [
+        {
+          "kind": "upstream_git_blob",
+          "path": "src/main.ts",
+          "git_blob": "0c2752fccf6ace80a5bb844f9a6d7305b0489b6d",
+          "content_sha256": "61bd12b5b278695a96d2207a684b3e2067ebf4b0ff11910654628329ea64f825",
+          "url": "https://github.com/gothinkster/node-express-realworld-example-app/blob/30b68e1e881462b2f4164ea09ab4c4f5699c7b0b/src/main.ts#L1",
+          "observation": "The HTTP entry point imports Express.",
+          "start_line": 1,
+          "end_line": 1
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "src/main.ts",
+          "git_blob": "0c2752fccf6ace80a5bb844f9a6d7305b0489b6d",
+          "content_sha256": "61bd12b5b278695a96d2207a684b3e2067ebf4b0ff11910654628329ea64f825",
+          "url": "https://github.com/gothinkster/node-express-realworld-example-app/blob/30b68e1e881462b2f4164ea09ab4c4f5699c7b0b/src/main.ts#L7",
+          "observation": "The entry point constructs an Express application.",
+          "start_line": 7,
+          "end_line": 7
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "src/app/routes/article/article.controller.ts",
+          "git_blob": "ff03702d80bd3ee203c165894d9d3a6f44b26416",
+          "content_sha256": "332973e18130e552b0b359e92eaaf94e8df207a96ce61eee59f64a62d42286ae",
+          "url": "https://github.com/gothinkster/node-express-realworld-example-app/blob/30b68e1e881462b2f4164ea09ab4c4f5699c7b0b/src/app/routes/article/article.controller.ts#L17",
+          "observation": "Article routes construct an Express Router.",
+          "start_line": 17,
+          "end_line": 17
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "src/app/routes/article/article.controller.ts",
+          "git_blob": "ff03702d80bd3ee203c165894d9d3a6f44b26416",
+          "content_sha256": "332973e18130e552b0b359e92eaaf94e8df207a96ce61eee59f64a62d42286ae",
+          "url": "https://github.com/gothinkster/node-express-realworld-example-app/blob/30b68e1e881462b2f4164ea09ab4c4f5699c7b0b/src/app/routes/article/article.controller.ts#L88",
+          "observation": "A concrete parameterized route is registered.",
+          "start_line": 88,
+          "end_line": 88
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "package-lock.json",
+          "git_blob": "95e7c45e687fc0fb221aa7a4a6dd572b04cedbef",
+          "content_sha256": "1fbe3ed3b932a4bc6daba7eed3a5648622f801e8cf33b65eefa654a42c1054da",
+          "url": "https://github.com/gothinkster/node-express-realworld-example-app/blob/30b68e1e881462b2f4164ea09ab4c4f5699c7b0b/package-lock.json",
+          "observation": "Express 4.18.2 requires the resolved path-to-regexp version.",
+          "json_pointer": "/packages/node_modules~1express/dependencies/path-to-regexp",
+          "value": "0.1.7"
+        }
+      ],
+      "dependency_chains": [
+        [
+          "express",
+          "path-to-regexp"
+        ]
+      ],
+      "limitations": [
+        "Labels concern alert visibility or unresolved context, not exploitation or non-affectedness.",
+        "Only static source and lockfile inspection; no upstream code execution or dependency installation.",
+        "Deployment, request inputs and runtime call paths were not observed."
+      ],
+      "assessment_status": "under_investigation",
+      "snapshot_sha256": "38632ceed5cfbe5d42419e9e23414524c00008c58e2a6fb9ab6a7af08b7c4266"
+    }
+  ]
+}

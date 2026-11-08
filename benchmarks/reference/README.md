@@ -1,6 +1,13 @@
 # Reference evaluation
 
-This directory contains **two synthetic contract examples**. Package names,
+This directory contains **two synthetic contract examples** and a separate
+[set of 10 pinned upstream advisory contexts](real/README.md). The latter is
+agent-reviewed with human review pending: five `retain`, five `unknown`, and no
+`filter` labels. It checks selected retention expectations, not safe dismissal
+rates or full-project accuracy. CI replays the four upstream projects separately
+and uploads evidence reports.
+
+For the synthetic examples, package names,
 advisory identifiers, audit output and labels are invented together. They test
 retention of an imported runtime package and permitted filtering of a dev-only
 tool. They provide no estimate of real-world precision, recall, exploitability
