@@ -238,3 +238,63 @@ def test_dev_filter_remains_independent_of_source_uncertainty(tmp_path: Path, mo
     assert finding.verdict == Verdict.FILTERED
     assert finding.reasons == [FilterReason.DEV_DEPENDENCY]
     assert finding.evidence.usage == "unknown"
+
+
+def _deny_stat_during_mentions(monkeypatch, blocked: Path) -> None:
+    original_mentions = reachability._mention_words
+    original_stat = Path.stat
+
+    def mentions(*args, **kwargs):
+        def stat(path: Path, *stat_args, **stat_kwargs):
+            if path == blocked:
+                raise PermissionError(errno.EACCES, "source metadata denied", str(path))
+            return original_stat(path, *stat_args, **stat_kwargs)
+
+        # Inventory preflight completes normally. Only mention collection loses
+        # access to this path's metadata; no fragile global call counts.
+        with monkeypatch.context() as phase:
+            phase.setattr(Path, "stat", stat)
+            return original_mentions(*args, **kwargs)
+
+    monkeypatch.setattr(reachability, "_mention_words", mentions)
+
+
+def test_metadata_failure_during_mentions_does_not_bypass_coverage_guard(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _project(tmp_path)
+    settings = tmp_path / "settings.py"
+    settings.write_text("PLUGINS = ['example_lib']\n")
+    [control] = scan(tmp_path, audit_json=_audit(), skip_epss=True).results
+    assert control.verdict == Verdict.ACTION
+    assert control.evidence.usage == "observed"
+
+    _deny_stat_during_mentions(monkeypatch, settings)
+    result = scan(tmp_path, audit_json=_audit(), skip_epss=True)
+    [finding] = result.results
+    assert result.scanned is True
+    assert finding.verdict == Verdict.ACTION
+    assert FilterReason.UNREACHABLE not in finding.reasons
+    assert finding.evidence.usage == "unknown"
+    assert finding.evidence.import_sites == []
+    assert any(
+        "inspect source metadata settings.py" in observation
+        and "PermissionError" in observation
+        and "source metadata denied" in observation
+        for observation in finding.evidence.observations
+    )
+    assert not any("enumerate source directory" in item for item in finding.evidence.observations)
+
+
+def test_mention_metadata_errors_outside_included_sources_preserve_scope(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _project(tmp_path)
+    (tmp_path / "public.js").write_text("console.log('hello');\n")
+    config = tmp_path / "optional.ini"
+    config.write_text("value = unimportant\n")
+    _deny_stat_during_mentions(monkeypatch, config)
+    [finding] = scan(tmp_path, audit_json=_audit(), skip_epss=True).results
+    assert finding.reasons == [FilterReason.UNREACHABLE]
+    assert finding.evidence.usage == "not_observed"
+    assert not any("optional.ini" in item for item in finding.evidence.observations)

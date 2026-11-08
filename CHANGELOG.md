@@ -35,7 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Reachability and source-absence template conditions no longer dismiss findings
-  based on unreadable included source files or failed source-directory enumeration.
+  based on included-source read/metadata errors or failed source-directory enumeration.
   Evidence retains observed imports and records coverage errors; unresolved usage
   stays unknown. Source content and read failures are shared within each scan.
 - Saved-scan diffs preserve distinct advisory/package/version contexts instead

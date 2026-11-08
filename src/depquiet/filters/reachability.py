@@ -143,6 +143,7 @@ def _mention_words(
     *,
     read_text: _TextReader | None = None,
     onerror: Callable[[OSError], None] | None = None,
+    on_read_error: Callable[[str, Path, OSError], None] | None = None,
 ) -> set[str]:
     """Lower-cased words in the project's code, scripts and config files."""
     words: set[str] = set()
@@ -161,10 +162,18 @@ def _mention_words(
             if suffix not in _MENTION_SUFFIXES and not extensionless:
                 continue
             try:
-                if path.stat().st_size > _MENTION_MAX_BYTES:
-                    continue
+                size = path.stat().st_size
+            except OSError as error:
+                if on_read_error is not None:
+                    on_read_error("inspect source metadata", path, error)
+                continue
+            if size > _MENTION_MAX_BYTES:
+                continue
+            try:
                 text = _read_text(path) if read_text is None else read_text(path)
-            except OSError:
+            except OSError as error:
+                if on_read_error is not None:
+                    on_read_error("read source", path, error)
                 continue
             if extensionless and "\x00" in text[:1024]:
                 continue  # binary
@@ -1246,6 +1255,10 @@ class ReachabilityFilter:
         path = Path(os.fsdecode(error.filename)) if error.filename else self._project
         self._record_coverage_error("enumerate source directory", path, error)
 
+    def _mention_error(self, operation: str, path: Path, error: OSError) -> None:
+        if path in self._included_source_paths:
+            self._record_coverage_error(operation, path, error)
+
     def _read_project_text(self, path: Path) -> str:
         """Snapshot each attempted read once, including failures, for this scan."""
         if path in self._text_by_path:
@@ -1452,6 +1465,7 @@ class ReachabilityFilter:
                 self._project,
                 read_text=self._read_project_text,
                 onerror=self._enumeration_error,
+                on_read_error=self._mention_error,
             )
         names = {pkg.lower(), pkg.rsplit("/", 1)[-1].lower()}
         names |= import_candidates(pkg, self._project)

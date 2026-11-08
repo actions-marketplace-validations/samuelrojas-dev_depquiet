@@ -40,8 +40,9 @@ Configuration/command references are observations, not fabricated file locations
 JSON can be reloaded with `depquiet explain --from-json`; old JSON defaults to an
 unverified assessment without inventing historical evidence.
 
-An unreadable included source file or a source-directory enumeration failure is
-recorded in `evidence.observations` with its path and error. Reachability and
+A read or metadata error in an included source file, or a source-directory
+enumeration failure, is recorded in `evidence.observations` with its path and
+error. Reachability and
 source-absence template conditions abstain when this source coverage is
 incomplete. Without positive usage evidence, `evidence.usage` remains `unknown`;
 real import observations may still be retained alongside the coverage limitation.
