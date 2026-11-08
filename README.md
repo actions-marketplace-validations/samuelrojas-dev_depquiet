@@ -1034,13 +1034,21 @@ priorities and decision history, and can query OSV directly from lockfiles.
 The alert-reduction figures above describe captured scans; they do not establish
 false-positive rates or superiority over another scanner. The new
 [reference evaluator](benchmarks/reference/README.md) checks labelled cases,
-including missing findings and unsafe dismissals. Its initial corpus contains two
-explicitly synthetic contract examples, not a real-world accuracy estimate:
+including missing findings and unsafe dismissals. Two explicitly synthetic
+contract examples exercise its mechanics:
 
 ```bash
 python benchmarks/reference/run.py --output synthetic-scan.json
 python benchmarks/evaluate.py --labels benchmarks/reference/synthetic.labels.json --scan synthetic-scan.json --snapshot benchmarks/reference/synthetic.snapshot.json --json
 ```
+
+The separate [upstream reference set](benchmarks/reference/real/README.md) contains
+10 selected advisory contexts from four pinned npm/Python projects, with frozen
+audits, source hashes and review evidence. CI checks that five `retain` and five
+`unknown` cases remain visible. Labels are agent-reviewed; human review is pending.
+There are no real `filter` labels, so this set does not measure safe dismissal,
+full-project coverage or real-world accuracy. Replay requires no upstream code
+execution or package installation.
 
 ## License
 

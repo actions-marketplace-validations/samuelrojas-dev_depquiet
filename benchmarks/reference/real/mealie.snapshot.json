@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "kind": "upstream_reference",
+  "project": "upstream/mealie@01713b04163e9524b2665ad8089148b6d2f90233",
+  "source": {
+    "repository": "mealie-recipes/mealie",
+    "commit": "01713b04163e9524b2665ad8089148b6d2f90233"
+  },
+  "audit": {
+    "path": "benchmarks/fixtures/repo-mealie/audit.json",
+    "sha256": "39fb8b650a36dcae6d91e2940944e10e44bd1d43cf49a41ce8914f55d9f8e5c8"
+  },
+  "capture": {
+    "captured_at": "2026-11-04T21:29:38Z",
+    "tool": "pip-audit 2.10.1",
+    "commands": [
+      "name==version for every registry package in poetry.lock",
+      "pip-audit -r requirements.txt --no-deps --disable-pip -f json"
+    ],
+    "recaptured_for_this_corpus": false,
+    "unexamined_duplicate_versions": []
+  },
+  "selection": [
+    {
+      "package": "starlette",
+      "version": "0.41.0",
+      "advisory": "PYSEC-2026-1941"
+    },
+    {
+      "package": "pyjwt",
+      "version": "2.10.1",
+      "advisory": "PYSEC-2026-120"
+    },
+    {
+      "package": "h11",
+      "version": "0.14.0",
+      "advisory": "PYSEC-2026-348"
+    },
+    {
+      "package": "cryptography",
+      "version": "41.0.7",
+      "advisory": "PYSEC-2026-1285"
+    }
+  ],
+  "scope_note": "Selected retention expectations from frozen audits, not full-project accuracy."
+}

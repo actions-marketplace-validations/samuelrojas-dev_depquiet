@@ -1,1 +1,4 @@
 benchmarks/reference/*.json text eol=lf
+benchmarks/reference/**/*.json text eol=lf
+benchmarks/fixtures/**/audit.json text eol=lf
+benchmarks/fixtures/**/package-lock.json text eol=lf

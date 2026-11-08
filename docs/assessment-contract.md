@@ -69,8 +69,19 @@ included results carry assessment, evidence and history properties.
 ## Measuring correctness
 
 The [reference evaluator](../benchmarks/reference/README.md) compares a saved scan
-to independently recorded expectations for a pinned snapshot. It rejects silent
-coverage gaps and reports explicit denominators. Initial synthetic examples
-exercise the contract; they do not demonstrate real-world precision, recall,
-exploitability, or comparative performance. Curated real cases require separate
-review and evidence before being used for such claims.
+to separately recorded expectations for a pinned snapshot. It rejects silent
+coverage gaps and reports explicit denominators. Two synthetic examples exercise
+the contract. A separate [upstream reference set](../benchmarks/reference/real/README.md)
+contains ten selected contexts from four real npm/Python projects: five `retain`,
+five `unknown`, and no `filter` labels. Agent curation and evidence checks are
+recorded; human review and independent external validation are pending.
+
+The upstream harness binds exact Git commit blobs, frozen audit/overlay bytes and
+the report's snapshot hash without executing upstream code or installing its
+dependencies. Selection is fixed in the snapshot before evaluation, independent
+of labels and verdicts. Missing selected findings still fail the gate; unselected
+findings are explicitly outside its scope. This establishes a small retention
+regression check, not full-project label coverage, precision, recall, safe
+dismissal rates, exploitability, or comparative performance. Locked dependencies
+are not asserted to be installed in a deployment. All automatic impact
+assessments remain `under_investigation`.

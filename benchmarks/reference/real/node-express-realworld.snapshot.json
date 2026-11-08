@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "kind": "upstream_reference",
+  "project": "upstream/node-express-realworld@30b68e1e881462b2f4164ea09ab4c4f5699c7b0b",
+  "source": {
+    "repository": "gothinkster/node-express-realworld-example-app",
+    "commit": "30b68e1e881462b2f4164ea09ab4c4f5699c7b0b"
+  },
+  "audit": {
+    "path": "benchmarks/fixtures/repo-node-express-realworld/audit.json",
+    "sha256": "5ae8bcddc20325d11ec8c7fad3f95fe5fb7f23e81c6cc6caf7a9caea861ecc25"
+  },
+  "capture": {
+    "captured_at": "2026-11-04T20:56:48Z",
+    "tool": "npm 10.9.9",
+    "commands": [
+      "npm audit --json"
+    ],
+    "recaptured_for_this_corpus": false,
+    "unexamined_duplicate_versions": []
+  },
+  "selection": [
+    {
+      "package": "body-parser",
+      "version": "<1.20.3",
+      "advisory": "GHSA-qwcr-r2fm-qrc7"
+    },
+    {
+      "package": "path-to-regexp",
+      "version": "<0.1.10",
+      "advisory": "GHSA-9wv6-86v2-598j"
+    }
+  ],
+  "scope_note": "Selected retention expectations from frozen audits, not full-project accuracy."
+}
