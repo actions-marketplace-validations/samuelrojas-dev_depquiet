@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- SBOM inventories now report an incomplete scan with exit code 2 when offline,
+  empty, or unable to complete an OSV lookup, instead of claiming no vulnerabilities.
+- OSV scans retrieve complete advisory records, including severity, CVE aliases and
+  fixed versions, and handle paginated results without accepting partial reports.
+- Keep explicitly imported transitive dependencies and packages shared between
+  development and production dependency paths.
+- Evaluate built-in template dismissal conditions conservatively and include all
+  21 templates in installed wheels as package resources.
+- Resolve scanner executables on Windows and audit every locked Python version,
+  including multiple platform variants of the same package.
+- Detect piped scanner JSON by its contents rather than the local project's ecosystem.
+- Emit one JSON document with combined vulnerability and license results.
+- Preserve operational failures in the GitHub Action, quote paths containing spaces,
+  and generate diff summaries and comments from the original scan even after findings.
+- Normalize SARIF paths on Windows and make unit tests independent of platform-specific
+  permission APIs, default text encodings and installed vulnerability scanners.
+
+### Changed
+- CI tests Python 3.13 on Windows as well as the existing Linux matrix.
+
 ## [0.30.1] - 2026-11-04
 
 ### Fixed

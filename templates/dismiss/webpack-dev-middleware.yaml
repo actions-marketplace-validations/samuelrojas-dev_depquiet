@@ -4,3 +4,4 @@ author: "@depquiet"
 cves:
   - CVE-2024-29180
 package: webpack-dev-middleware
+not-imported: ["webpack-dev-middleware"]

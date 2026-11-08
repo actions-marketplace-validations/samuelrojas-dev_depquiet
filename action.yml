@@ -158,105 +158,109 @@ runs:
         INPUT_ANNOTATIONS: ${{ inputs.annotations }}
         INPUT_VEX: ${{ inputs.vex }}
       run: |
-        ARGS="--path $INPUT_PATH --epss-threshold $INPUT_EPSS_THRESHOLD --json"
+        SCAN_DIR=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/depquiet.XXXXXX")
+        SCAN_FILE="$SCAN_DIR/scan.json"
+        ARGS=(--path "$INPUT_PATH" --epss-threshold "$INPUT_EPSS_THRESHOLD" --json)
 
         if [ "$INPUT_OFFLINE" = "true" ]; then
-          ARGS="$ARGS --offline"
+          ARGS+=(--offline)
         fi
 
         if [ -n "$INPUT_SARIF" ]; then
-          ARGS="$ARGS --sarif $INPUT_SARIF"
+          ARGS+=(--sarif "$INPUT_SARIF")
           echo "sarif_file=$INPUT_SARIF" >> "$GITHUB_OUTPUT"
         fi
 
         if [ -n "$INPUT_TEMPLATES" ]; then
-          ARGS="$ARGS --templates $INPUT_TEMPLATES"
+          ARGS+=(--templates "$INPUT_TEMPLATES")
         fi
 
         if [ -n "$INPUT_POLICY" ]; then
-          ARGS="$ARGS --policy $INPUT_POLICY"
+          ARGS+=(--policy "$INPUT_POLICY")
         fi
 
         if [ -n "$INPUT_SBOM" ]; then
-          ARGS="$ARGS --sbom $INPUT_SBOM"
+          ARGS+=(--sbom "$INPUT_SBOM")
           echo "sbom_file=$INPUT_SBOM" >> "$GITHUB_OUTPUT"
         fi
 
         if [ -n "$INPUT_SBOM_FORMAT" ]; then
-          ARGS="$ARGS --sbom-format $INPUT_SBOM_FORMAT"
+          ARGS+=(--sbom-format "$INPUT_SBOM_FORMAT")
         fi
 
         if [ -n "$INPUT_FROM_SBOM" ]; then
-          ARGS="$ARGS --from-sbom $INPUT_FROM_SBOM"
+          ARGS+=(--from-sbom "$INPUT_FROM_SBOM")
         fi
 
         if [ -n "$INPUT_IGNORE" ]; then
-          ARGS="$ARGS --ignore $INPUT_IGNORE"
+          ARGS+=(--ignore "$INPUT_IGNORE")
         fi
 
         if [ "$INPUT_LICENSE" = "true" ]; then
-          ARGS="$ARGS --license"
+          ARGS+=(--license)
         fi
 
         if [ -n "$INPUT_FAIL_ON" ]; then
-          ARGS="$ARGS --fail-on $INPUT_FAIL_ON"
+          ARGS+=(--fail-on "$INPUT_FAIL_ON")
         fi
 
         if [ -n "$INPUT_BASELINE" ]; then
-          ARGS="$ARGS --baseline $INPUT_BASELINE"
+          ARGS+=(--baseline "$INPUT_BASELINE")
         fi
 
         if [ "$INPUT_KEV" = "true" ]; then
-          ARGS="$ARGS --kev"
+          ARGS+=(--kev)
         fi
 
         if [ -n "$INPUT_KEV_FILE" ]; then
-          ARGS="$ARGS --kev-file $INPUT_KEV_FILE"
+          ARGS+=(--kev-file "$INPUT_KEV_FILE")
         fi
 
         if [ -n "$INPUT_HTML" ]; then
-          ARGS="$ARGS --html $INPUT_HTML"
+          ARGS+=(--html "$INPUT_HTML")
         fi
 
         if [ "$INPUT_ANNOTATIONS" = "true" ]; then
-          ARGS="$ARGS --annotations /tmp/depquiet-annotations.json"
+          ARGS+=(--annotations "$SCAN_DIR/annotations.json")
         fi
 
         if [ -n "$INPUT_VEX" ]; then
-          ARGS="$ARGS --vex $INPUT_VEX"
+          ARGS+=(--vex "$INPUT_VEX")
         fi
 
         # Job summary — always write when GITHUB_STEP_SUMMARY is available
         if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
-          ARGS="$ARGS --summary $GITHUB_STEP_SUMMARY"
+          ARGS+=(--summary "$GITHUB_STEP_SUMMARY")
         fi
 
         set +e
-        OUTPUT=$(depquiet $ARGS 2>&1)
+        depquiet "${ARGS[@]}" > "$SCAN_FILE"
         EXIT_CODE=$?
         set -e
 
-        echo "$OUTPUT"
+        cat "$SCAN_FILE"
+        # Findings use exit 1. Scanner failures (exit 2+) always fail the step.
+        if [ "$EXIT_CODE" -gt 1 ]; then
+          exit "$EXIT_CODE"
+        fi
 
-        # Parse JSON output for action outputs
-        TOTAL=$(echo "$OUTPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('summary',{}).get('total',0))" 2>/dev/null || echo "0")
-        FILTERED=$(echo "$OUTPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('summary',{}).get('filtered',0))" 2>/dev/null || echo "0")
-        ACTION=$(echo "$OUTPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('summary',{}).get('action',0))" 2>/dev/null || echo "0")
-        REVIEW=$(echo "$OUTPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('summary',{}).get('review',0))" 2>/dev/null || echo "0")
+        # Validate one JSON document before exposing a scan to downstream steps.
+        # Keep stderr out of this file: warnings must not erase valid counters.
+        python3 -c '
+        import json, sys
+        with open(sys.argv[1], encoding="utf-8") as stream:
+            data = json.load(stream)
+        for key in ("total", "filtered", "action", "review"):
+            print("{}={}".format(key, data["summary"][key]))
+        ' "$SCAN_FILE" >> "$GITHUB_OUTPUT"
+        echo "scan_file=$SCAN_FILE" >> "$GITHUB_OUTPUT"
+        if [ "$INPUT_ANNOTATIONS" = "true" ]; then
+          echo "annotations_file=$SCAN_DIR/annotations.json" >> "$GITHUB_OUTPUT"
+        fi
 
-        echo "total=$TOTAL" >> "$GITHUB_OUTPUT"
-        echo "filtered=$FILTERED" >> "$GITHUB_OUTPUT"
-        echo "action=$ACTION" >> "$GITHUB_OUTPUT"
-        echo "review=$REVIEW" >> "$GITHUB_OUTPUT"
-
-        # Determine failure behavior: --fail-on overrides fail-on-action
-        if [ -n "$INPUT_FAIL_ON" ]; then
-          # Explicit --fail-on: always pass to CLI, let depquiet decide exit code
-          if [ "$EXIT_CODE" -ne 0 ]; then
-            exit 1
-          fi
-        elif [ "$INPUT_FAIL_ON_ACTION" = "true" ] && [ "$EXIT_CODE" -ne 0 ]; then
-          exit 1
+        # Explicit --fail-on overrides fail-on-action; only findings are optional.
+        if [ "$EXIT_CODE" -ne 0 ] && { [ -n "$INPUT_FAIL_ON" ] || [ "$INPUT_FAIL_ON_ACTION" = "true" ]; }; then
+          exit "$EXIT_CODE"
         fi
 
     - name: Post PR annotations
@@ -264,15 +268,16 @@ runs:
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
+        ANNOTATIONS_FILE: ${{ steps.run.outputs.annotations_file }}
       run: |
-        if [ ! -f /tmp/depquiet-annotations.json ]; then
+        if [ ! -f "$ANNOTATIONS_FILE" ]; then
           echo "No annotations file found, skipping"
           exit 0
         fi
 
-        SUMMARY=$(python3 -c "import sys,json; print(json.load(sys.stdin)['summary'])" < /tmp/depquiet-annotations.json 2>/dev/null || echo "depquiet scan complete")
-        CONCLUSION=$(python3 -c "import sys,json; print(json.load(sys.stdin)['conclusion'])" < /tmp/depquiet-annotations.json 2>/dev/null || echo "neutral")
-        ANN_COUNT=$(python3 -c "import sys,json; print(len(json.load(sys.stdin)['annotations']))" < /tmp/depquiet-annotations.json 2>/dev/null || echo "0")
+        SUMMARY=$(python3 -c "import sys,json; print(json.load(sys.stdin)['summary'])" < "$ANNOTATIONS_FILE" 2>/dev/null || echo "depquiet scan complete")
+        CONCLUSION=$(python3 -c "import sys,json; print(json.load(sys.stdin)['conclusion'])" < "$ANNOTATIONS_FILE" 2>/dev/null || echo "neutral")
+        ANN_COUNT=$(python3 -c "import sys,json; print(len(json.load(sys.stdin)['annotations']))" < "$ANNOTATIONS_FILE" 2>/dev/null || echo "0")
 
         if [ "$ANN_COUNT" = "0" ]; then
           echo "No annotations to post"
@@ -290,121 +295,100 @@ runs:
 
         # Post annotations in batches of 50 (GitHub API limit)
         python3 -c "
-import json, subprocess, os, sys
+        import json, subprocess, os, sys
 
-with open('/tmp/depquiet-annotations.json') as f:
-    data = json.load(f)
+        with open(os.environ['ANNOTATIONS_FILE'], encoding='utf-8') as f:
+            data = json.load(f)
 
-annotations = data['annotations']
-summary = data['summary']
-conclusion = data['conclusion']
-repo = os.environ['GITHUB_REPOSITORY']
-sha = os.environ['GITHUB_SHA']
+        annotations = data['annotations']
+        summary = data['summary']
+        conclusion = data['conclusion']
+        repo = os.environ['GITHUB_REPOSITORY']
+        sha = os.environ['GITHUB_SHA']
 
-# First call: create the check run with the first batch
-batch_size = 50
-first_batch = annotations[:batch_size]
+        # First call: create the check run with the first batch
+        batch_size = 50
+        first_batch = annotations[:batch_size]
 
-payload = {
-    'name': 'depquiet',
-    'head_sha': sha,
-    'status': 'completed',
-    'conclusion': conclusion,
-    'output': {
-        'title': f'depquiet: {len(annotations)} findings',
-        'summary': summary,
-        'annotations': first_batch,
-    },
-}
-
-result = subprocess.run(
-    ['gh', 'api', f'repos/{repo}/check-runs', '--input', '-'],
-    input=json.dumps(payload),
-    capture_output=True,
-    text=True,
-)
-
-if result.returncode != 0:
-    print(f'Warning: failed to create check run: {result.stderr}', file=sys.stderr)
-    sys.exit(0)
-
-# If more than 50 annotations, update with remaining batches
-if len(annotations) > batch_size:
-    check_run = json.loads(result.stdout)
-    check_run_id = check_run['id']
-
-    for i in range(batch_size, len(annotations), batch_size):
-        batch = annotations[i:i + batch_size]
-        update = {
+        payload = {
+            'name': 'depquiet',
+            'head_sha': sha,
+            'status': 'completed',
+            'conclusion': conclusion,
             'output': {
                 'title': f'depquiet: {len(annotations)} findings',
                 'summary': summary,
-                'annotations': batch,
+                'annotations': first_batch,
             },
         }
-        subprocess.run(
-            ['gh', 'api', '-X', 'PATCH', f'repos/{repo}/check-runs/{check_run_id}', '--input', '-'],
-            input=json.dumps(update),
+
+        result = subprocess.run(
+            ['gh', 'api', f'repos/{repo}/check-runs', '--input', '-'],
+            input=json.dumps(payload),
             capture_output=True,
             text=True,
         )
 
-print(f'Posted {len(annotations)} annotations to check run')
-" 2>/dev/null || echo "Warning: failed to post annotations"
+        if result.returncode != 0:
+            print(f'Warning: failed to create check run: {result.stderr}', file=sys.stderr)
+            sys.exit(0)
 
-    - name: Save scan JSON for diff
-      if: inputs.diff-base != ''
-      id: save-scan
-      shell: bash
-      env:
-        INPUT_PATH: ${{ inputs.path }}
-        INPUT_EPSS_THRESHOLD: ${{ inputs.epss-threshold }}
-        INPUT_OFFLINE: ${{ inputs.offline }}
-        INPUT_TEMPLATES: ${{ inputs.templates }}
-        INPUT_POLICY: ${{ inputs.policy }}
-        INPUT_IGNORE: ${{ inputs.ignore }}
-        INPUT_KEV: ${{ inputs.kev }}
-        INPUT_KEV_FILE: ${{ inputs.kev-file }}
-        INPUT_BASELINE: ${{ inputs.baseline }}
-      run: |
-        ARGS="--path $INPUT_PATH --epss-threshold $INPUT_EPSS_THRESHOLD --json"
-        if [ "$INPUT_OFFLINE" = "true" ]; then ARGS="$ARGS --offline"; fi
-        if [ -n "$INPUT_TEMPLATES" ]; then ARGS="$ARGS --templates $INPUT_TEMPLATES"; fi
-        if [ -n "$INPUT_POLICY" ]; then ARGS="$ARGS --policy $INPUT_POLICY"; fi
-        if [ -n "$INPUT_IGNORE" ]; then ARGS="$ARGS --ignore $INPUT_IGNORE"; fi
-        if [ "$INPUT_KEV" = "true" ]; then ARGS="$ARGS --kev"; fi
-        if [ -n "$INPUT_KEV_FILE" ]; then ARGS="$ARGS --kev-file $INPUT_KEV_FILE"; fi
-        if [ -n "$INPUT_BASELINE" ]; then ARGS="$ARGS --baseline $INPUT_BASELINE"; fi
-        depquiet $ARGS > /tmp/depquiet-head-scan.json 2>/dev/null || true
+        # If more than 50 annotations, update with remaining batches
+        if len(annotations) > batch_size:
+            check_run = json.loads(result.stdout)
+            check_run_id = check_run['id']
+
+            for i in range(batch_size, len(annotations), batch_size):
+                batch = annotations[i:i + batch_size]
+                update = {
+                    'output': {
+                        'title': f'depquiet: {len(annotations)} findings',
+                        'summary': summary,
+                        'annotations': batch,
+                    },
+                }
+                subprocess.run(
+                    ['gh', 'api', '-X', 'PATCH', f'repos/{repo}/check-runs/{check_run_id}', '--input', '-'],
+                    input=json.dumps(update),
+                    capture_output=True,
+                    text=True,
+                )
+
+        print(f'Posted {len(annotations)} annotations to check run')
+        " 2>/dev/null || echo "Warning: failed to post annotations"
 
     - name: Run scan diff
-      if: inputs.diff-base != ''
+      if: always() && inputs.diff-base != '' && steps.run.outputs.scan_file != ''
       id: diff
       shell: bash
       env:
         INPUT_DIFF_BASE: ${{ inputs.diff-base }}
+        SCAN_FILE: ${{ steps.run.outputs.scan_file }}
       run: |
-        DIFF_ARGS="diff $INPUT_DIFF_BASE /tmp/depquiet-head-scan.json --json"
-        DIFF_OUTPUT=$(depquiet $DIFF_ARGS 2>/dev/null || echo '{"summary":{"new":0,"fixed":0,"changed":0,"unchanged":0}}')
-        NEW=$(echo "$DIFF_OUTPUT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('summary',{}).get('new',0))" 2>/dev/null || echo "0")
-        FIXED=$(echo "$DIFF_OUTPUT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('summary',{}).get('fixed',0))" 2>/dev/null || echo "0")
-        echo "new=$NEW" >> "$GITHUB_OUTPUT"
-        echo "fixed=$FIXED" >> "$GITHUB_OUTPUT"
+        DIFF_ARGS=(diff "$INPUT_DIFF_BASE" "$SCAN_FILE")
+        DIFF_OUTPUT=$(depquiet "${DIFF_ARGS[@]}" --json)
+        printf '%s\n' "$DIFF_OUTPUT" | python3 -c '
+        import json, sys
+        data = json.load(sys.stdin)
+        for key in ("new", "fixed"):
+            print("{}={}".format(key, data["summary"][key]))
+        ' >> "$GITHUB_OUTPUT"
 
-        # Write markdown diff to step summary
         if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
-          depquiet diff "$INPUT_DIFF_BASE" /tmp/depquiet-head-scan.json --summary "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+          depquiet "${DIFF_ARGS[@]}" --summary "$SCAN_FILE.diff.md"
+          cat "$SCAN_FILE.diff.md" >> "$GITHUB_STEP_SUMMARY"
         fi
 
     - name: Post PR comment
-      if: inputs.diff-base != '' && inputs.pr-comment == 'true' && github.event_name == 'pull_request'
+      if: always() && steps.diff.outcome == 'success' && inputs.pr-comment == 'true' && github.event_name == 'pull_request'
       shell: bash
       env:
         INPUT_DIFF_BASE: ${{ inputs.diff-base }}
+        SCAN_FILE: ${{ steps.run.outputs.scan_file }}
         GH_TOKEN: ${{ github.token }}
         PR_NUMBER: ${{ github.event.pull_request.number }}
       run: |
-        COMMENT=$(depquiet diff "$INPUT_DIFF_BASE" /tmp/depquiet-head-scan.json --markdown 2>/dev/null || echo "⚠️ depquiet diff failed")
+        COMMENT=$(depquiet diff "$INPUT_DIFF_BASE" "$SCAN_FILE" --markdown)
         # Delete previous depquiet comment if any
         EXISTING=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" --jq '.[] | select(.body | startswith("## 🔍 depquiet")) | .id' 2>/dev/null || true)
         if [ -n "$EXISTING" ]; then

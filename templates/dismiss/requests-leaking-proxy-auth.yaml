@@ -4,3 +4,4 @@ author: "@depquiet"
 cves:
   - CVE-2023-32681
 package: requests
+not-imported: ["requests"]

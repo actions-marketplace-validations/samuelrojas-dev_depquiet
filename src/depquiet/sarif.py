@@ -135,7 +135,7 @@ def _build_locations(
         for imp in tr.reachable_imports[:5]:
             # Make path relative to project
             try:
-                rel = str(Path(imp).relative_to(project_path))
+                rel = Path(imp).relative_to(project_path).as_posix()
             except ValueError:
                 rel = imp
             locations.append(

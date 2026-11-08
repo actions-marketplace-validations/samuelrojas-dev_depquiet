@@ -627,9 +627,14 @@ def main(argv: list[str] | None = None) -> int:
         elif not args.json_output:
             print("\n⚠️  KEV catalog unavailable (offline with no cache)\n")
 
+    # Compute license data before serializing so --json emits one document.
+    license_report = None
+    if merged.license or args.license_scan:
+        license_report = scan_licenses(args.path, package_manager=result.package_manager)
+
     # Output
     if args.json_output:
-        _print_json(result)
+        _print_json(result, license_report=license_report)
     else:
         print_scan_result(result)
 
@@ -663,11 +668,8 @@ def main(argv: list[str] | None = None) -> int:
         write_vex(vex_doc, merged.vex)
 
     # License compliance (from CLI or config)
-    if merged.license or args.license_scan:
-        license_report = scan_licenses(args.path, package_manager=result.package_manager)
-        if args.json_output:
-            _print_license_json(license_report)
-        else:
+    if license_report is not None:
+        if not args.json_output:
             print_license_report(license_report)
         if license_report.has_issues:
             return 1
@@ -724,7 +726,7 @@ def _should_fail(result: ScanResult, fail_on: str | None) -> bool:
     return False
 
 
-def _print_json(result: ScanResult) -> None:
+def _print_json(result: ScanResult, *, license_report: LicenseReport | None = None) -> None:
     """Print machine-readable JSON output."""
     results_list: list[dict[str, Any]] = []
     out: dict[str, Any] = {
@@ -765,13 +767,16 @@ def _print_json(result: ScanResult) -> None:
             }
         results_list.append(entry)
 
+    if license_report is not None:
+        out["license"] = _license_json(license_report)
+
     json.dump(out, sys.stdout, indent=2)
     print()  # trailing newline
 
 
-def _print_license_json(report: LicenseReport) -> None:
-    """Print machine-readable license JSON to stdout."""
-    out: dict[str, Any] = {
+def _license_json(report: LicenseReport) -> dict[str, Any]:
+    """Build the license section of a machine-readable scan report."""
+    return {
         "project": report.project_path,
         "package_manager": report.package_manager,
         "total": len(report.packages),
@@ -794,5 +799,3 @@ def _print_license_json(report: LicenseReport) -> None:
             if p.risk.value in ("high", "critical", "unknown")
         ],
     }
-    json.dump(out, sys.stdout, indent=2)
-    print()

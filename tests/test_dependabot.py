@@ -182,9 +182,12 @@ class TestDependabotEngineIntegration:
 
         assert result.results[0].verdict == Verdict.ACTION
 
-    def test_engine_dependabot_filters_dev(self) -> None:
+    def test_engine_dependabot_filters_dev(self, tmp_path: Path) -> None:
+        (tmp_path / "package.json").write_text(
+            '{"devDependencies":{"lodash":"4.17.0"}}', encoding="utf-8"
+        )
         data = {"alerts": [_make_alert(scope="development")]}
-        result = scan(Path("."), audit_json=data, skip_epss=True)
+        result = scan(tmp_path, audit_json=data, skip_epss=True)
         assert len(result.results) == 1
         from depquiet.models import Verdict
 

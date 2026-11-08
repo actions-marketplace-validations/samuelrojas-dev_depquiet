@@ -6,3 +6,4 @@ cves:
   - CVE-2021-23382
   - CVE-2021-23368
 package: postcss
+not-imported: ["postcss"]

@@ -36,7 +36,10 @@ class TestCliEpssThresholdSysArgv:
         """cli.py:100-101 — --epss-threshold detected in sys.argv."""
         (tmp_path / "package-lock.json").write_text("{}")
         fake_argv = ["depquiet", "--path", str(tmp_path), "--offline", "--epss-threshold", "0.05"]
-        with patch.object(sys, "argv", fake_argv):
+        with (
+            patch.object(sys, "argv", fake_argv),
+            patch("depquiet.engine.run_npm_audit", return_value={"vulnerabilities": {}}),
+        ):
             from depquiet.cli import main
 
             code = main()  # no argv param → uses sys.argv

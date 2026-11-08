@@ -226,9 +226,11 @@ def test_template_filter_loads_bundled():
     assert tf.count >= 2  # We have at least 2 bundled templates
 
 
-def test_template_filter_matches_cve():
+def test_template_filter_matches_cve(tmp_path):
+    (tmp_path / "package.json").write_text('{"dependencies":{"lodash":"4.17.0"}}')
+    (tmp_path / "app.js").write_text("console.log('no dependency use');\n")
     tf = TemplateFilter()
-    match = tf.find_match("CVE-2020-8203", "lodash")
+    match = tf.find_match("CVE-2020-8203", "lodash", project=tmp_path)
     assert match is not None
     assert "lodash" in match.id or "prototype" in match.id
 

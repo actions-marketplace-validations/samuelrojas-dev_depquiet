@@ -4,3 +4,4 @@ author: "@depquiet"
 cves:
   - CVE-2023-45857
 package: axios
+not-imported: ["axios"]

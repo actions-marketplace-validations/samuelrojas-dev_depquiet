@@ -4,3 +4,4 @@ author: "@depquiet"
 cves:
   - CVE-2023-26115
 package: word-wrap
+not-imported: ["word-wrap"]

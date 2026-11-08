@@ -4,3 +4,4 @@ author: "@depquiet"
 cves:
   - CVE-2024-0727
 package: cryptography
+not-imported: ["cryptography"]

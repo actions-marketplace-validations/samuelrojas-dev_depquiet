@@ -4,3 +4,4 @@ author: "@depquiet"
 cves:
   - CVE-2022-25883
 package: semver
+not-imported: ["semver"]
