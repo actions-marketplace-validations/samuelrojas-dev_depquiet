@@ -165,9 +165,14 @@ class _SourceScope:
                 reason = "source symlink or junction is not followed"
             else:
                 return True
-        except OSError as error:
+        except (OSError, RuntimeError) as error:
             if on_scope_error is not None:
-                on_scope_error(path, error)
+                on_scope_error(
+                    path,
+                    error
+                    if isinstance(error, OSError)
+                    else f"source path resolution failed: {error}",
+                )
             return False
         if on_scope_error is not None:
             on_scope_error(path, reason)

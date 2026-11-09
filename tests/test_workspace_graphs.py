@@ -311,6 +311,24 @@ def test_workspace_symlink_escape_is_not_followed(tmp_path: Path) -> None:
     assert any("symlink" in note for note in graph.coverage_observations)
 
 
+def test_workspace_resolution_loop_is_recorded_not_raised(tmp_path: Path, monkeypatch) -> None:
+    _npm(tmp_path)
+    target = tmp_path / "packages/loop"
+    _json(target / "package.json", {"dependencies": {"unread": "1"}})
+    original = Path.resolve
+
+    def resolve(path, *args, **kwargs):
+        if path == target:
+            raise RuntimeError("synthetic symlink loop")
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "resolve", resolve)
+    graph = DependencyGraph.from_project(tmp_path)
+    assert not graph.coverage_complete
+    assert "unread" not in graph.direct
+    assert any("loop" in note for note in graph.coverage_observations)
+
+
 def test_legacy_malformed_source_marks_coverage_incomplete(tmp_path: Path) -> None:
     _json(tmp_path / "package.json", {"devDependencies": {"dev-lib": "1"}})
     _text(tmp_path / "package-lock.json", "{bad-json")

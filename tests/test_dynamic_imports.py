@@ -218,7 +218,7 @@ def test_excluded_workspace_sources_and_mentions_are_not_read(
     assert any("scope excludes" in item for item in filter_.analysis_coverage_observations)
 
 
-@pytest.mark.parametrize("kind", ["symlink", "outside"])
+@pytest.mark.parametrize("kind", ["symlink", "outside", "loop"])
 def test_source_links_cannot_read_outside_or_justify_absence(
     tmp_path: Path, monkeypatch, kind: str
 ):
@@ -236,6 +236,8 @@ def test_source_links_cannot_read_outside_or_justify_absence(
         return path == source if kind == "symlink" else original_link(path)
 
     def resolve(path: Path, *args, **kwargs):
+        if path == source and kind == "loop":
+            raise RuntimeError("synthetic symlink loop")
         return (
             tmp_path.parent / "outside.py"
             if path == source and kind == "outside"

@@ -531,9 +531,9 @@ def _iter_files(
                         walk(e, depth + 1)
                 elif e.is_file():
                     out.append(e)
-            except OSError as exc:
+            except (OSError, RuntimeError) as exc:
                 if on_error:
-                    on_error(e, exc)
+                    on_error(e, exc if isinstance(exc, OSError) else OSError(str(exc)))
 
     walk(project, 0)
     return out

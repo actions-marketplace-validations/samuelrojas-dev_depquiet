@@ -93,7 +93,7 @@ def _expand(root: Path, pattern: str, observations: list[str]) -> set[str]:
                     f"{path.relative_to(root).as_posix()}: workspace symlink or escape"
                 )
                 return
-        except OSError as exc:
+        except (OSError, RuntimeError) as exc:
             observations.append(f"{path.relative_to(root).as_posix()}: resolve workspace: {exc}")
             return
         if index == len(parts):
