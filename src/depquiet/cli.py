@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import hashlib
 import json
 import os
 import sys
@@ -30,6 +31,7 @@ from depquiet.baseline import apply_baseline, load_baseline
 from depquiet.config import load_config
 from depquiet.diff import diff_scans, diff_to_json, format_diff, format_diff_markdown
 from depquiet.engine import scan
+from depquiet.finding_identity import parse_report, validate_project_id
 from depquiet.fix import apply_fixes, print_fix_report
 from depquiet.html_report import write_html
 from depquiet.ignore import apply_ignores, load_ignore, print_ignore_warnings
@@ -105,6 +107,16 @@ def diff_main(argv: list[str]) -> int:
         action="store_true",
         help="Exit 1 if any new ACTION findings are detected",
     )
+    identity = parser.add_mutually_exclusive_group()
+    identity.add_argument(
+        "--instances", action="store_true", help="Compare project-scoped instance contexts"
+    )
+    identity.add_argument(
+        "--legacy-identities",
+        action="store_true",
+        help="Explicitly use legacy reported-version identities",
+    )
+    parser.add_argument("--project-id", help="Bind missing report scopes to this stable project ID")
     args = parser.parse_args(argv)
 
     # Validate input files exist
@@ -114,7 +126,8 @@ def diff_main(argv: list[str]) -> int:
             return 1
 
     try:
-        diff = diff_scans(args.base, args.head)
+        mode = True if args.instances else False if args.legacy_identities else None
+        diff = diff_scans(args.base, args.head, project_id=args.project_id, instance_aware=mode)
         if args.json_output:
             output = json.dumps(diff_to_json(diff), indent=2)
         elif args.markdown:
@@ -134,6 +147,44 @@ def diff_main(argv: list[str]) -> int:
 
     if args.fail_on_new and diff.has_new_action:
         return 1
+    return 0
+
+
+def baseline_main(argv: list[str]) -> int:
+    """Create an explicit v2 acceptance document from a completed saved scan."""
+    from depquiet.baseline import create_baseline
+
+    parser = argparse.ArgumentParser(prog="depquiet baseline")
+    commands = parser.add_subparsers(dest="command", required=True)
+    create = commands.add_parser("create", help="Create a scoped instance baseline v2")
+    create.add_argument("scan", type=Path, help="Completed depquiet JSON report")
+    create.add_argument("--output", "-o", type=Path, required=True)
+    create.add_argument("--project-id", help="Explicit stable scope if missing from the report")
+    create.add_argument("--reason", default="", help="Reason supplied by the baseline author")
+    create.add_argument("--author", default="", help="Author metadata supplied by the caller")
+    args = parser.parse_args(argv)
+    try:
+        if args.scan.resolve() == args.output.resolve():
+            raise ValueError("baseline output must differ from its source scan")
+        raw = args.scan.read_bytes()
+        report = parse_report(raw)
+        document = create_baseline(
+            report,
+            project_id=args.project_id,
+            reason=args.reason,
+            author=args.author,
+            source_scan_sha256=hashlib.sha256(raw).hexdigest(),
+            source_scan_hash_kind="file_bytes",
+        )
+        _write_diff_summary(args.output, json.dumps(document, indent=2, sort_keys=True) + "\n")
+    except (OSError, ValueError, TypeError) as exc:
+        print(f"Error: cannot create baseline v2: {exc}", file=sys.stderr)
+        return 2
+    print(
+        f"Baseline v2 written to {args.output}: {len(document['accepted'])} accepted contexts, "
+        f"{len(document['unaccepted'])} contexts remain unaccepted.",
+        file=sys.stderr,
+    )
     return 0
 
 
@@ -375,6 +426,8 @@ def main(argv: list[str] | None = None) -> int:
     effective = argv if argv is not None else sys.argv[1:]
     if effective and effective[0] == "diff":
         return diff_main(effective[1:])
+    if effective and effective[0] == "baseline":
+        return baseline_main(effective[1:])
     if effective and effective[0] == "init":
         return init_main(effective[1:])
     if effective and effective[0] == "explain":
@@ -389,6 +442,9 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument("--version", action="version", version=f"depquiet {__version__}")
+    parser.add_argument(
+        "--project-id", help="Stable project scope for instance baselines and diffs"
+    )
     parser.add_argument(
         "--path",
         type=Path,
@@ -552,7 +608,11 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     # Load project config file
-    config = load_config(args.path, config_path=args.config)
+    try:
+        config = load_config(args.path, config_path=args.config)
+    except ValueError as exc:
+        print(f"Error: invalid project configuration: {exc}", file=sys.stderr)
+        return 2
 
     # CLI flags override config. We detect whether --epss-threshold was
     # explicitly passed so that "0.1" from the default doesn't clobber a
@@ -569,9 +629,10 @@ def main(argv: list[str] | None = None) -> int:
     _raw = argv if argv is not None else sys.argv[1:]
 
     def _has(flag: str) -> bool:
-        return flag in _raw
+        return flag in _raw or any(arg.startswith(flag + "=") for arg in _raw)
 
     merged = config.merge_cli(
+        project_id=args.project_id,
         epss_threshold=cli_threshold,
         template_dirs=args.templates,
         offline=args.offline,
@@ -590,6 +651,12 @@ def main(argv: list[str] | None = None) -> int:
         vex=args.vex if _has("--vex") else None,
         annotations=args.annotations if _has("--annotations") else None,
     )
+    try:
+        if merged.project_id or args.project_id is not None:
+            validate_project_id(merged.project_id)
+    except ValueError as exc:
+        print(f"Error: invalid project scope: {exc}", file=sys.stderr)
+        return 2
 
     # Read piped input or SBOM file
     audit_json: dict[str, Any] | None = None
@@ -624,6 +691,7 @@ def main(argv: list[str] | None = None) -> int:
         always_flag=merged.always_flag or None,
         policy=policy,
     )
+    result.project_id = merged.project_id
     if not result.scanned:
         print(f"depquiet: nothing scanned: {result.note}", file=sys.stderr)
         return 2
@@ -636,8 +704,12 @@ def main(argv: list[str] | None = None) -> int:
 
     # Apply baseline — demote known findings to FILTERED
     if merged.baseline:
-        baseline_keys = load_baseline(merged.baseline)
-        bl = apply_baseline(result, baseline_keys, source_path=str(merged.baseline))
+        try:
+            baseline_keys = load_baseline(merged.baseline)
+            bl = apply_baseline(result, baseline_keys, source_path=str(merged.baseline))
+        except (OSError, ValueError, TypeError) as exc:
+            print(f"Error: cannot apply baseline: {exc}", file=sys.stderr)
+            return 2
         if not args.json_output:
             print(
                 f"\n📊 Baseline: {bl.known_findings} known findings suppressed, "
@@ -766,6 +838,7 @@ def _print_json(result: ScanResult, *, license_report: LicenseReport | None = No
     results_list: list[dict[str, Any]] = []
     out: dict[str, Any] = {
         "project": result.project_path,
+        "project_id": result.project_id,
         "package_manager": result.package_manager,
         "total_dependencies": result.total_dependencies,
         "scanned": result.scanned,

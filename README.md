@@ -129,8 +129,9 @@ affected-version list. Unknown or partial resolution remains explicit.
 CycloneDX, SPDX and OpenVEX use those component identities instead of presenting
 an advisory range as a component version. No lockfile resolution claims an
 observed installation or product impact. See [npm component evidence](docs/npm-component-evidence.md)
-for the JSON contract, matching limits and export behavior. Existing baseline and
-diff matching rules continue to use their documented legacy identities.
+for the JSON contract, matching limits and export behavior. Explicitly scoped
+reports support [instance baselines and diffs](docs/instance-baselines.md);
+unscoped legacy reports retain their existing identities.
 
 ### Standalone scanning with OSV.dev
 
@@ -520,10 +521,18 @@ Place `.depquiet-ignore` in the project root (auto-detected) or pass `--ignore p
 ### Scan comparison (`depquiet diff`)
 
 Compare two saved depquiet reports to see new or absent finding contexts and
-verdict changes. Matching uses the exact advisory, package and reported version
-string, so adding another version of a package remains visible even when its
-advisory is already present. A scanner range stays a range; the diff does not
-infer an installed version or advisory aliases.
+verdict changes. Reports with the same explicit `project_id` automatically use
+instance contexts: npm candidates match on advisory, exact version, node location,
+lockfile path and advisory range/status. A newly added version or location remains
+visible even when the advisory was already present. Partial or unknown evidence
+stays explicit. Other scanners retain literal reported-version contexts.
+
+When both reports lack a project ID, matching retains the legacy exact advisory,
+package and reported-version string. A scanner range stays a range; the diff does
+not infer an installed version or advisory aliases. Use `--project-id team/service`
+to bind missing scopes explicitly, `--instances` to require instance mode, or
+`--legacy-identities` for an explicit compatibility comparison. Declared project
+IDs must agree in every mode; a CLI option cannot override a conflicting ID.
 
 The historical `fixed` field means a finding context is absent from the head
 report. It does not establish remediation or product non-affectedness. A version
@@ -539,15 +548,20 @@ depquiet diff base-scan.json pr-scan.json --json
 
 # Fail CI only when new ACTION items appear
 depquiet diff base-scan.json pr-scan.json --fail-on-new
+
+# Require scoped instance comparison (both reports must be complete)
+depquiet diff base-scan.json pr-scan.json --instances --project-id team/service --fail-on-new
 ```
 
-An explicit incomplete scan (`scanned: false`), malformed report or duplicate
-advisory/package/version identity is rejected with exit code **2** and a diagnostic
+An explicit incomplete scan (`scanned: false`), malformed report, incompatible scope
+or duplicate finding identity is rejected with exit code **2** and a diagnostic
 on stderr, without a successful diff or overwriting an existing summary. Other
 operational errors also return **2**. Exit **1** is used for new ACTION findings
 with `--fail-on-new`; a missing input file retains its legacy exit code **1**.
-Older reports without `scanned` remain accepted when structurally valid, but
-their completion cannot be independently verified from that missing flag.
+Legacy comparisons accept structurally valid older reports without `scanned`,
+but their completion cannot be verified from that missing flag. Instance mode
+requires `scanned: true`; older npm reports without component evidence require
+a rescan or explicit legacy comparison. See [identity and migration details](docs/instance-baselines.md).
 
 Typical CI workflow:
 
@@ -782,35 +796,33 @@ The output is consumable by policy engines like Sigstore's policy-controller and
     vex: depquiet-vex.json
 ```
 
-### Baseline diffing (`--baseline`)
+### Accepted baselines (`--baseline`)
 
-Adopting depquiet on an existing codebase? The `--baseline` flag lets you accept the current state and only fail on **new** vulnerabilities — just like Snyk's `--new-only` or Trivy's `--ignore-unfixed`.
-
-```bash
-# Step 1: Save current state as baseline
-depquiet --json > .depquiet-baseline.json
-
-# Step 2: In CI, only fail on NEW findings
-depquiet --baseline .depquiet-baseline.json
-```
-
-How it works: each finding is identified by its `CVE:package` key. Findings that exist in the baseline are demoted from ACTION/REVIEW to FILTERED. Only genuinely new vulnerabilities trigger failure.
-
-Combine with `--fail-on` for layered control:
+Baseline v2 records explicit project-scoped acceptance of exact npm component
+contexts. Create a completed report, review its findings, then create the acceptance
+document with your reason and author metadata:
 
 ```bash
-# Accept known debt, fail only on new critical/high findings
-depquiet --baseline .depquiet-baseline.json --fail-on high
+depquiet --project-id team/service --json > current-scan.json
+# A completed scan may exit 1 when ACTION findings exist; inspect the saved report.
+depquiet baseline create current-scan.json -o .depquiet-baseline-v2.json \
+  --reason "Reviewed dependency debt; tracked for remediation" --author "Security team"
+depquiet --project-id team/service --baseline .depquiet-baseline-v2.json --fail-on high
 ```
 
-**Updating the baseline:** periodically regenerate it as the team fixes existing debt:
+Creation accepts only fully resolved npm findings whose associated candidates all
+match the advisory range. Partial, unknown and other scanner contexts appear in
+`unaccepted`; a valid document may contain zero acceptances. A finding is demoted
+from ACTION/REVIEW to FILTERED only when every current context is eligible and
+accepted. New versions, locations or advisory range/status contexts remain visible.
+The project ID must match, and the decision trace retains reason, author and path.
+Acceptance changes priority; product impact remains under investigation.
 
-```bash
-# After fixing some findings, update the baseline
-depquiet --json > .depquiet-baseline.json
-git add .depquiet-baseline.json
-git commit -m "chore: update depquiet baseline"
-```
+Existing scan JSON files used directly with `--baseline` keep their broad
+`CVE:package` legacy semantics, including across versions and node locations.
+They are not migrated automatically. A declared project ID is enforced even for
+this legacy format. For v2 migration, rescan with an explicit scope and review the
+new acceptance document. See [baseline format and compatibility](docs/instance-baselines.md).
 
 ### Configurable CI gate (`--fail-on`)
 
@@ -939,6 +951,7 @@ Every key is optional — add only what you need:
 
 ```yaml
 # Triage tuning
+project_id: team/service     # stable explicit scope for instance baselines/diffs
 epss_threshold: 0.05          # EPSS score cutoff (default: 0.1)
 offline: false                # skip EPSS API (default: false)
 always_flag:                  # packages that must never be filtered

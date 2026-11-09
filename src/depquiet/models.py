@@ -219,6 +219,7 @@ class ScanResult:
     # result must never read as "no vulnerabilities" in that case.
     scanned: bool = True
     note: str = ""
+    project_id: str = ""
 
     @property
     def action(self) -> list[TriageResult]:

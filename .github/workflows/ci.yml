@@ -131,6 +131,8 @@ jobs:
           python -I -c "from depquiet.filters.templates import TemplateFilter; assert TemplateFilter().count == 21"
           python -I -c "from depquiet.npm_components import NpmComponentResolver; from depquiet.npm_semver import match_npm_range; assert match_npm_range('1.2.3', '<2.0.0')[0] == 'matched'"
           depquiet --help
+          depquiet baseline create --help
+          depquiet diff --help
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
