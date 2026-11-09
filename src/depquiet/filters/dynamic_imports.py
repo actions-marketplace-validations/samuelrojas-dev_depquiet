@@ -154,6 +154,8 @@ class _PythonLoaders(ast.NodeVisitor):
         for value in [*node.args.defaults, *node.args.kw_defaults]:
             if value is not None:
                 self.visit(value)
+        if not isinstance(node, ast.Lambda):
+            self._assign(ast.Name(id=node.name), None)
         previous = self.bindings
         self.bindings = dict(previous)
         args = [*node.args.posonlyargs, *node.args.args, *node.args.kwonlyargs]
@@ -175,6 +177,18 @@ class _PythonLoaders(ast.NodeVisitor):
     visit_FunctionDef = _function
     visit_AsyncFunctionDef = _function
     visit_Lambda = _function
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        for expression in [*node.decorator_list, *node.bases]:
+            self.visit(expression)
+        for keyword in node.keywords:
+            self.visit(keyword.value)
+        self._assign(ast.Name(id=node.name), None)
+        previous = self.bindings
+        self.bindings = dict(previous)
+        for statement in node.body:
+            self.visit(statement)
+        self.bindings = previous
 
     def visit_Call(self, node: ast.Call) -> None:
         binding = self._resolve(node.func)

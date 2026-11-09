@@ -104,6 +104,8 @@ def test_python_comments_and_strings_are_not_loader_calls(tmp_path: Path):
         "from importlib import import_module as load\nimport custom as load\nload('other')",
         "from importlib import import_module as load\nfor load in injected:\n    load('other')",
         "import importlib\nimportlib.import_module = injected\nimportlib.import_module('other')",
+        "from importlib import import_module as load\ndef load(name):\n    pass\nload('other')",
+        "from importlib import import_module as load\nclass load:\n    pass\nload('other')",
     ],
 )
 def test_rebound_or_conditional_loader_cannot_gain_literal_certainty(tmp_path: Path, source: str):
