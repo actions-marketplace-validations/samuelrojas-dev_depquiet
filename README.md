@@ -560,7 +560,7 @@ operational errors also return **2**. Exit **1** is used for new ACTION findings
 with `--fail-on-new`; a missing input file retains its legacy exit code **1**.
 Legacy comparisons accept structurally valid older reports without `scanned`,
 but their completion cannot be verified from that missing flag. Instance mode
-requires `scanned: true`; older npm reports without component evidence require
+requires `scanned: true`; older npm-project reports without `version_kind` require
 a rescan or explicit legacy comparison. See [identity and migration details](docs/instance-baselines.md).
 
 Typical CI workflow:

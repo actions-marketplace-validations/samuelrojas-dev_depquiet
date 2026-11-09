@@ -73,7 +73,9 @@ Automatic product-impact assessments remain under investigation.
 A component instance ID hashes ecosystem, package, literal exact version, node
 location and relative lockfile path. The finding context adds project scope,
 advisory, advisory range and range-match status. A version, location, lockfile
-path, advisory range or status change creates a new context. Advisory aliases and
+path or advisory range change creates a new context. Range-status changes alter
+the context identity or remove its advisory association: a `not_matched` candidate
+stays in inventory without an associated component context. Advisory aliases and
 semantically equivalent range strings are not normalized.
 
 The lockfile content hash and explanatory prose are provenance, not part of the
