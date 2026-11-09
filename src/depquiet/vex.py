@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any
 
 from depquiet.assessment import assess_finding
+from depquiet.component_refs import association_notes, finding_components
 from depquiet.models import ScanResult, TriageResult
 
 # OpenVEX context URI — identifies the document format
@@ -45,6 +46,7 @@ class VexStatement:
     action_statement: str | None = None
     status_notes: str | None = None
     vulnerability_url: str = ""
+    subcomponents: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -118,16 +120,25 @@ def _triage_to_statement(tr: TriageResult, product_id: str) -> VexStatement:
         raise ValueError("Cannot export a VEX finding without a vulnerability identifier.")
     assessment = assess_finding(tr)
 
-    # Build purl-style subcomponent identifier
-    subcomponent = f"pkg:generic/{tr.vuln.package}@{tr.vuln.version}"
+    components = finding_components(tr.vuln)
+    subcomponent = components[0].ref if components else ""
+    notes = " ".join(part for part in (assessment.detail, association_notes(tr.vuln)) if part)
 
     return VexStatement(
         vulnerability_id=tr.vuln.cve,
         status=assessment.status,
         product_id=product_id,
         subcomponent_id=subcomponent,
-        status_notes=assessment.detail,
+        status_notes=notes,
         vulnerability_url=tr.vuln.url,
+        subcomponents=(
+            [
+                {"@id": component.ref, "identifiers": {"purl": component.purl}}
+                for component in components
+            ]
+            if tr.vuln.version_kind == "advisory_range"
+            else []
+        ),
     )
 
 
@@ -135,14 +146,14 @@ def vex_to_json(doc: VexDocument) -> dict[str, Any]:
     """Serialize a VexDocument to the OpenVEX JSON structure."""
     statements = []
     for stmt in doc.statements:
+        product: dict[str, Any] = {"@id": stmt.product_id}
+        if stmt.subcomponents:
+            product["subcomponents"] = stmt.subcomponents
+        elif stmt.subcomponent_id:
+            product["subcomponents"] = [{"@id": stmt.subcomponent_id}]
         s: dict[str, Any] = {
             "vulnerability": {"name": stmt.vulnerability_id},
-            "products": [
-                {
-                    "@id": stmt.product_id,
-                    "subcomponents": [{"@id": stmt.subcomponent_id}],
-                }
-            ],
+            "products": [product],
             "status": stmt.status,
         }
         if stmt.vulnerability_url:

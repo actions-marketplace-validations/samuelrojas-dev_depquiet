@@ -31,20 +31,15 @@ from xml.etree.ElementTree import Element, SubElement, tostring
 
 from depquiet import __version__
 from depquiet.assessment import assess_finding
+from depquiet.component_refs import (
+    ExportComponent,
+    association_metadata,
+    association_notes,
+    component_inventory,
+    finding_components,
+    make_purl,
+)
 from depquiet.models import ScanResult, TriageResult
-
-# Ecosystem → purl type mapping
-_PURL_TYPE: dict[str, str] = {
-    "npm": "npm",
-    "PyPI": "pypi",
-    "Go": "golang",
-    "crates.io": "cargo",
-    "Maven": "maven",
-    "NuGet": "nuget",
-    "Packagist": "composer",
-    "RubyGems": "gem",
-    "Pub": "pub",
-}
 
 
 def _make_purl(name: str, version: str, ecosystem: str) -> str:
@@ -52,54 +47,55 @@ def _make_purl(name: str, version: str, ecosystem: str) -> str:
 
     See https://github.com/package-url/purl-spec
     """
-    purl_type = _PURL_TYPE.get(ecosystem, ecosystem.lower())
-
-    # Scoped npm packages: @scope/name → pkg:npm/%40scope/name
-    if purl_type == "npm" and name.startswith("@"):
-        # purl spec: @ in namespace is percent-encoded
-        name = name.replace("@", "%40", 1)
-
-    # Go modules use the full path as name
-    # Maven uses groupId/artifactId
-    return f"pkg:{purl_type}/{name}@{version}"
+    return make_purl(name, version, ecosystem)
 
 
 def _purl_from_vuln(vuln_result: TriageResult) -> str:
     """Build purl from a triage result (best effort)."""
-    v = vuln_result.vuln
-    # Guess ecosystem from package manager context
-    # This is a heuristic — in practice the engine knows the ecosystem
-    return f"pkg:generic/{v.package}@{v.version}" if v.package else ""
+    components = finding_components(vuln_result.vuln)
+    return components[0].purl if components and vuln_result.vuln.package else ""
+
+
+def _component_to_json(component: ExportComponent) -> dict[str, Any]:
+    entry: dict[str, Any] = {
+        "type": "library",
+        "name": component.package,
+        "purl": component.purl,
+        "bom-ref": component.ref,
+    }
+    if component.version is not None:
+        entry["version"] = component.version
+    provenance = component.provenance()
+    if provenance:
+        entry["properties"] = [
+            {
+                "name": "depquiet:component-evidence",
+                "value": json.dumps(provenance, sort_keys=True),
+            }
+        ]
+    elif component.version is None:
+        entry["properties"] = [
+            {
+                "name": "depquiet:version-resolution",
+                "value": "Unresolved; no lockfile version or runtime installation established.",
+            }
+        ]
+    return entry
 
 
 def _components_with_references(
     scan_result: ScanResult, packages: list[tuple[str, str, str]] | None
-) -> tuple[list[dict[str, Any]], dict[tuple[str, str], list[str]]]:
+) -> tuple[list[dict[str, Any]], dict[tuple[str, str | None], list[str]]]:
     """Keep inventory references and add any finding contexts it does not contain."""
-    components: list[dict[str, Any]] = []
-    references: dict[tuple[str, str], list[str]] = {}
-    seen: set[str] = set()
-
-    def add(name: str, version: str, purl: str) -> None:
-        if purl in seen:
-            return
-        seen.add(purl)
-        components.append(
-            {"type": "library", "name": name, "version": version, "purl": purl, "bom-ref": purl}
-        )
-        references.setdefault((name, version), []).append(purl)
-
-    for name, version, ecosystem in packages or []:
-        add(name, version, _make_purl(name, version, ecosystem))
-    for tr in scan_result.results:
-        v = tr.vuln
-        if (v.package, v.version) not in references:
-            add(v.package, v.version, f"pkg:generic/{v.package}@{v.version}")
-    return components, references
+    inventory = component_inventory(scan_result, packages)
+    references: dict[tuple[str, str | None], list[str]] = {}
+    for component in inventory:
+        references.setdefault((component.package, component.version), []).append(component.ref)
+    return [_component_to_json(component) for component in inventory], references
 
 
 def _vulnerabilities_with_assessments(
-    scan_result: ScanResult, references: dict[tuple[str, str], list[str]]
+    scan_result: ScanResult, inventory: list[ExportComponent]
 ) -> list[dict[str, Any]]:
     """Group advisory contexts without converting priority into impact claims."""
     groups: dict[str, list[TriageResult]] = {}
@@ -117,17 +113,25 @@ def _vulnerabilities_with_assessments(
         contexts: dict[str, dict[str, str]] = {}
         for tr in findings:
             v = tr.vuln
-            detail = assess_finding(tr).detail
+            detail = " ".join(
+                part for part in (assess_finding(tr).detail, association_notes(v)) if part
+            )
             details.append(f"{v.package}@{v.version}: {detail}" if len(findings) > 1 else detail)
-            for ref in references[(v.package, v.version)]:
+            associated = finding_components(v, inventory)
+            for component in associated:
+                ref = component.ref
                 if ref not in seen_refs:
                     seen_refs.add(ref)
                     affects.append({"ref": ref})
+            association_contexts: list[ExportComponent | None] = (
+                list(associated) if associated else [None]
+            )
+            for component_or_none in association_contexts:
                 # Standard CycloneDX properties preserve machine-readable
-                # priority and reasons per component, apart from VEX state.
+                # priority and advisory association apart from VEX state.
                 context = json.dumps(
                     {
-                        "ref": ref,
+                        **association_metadata(v, component_or_none),
                         "priority": tr.verdict.value,
                         "reasons": [reason.value for reason in tr.reasons],
                     },
@@ -177,8 +181,9 @@ def generate_cyclonedx_json(
     serial = str(uuid.uuid4())
     timestamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    components, references = _components_with_references(scan_result, packages)
-    vuln_list = _vulnerabilities_with_assessments(scan_result, references)
+    inventory = component_inventory(scan_result, packages)
+    components = [_component_to_json(component) for component in inventory]
+    vuln_list = _vulnerabilities_with_assessments(scan_result, inventory)
 
     bom: dict[str, Any] = {
         "bomFormat": "CycloneDX",
@@ -252,8 +257,13 @@ def generate_cyclonedx_xml(
             components_el, "component", {"type": "library", "bom-ref": component["bom-ref"]}
         )
         SubElement(comp, "name").text = component["name"]
-        SubElement(comp, "version").text = component["version"]
+        if "version" in component:
+            SubElement(comp, "version").text = component["version"]
         SubElement(comp, "purl").text = component["purl"]
+        if component.get("properties"):
+            properties = SubElement(comp, "properties")
+            for prop in component["properties"]:
+                SubElement(properties, "property", name=prop["name"]).text = prop["value"]
 
     # Vulnerabilities
     if data.get("vulnerabilities"):

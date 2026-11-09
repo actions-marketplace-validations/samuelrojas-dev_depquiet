@@ -10,6 +10,7 @@ import pytest
 
 from depquiet.assessment import assess_finding
 from depquiet.baseline import apply_baseline
+from depquiet.component_refs import association_notes
 from depquiet.engine import scan
 from depquiet.models import FilterReason, ScanResult, Severity, TriageResult, Verdict, Vulnerability
 from depquiet.policy import Policy, PolicyRule
@@ -32,7 +33,9 @@ def _result(*findings: TriageResult, scanned: bool = True) -> ScanResult:
 
 def _assert_unverified_exports(result: ScanResult) -> None:
     [finding] = result.results
-    expected_detail = assess_finding(finding).detail
+    expected_detail = " ".join(
+        part for part in (assess_finding(finding).detail, association_notes(finding.vuln)) if part
+    )
     statement = vex_to_json(build_vex(result))["statements"][0]
     assert statement["status"] == "under_investigation"
     assert statement["status_notes"] == expected_detail
@@ -40,10 +43,12 @@ def _assert_unverified_exports(result: ScanResult) -> None:
 
     [vulnerability] = generate_cyclonedx_json(result)["vulnerabilities"]
     assert vulnerability["analysis"] == {"state": "in_triage", "detail": expected_detail}
-    [triage] = vulnerability["properties"]
-    context = json.loads(triage["value"])
-    assert context["priority"] == finding.verdict.value
-    assert context["reasons"] == [reason.value for reason in finding.reasons]
+    triages = [prop for prop in vulnerability["properties"] if prop["name"] == "depquiet:triage"]
+    assert triages
+    for triage in triages:
+        context = json.loads(triage["value"])
+        assert context["priority"] == finding.verdict.value
+        assert context["reasons"] == [reason.value for reason in finding.reasons]
 
     xml = ET.fromstring(generate_cyclonedx_xml(result))
     assert xml.findtext("c:vulnerabilities/c:vulnerability/c:analysis/c:state", namespaces=NS) == (
@@ -56,7 +61,13 @@ def _assert_unverified_exports(result: ScanResult) -> None:
     security_refs = [
         ref for ref in spdx["packages"][0]["externalRefs"] if ref["referenceCategory"] == "SECURITY"
     ]
-    assert security_refs[0]["comment"] == expected_detail
+    if finding.vuln.version_kind == "advisory_range":
+        assert security_refs[0]["comment"].startswith(expected_detail + " Advisory association: ")
+        association = json.loads(security_refs[0]["comment"].split("Advisory association: ", 1)[1])
+        assert association["advisory"] == finding.vuln.cve
+        assert association["version_kind"] == "advisory_range"
+    else:
+        assert security_refs[0]["comment"] == expected_detail
 
 
 @pytest.mark.parametrize("reason", [None, *FilterReason])

@@ -73,10 +73,13 @@ class NpmAuditParser:
     @staticmethod
     def parse(audit_json: dict[str, Any], project: Path) -> list[Vulnerability]:
         """Parse npm audit JSON into Vulnerability objects."""
+        from depquiet.npm_components import NpmComponentResolver
+
         vulns: list[Vulnerability] = []
         pkg_json = _read_package_json(project)
         dev_packages = _get_dev_packages(pkg_json)
         seen: set[str] = set()
+        component_resolver = NpmComponentResolver(project)
 
         raw_vulns = audit_json.get("vulnerabilities", {})
         for pkg_name, pkg_data in raw_vulns.items():
@@ -115,11 +118,28 @@ class NpmAuditParser:
                     if fix_available.get("name", pkg_name) != pkg_name:
                         fix_package = fix_available["name"]
 
+                raw_range = entry.get("range", "")
+                advisory_range = raw_range if isinstance(raw_range, str) else ""
+                nodes = pkg_data.get("nodes", [])
+                components, component_notes = component_resolver.resolve(
+                    pkg_name, nodes, advisory_range
+                )
+                if not isinstance(raw_range, str):
+                    component_notes.append(
+                        "Scanner advisory range is malformed; association is unknown."
+                    )
+                resolution_complete = (
+                    isinstance(nodes, list)
+                    and bool(nodes)
+                    and all(isinstance(node, str) for node in nodes)
+                    and {component.location for component in components} == set(nodes)
+                )
+
                 vulns.append(
                     Vulnerability(
                         cve=cve,
                         package=pkg_name,
-                        version=entry.get("range", ""),
+                        version=advisory_range,
                         severity=severity,
                         title=title,
                         url=url,
@@ -128,6 +148,11 @@ class NpmAuditParser:
                         is_direct=is_direct,
                         is_dev=is_dev,
                         depth=0 if is_direct else 1,
+                        version_kind="advisory_range",
+                        advisory_range=advisory_range,
+                        components=components,
+                        component_notes=component_notes,
+                        component_resolution_complete=resolution_complete,
                     )
                 )
 
