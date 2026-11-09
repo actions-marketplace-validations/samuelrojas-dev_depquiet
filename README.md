@@ -194,11 +194,34 @@ OSV.dev lookup produce "nothing scanned" and exit code `2`, rather than a clean 
 
 All standard depquiet flags work with SBOM input: `--epss-threshold`, `--kev`, `--sbom` (re-export), `--sarif`, `--html`, etc.
 
+### Workspace and dynamic-import coverage
+
+Declared npm `workspaces` and uv `[tool.uv.workspace]` members have independent
+dependency graphs, command metadata and source scopes. Deep declared members are
+discovered beyond the legacy depth limit. A package used by a production member
+cannot be classified as dev-only solely from the root's declaration.
+
+Scan JSON and saved `explain` output retain per-workspace usage, dependency roots
+and coverage. Unreadable/malformed manifests, ambiguous shared-lock versions or
+recognized loaders with nonliteral targets block automatic absence-based
+decisions. Positive imports remain visible alongside uncertainty.
+
+The analysis is bounded: initial workspace support covers npm and uv declarations,
+and finding-to-workspace associations use conservative dependency names rather
+than claiming an installed instance or verified call path. Other layouts retain
+legacy discovery. See [workspace and dynamic-import coverage](docs/workspace-coverage.md)
+for patterns, limits, aggregation and compatibility.
+
 ### Reachability analysis in depth
 
 Import detection works differently for each language:
 
-**Python** — Full AST parsing via `ast.parse()`. Extracts `import`, `from … import`, and `__import__()` calls from the syntax tree. Immune to false positives from comments, docstrings, and string literals. Falls back to regex only for files that fail to parse (Python 2, encoding issues) — conservative: treats unparseable files as potentially importing the package.
+**Python** — AST extraction via `ast.parse()` observes ordinary imports and
+recognized `importlib.import_module` / `__import__` calls, including direct aliases.
+Literal targets provide positive import evidence; nonliteral, conditional or
+rebound loader bindings retain uncertainty. Comments and strings are not executed
+as loader calls. Files that fail AST parsing retain the existing regex fallback;
+this does not establish complete parse or dynamic-loader coverage.
 
 **JavaScript / TypeScript** — Comment-stripping pipeline + pattern matching on actual import syntax. Handles all major import styles:
 - ESM: `import X from 'pkg'`, `import {a, b} from 'pkg'`, `import 'pkg'` (side-effect)
@@ -208,6 +231,11 @@ Import detection works differently for each language:
 - Scoped packages: `@scope/name` resolved correctly
 - Strips `//` and `/* */` comments so commented-out imports don't cause false positives
 - Zero runtime dependencies — no external JS parser needed
+
+A bounded lexer additionally observes `require(...)`, `import(...)` and
+`module.require(...)` calls. Nonliteral targets retain explicit uncertainty with
+file/line evidence. This is lexical analysis, not a full JavaScript/TypeScript
+parser or arbitrary loader/dataflow resolution.
 
 **Go** — Import statement parsing with comment stripping. Handles:
 - Single imports: `import "pkg"`

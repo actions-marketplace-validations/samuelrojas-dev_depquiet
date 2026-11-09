@@ -29,6 +29,7 @@ from depquiet.models import (
     ScanResult,
     TriageResult,
     Verdict,
+    WorkspaceEvidence,
 )
 
 # ---------------------------------------------------------------------------
@@ -344,11 +345,22 @@ def find_cve_in_json(data: dict[str, Any], cve_id: str) -> TriageResult | None:
                 if r in FilterReason._value2member_map_
             ]
             raw_evidence = entry.get("evidence") or {}
+            if not isinstance(raw_evidence, dict):
+                raise ValueError("Invalid saved dependency evidence")
+            raw_workspaces = raw_evidence.get("workspace_contexts", [])
+            if not isinstance(raw_workspaces, list):
+                raise ValueError("Invalid saved workspace evidence")
+            for name in ("graph_coverage_complete", "analysis_coverage_complete"):
+                if raw_evidence.get(name) is not None and type(raw_evidence[name]) is not bool:
+                    raise ValueError(f"Invalid saved dependency evidence: {name}")
             evidence = DependencyEvidence(
                 analysis=raw_evidence.get("analysis", "dependency_imports"),
                 usage=raw_evidence.get("usage", "unknown"),
                 import_sites=raw_evidence.get("import_sites", []),
                 observations=raw_evidence.get("observations", []),
+                graph_coverage_complete=raw_evidence.get("graph_coverage_complete"),
+                analysis_coverage_complete=raw_evidence.get("analysis_coverage_complete"),
+                workspace_contexts=[WorkspaceEvidence.from_dict(raw) for raw in raw_workspaces],
             )
             trace = [
                 DecisionChange(
@@ -440,6 +452,14 @@ def format_explanation(exp: Explanation) -> str:
     if exp.assessment:
         status = exp.assessment.get("status", "under_investigation").replace("_", " ")
         lines.append(f"   Product impact: {status} (dependency-level analysis)")
+
+    for context in exp.evidence.get("workspace_contexts", []):
+        lines.append(
+            f"   Workspace {context['path']}: {context['dependency_type']}; "
+            f"usage={context['usage']}; relevance={context['relevance']}"
+        )
+    for observation in exp.evidence.get("observations", []):
+        lines.append(f"   Evidence: {observation}")
 
     if exp.fix_available:
         lines.append(f"   Fix: upgrade to {exp.fix_version}")

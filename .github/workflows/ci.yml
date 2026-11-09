@@ -130,6 +130,7 @@ jobs:
         run: |
           python -I -c "from depquiet.filters.templates import TemplateFilter; assert TemplateFilter().count == 21"
           python -I -c "from depquiet.npm_components import NpmComponentResolver; from depquiet.npm_semver import match_npm_range; assert match_npm_range('1.2.3', '<2.0.0')[0] == 'matched'"
+          python -I -c "from depquiet.workspaces import discover_workspaces; from depquiet.filters.dynamic_imports import python_dynamic_imports; assert python_dynamic_imports('__import__(name)')[0].target is None"
           depquiet --help
           depquiet baseline create --help
           depquiet diff --help

@@ -13,6 +13,7 @@ but not for correctness — a vulnerability is filtered if ANY filter matches.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -20,7 +21,7 @@ from depquiet.depgraph import DependencyGraph
 from depquiet.filters.devdep import DevDepFilter
 from depquiet.filters.epss import EpssFilter
 from depquiet.filters.reachability import ReachabilityDecision, ReachabilityFilter
-from depquiet.filters.templates import TemplateFilter
+from depquiet.filters.templates import Template, TemplateFilter
 from depquiet.models import (
     DecisionChange,
     DependencyEvidence,
@@ -30,6 +31,7 @@ from depquiet.models import (
     TriageResult,
     Verdict,
     Vulnerability,
+    WorkspaceEvidence,
 )
 from depquiet.parsers.dependabot import DependabotParser
 from depquiet.parsers.grype import GrypeParser
@@ -216,8 +218,8 @@ def scan(
         )
 
     # Step 2: Initialize filters
-    reachability = ReachabilityFilter(project)
     graph = DependencyGraph.from_project(project)
+    contexts = _project_contexts(project, graph)
     epss_filter = EpssFilter(threshold=epss_threshold)
     template_filter = TemplateFilter(template_dirs=template_dirs)
 
@@ -234,8 +236,9 @@ def scan(
         epss_percentile = None
         template_id = None
         template_reason = None
-        decision = reachability.decide(vuln, graph)
-        evidence = _collect_evidence(reachability, vuln, graph, decision)
+        evaluation = _evaluate_dependency(vuln, contexts, graph)
+        decision = evaluation.decision
+        evidence = evaluation.evidence
 
         # Skip all filters if package is in always_flag
         _always = set(always_flag) if always_flag else set()
@@ -270,10 +273,7 @@ def scan(
         # them in, never by the app's own imports.
         # A package may be declared as dev and also be required by a production
         # dependency. Every known root must be dev-only before suppressing it.
-        roots = list(decision.introduced_by)
-        if graph.directness(vuln.package) == "direct":
-            roots.append(vuln.package)
-        if graph.is_dev_only(roots) or (DevDepFilter.check(vuln) and not roots):
+        if evaluation.dev_only:
             reasons.append(FilterReason.DEV_DEPENDENCY)
 
         if decision.unreachable:
@@ -287,9 +287,7 @@ def scan(
             reasons.append(FilterReason.LOW_EPSS)
 
         # Filter 4: Community template match
-        tmpl = template_filter.find_match(
-            vuln.cve, vuln.package, project=project, graph=graph, reachability=reachability
-        )
+        tmpl = _find_context_template(template_filter, vuln, evaluation, graph)
         if tmpl:
             reasons.append(FilterReason.COMMUNITY_TEMPLATE)
             template_id = tmpl.id
@@ -428,7 +426,7 @@ def _collect_evidence(
     """Capture observed usage without asserting vulnerable code execution."""
     sites = _import_sites(reachability, vuln, decision)
     used = bool(sites or decision.imported_ancestors) or reachability.is_used(vuln.package, graph)
-    coverage_complete = reachability.source_coverage_complete
+    coverage_complete = reachability.analysis_coverage_complete and graph.coverage_complete
     usage = (
         "observed"
         if used
@@ -447,5 +445,197 @@ def _collect_evidence(
         observations.append("Usage is inferred from project references, not a verified call path.")
     if decision.unreachable:
         observations.append("No dependency usage was observed in the inspected project sources.")
-    observations.extend(reachability.source_coverage_observations)
-    return DependencyEvidence(usage=usage, import_sites=sites, observations=observations)
+    observations.extend(graph.coverage_observations)
+    observations.extend(reachability.analysis_coverage_observations)
+    observations.extend(reachability.dynamic_import_observations)
+    return DependencyEvidence(
+        usage=usage,
+        import_sites=sites,
+        observations=list(dict.fromkeys(observations)),
+        graph_coverage_complete=graph.coverage_complete,
+        analysis_coverage_complete=reachability.analysis_coverage_complete,
+    )
+
+
+@dataclass
+class _ProjectContext:
+    scope: str
+    project: Path
+    graph: DependencyGraph
+    source: ReachabilityFilter
+
+
+@dataclass
+class _ContextEvaluation:
+    context: _ProjectContext
+    decision: ReachabilityDecision
+    evidence: DependencyEvidence
+    dev_only: bool
+    relevance: str
+
+
+@dataclass
+class _DependencyEvaluation:
+    decision: ReachabilityDecision
+    evidence: DependencyEvidence
+    dev_only: bool
+    contexts: list[_ContextEvaluation]
+
+
+def _project_contexts(project: Path, graph: DependencyGraph) -> list[_ProjectContext]:
+    if not graph.workspace_graphs:
+        return [_ProjectContext(".", project, graph, ReachabilityFilter(project))]
+    project = project.resolve()
+    roots = {scope: project / scope for scope in graph.workspace_graphs}
+    contexts = []
+    for scope, local in sorted(graph.workspace_graphs.items()):
+        root = roots[scope]
+        excluded = [
+            other for name, other in roots.items() if name != scope and other.is_relative_to(root)
+        ]
+        contexts.append(
+            _ProjectContext(scope, root, local, ReachabilityFilter(root, exclude_roots=excluded))
+        )
+    return contexts
+
+
+def _evaluate_dependency(
+    vuln: Vulnerability, contexts: list[_ProjectContext], graph: DependencyGraph
+) -> _DependencyEvaluation:
+    """Judge each workspace independently, then retain any used/uncertain context.
+
+    Scanner findings are not bound to an individual workspace installation.
+    Selection therefore uses conservative name relationships and observations;
+    no candidate version/location is silently assigned to only one workspace.
+    """
+    evaluated = []
+    for context in contexts:
+        local, source = context.graph, context.source
+        decision = source.decide(vuln, local)
+        evidence = _collect_evidence(source, vuln, local, decision)
+        roots = list(decision.introduced_by)
+        known = local.directness(vuln.package)
+        if known == "direct":
+            roots.append(vuln.package)
+        complete = local.coverage_complete and source.analysis_coverage_complete
+        dev_only = local.coverage_complete and (
+            local.is_dev_only(roots)
+            or (not graph.workspace_graphs and DevDepFilter.check(vuln) and not roots)
+        )
+        relevance = (
+            "dependency"
+            if known != "unknown" or roots
+            else "observed"
+            if evidence.usage == "observed"
+            else "uncertain"
+            if not complete
+            else "not_declared"
+        )
+        evaluated.append(_ContextEvaluation(context, decision, evidence, dev_only, relevance))
+    if not graph.workspace_graphs:
+        only = evaluated[0]
+        return _DependencyEvaluation(only.decision, only.evidence, only.dev_only, evaluated)
+
+    selected = [item for item in evaluated if item.relevance != "not_declared"]
+    # An incomplete member/discovery can conceal a production path for any
+    # report row. Local positive evidence is retained, but absence cannot win.
+    graph_complete = graph.coverage_complete and all(
+        item.context.graph.coverage_complete for item in evaluated
+    )
+    analysis_complete = all(item.context.source.analysis_coverage_complete for item in evaluated)
+    unreachable = (
+        bool(selected)
+        and graph_complete
+        and analysis_complete
+        and all(item.decision.unreachable for item in selected)
+    )
+    types = {item.decision.dependency_type for item in selected}
+    kind = "direct" if "direct" in types else "transitive" if "transitive" in types else "unknown"
+    decision = ReachabilityDecision(
+        unreachable=unreachable,
+        dependency_type=kind,
+        introduced_by=sorted({name for item in selected for name in item.decision.introduced_by}),
+        imported_ancestors=sorted(
+            {name for item in selected for name in item.decision.imported_ancestors}
+        ),
+    )
+    sites = sorted({site for item in selected for site in item.evidence.import_sites})
+    usage = (
+        "observed"
+        if any(item.evidence.usage == "observed" for item in selected)
+        else "not_observed"
+        if unreachable
+        else "unknown"
+    )
+    observations = [
+        "Declared workspaces were analyzed independently; finding associations use dependency "
+        "names, not a verified workspace installation or vulnerable call path.",
+        *graph.coverage_observations,
+    ]
+    for item in evaluated:
+        observations.extend(
+            f"Workspace {item.context.scope}: {note}" for note in item.evidence.observations
+        )
+    evidence = DependencyEvidence(
+        usage=usage,
+        import_sites=sites,
+        observations=list(dict.fromkeys(observations)),
+        graph_coverage_complete=graph_complete,
+        analysis_coverage_complete=analysis_complete,
+        workspace_contexts=[
+            WorkspaceEvidence(
+                path=item.context.scope,
+                relevance=item.relevance,
+                dependency_type=item.decision.dependency_type,
+                usage=item.evidence.usage,
+                dev_only=item.dev_only,
+                graph_coverage_complete=item.context.graph.coverage_complete,
+                analysis_coverage_complete=item.context.source.analysis_coverage_complete,
+                introduced_by=list(item.decision.introduced_by),
+                import_sites=list(item.evidence.import_sites),
+                observations=list(item.evidence.observations),
+            )
+            for item in evaluated
+        ],
+    )
+    dev_only = bool(selected) and graph_complete and all(item.dev_only for item in selected)
+    return _DependencyEvaluation(decision, evidence, dev_only, evaluated)
+
+
+def _find_context_template(
+    templates: TemplateFilter,
+    vuln: Vulnerability,
+    evaluation: _DependencyEvaluation,
+    graph: DependencyGraph,
+) -> Template | None:
+    first = evaluation.contexts[0].context
+    if not graph.workspace_graphs:
+        return templates.find_match(
+            vuln.cve, vuln.package, project=first.project, graph=graph, reachability=first.source
+        )
+    explicit = templates.find_match(vuln.cve, vuln.package, allow_conditional=False)
+    if explicit is not None:
+        return explicit
+    selected = [item for item in evaluation.contexts if item.relevance != "not_declared"]
+    if (
+        not selected
+        or not evaluation.evidence.graph_coverage_complete
+        or not evaluation.evidence.analysis_coverage_complete
+    ):
+        return None
+    matches = [
+        templates.find_match(
+            vuln.cve,
+            vuln.package,
+            project=item.context.project,
+            graph=item.context.graph,
+            reachability=item.context.source,
+        )
+        for item in selected
+    ]
+    match = matches[0]
+    return (
+        match
+        if match is not None and all(item and item.id == match.id for item in matches)
+        else None
+    )

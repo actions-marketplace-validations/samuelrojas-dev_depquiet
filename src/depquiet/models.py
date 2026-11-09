@@ -170,6 +170,56 @@ class DecisionChange:
 
 
 @dataclass
+class WorkspaceEvidence:
+    """Dependency-name analysis in one declared workspace, not instance binding."""
+
+    path: str
+    relevance: str = "unknown"
+    dependency_type: str = "unknown"
+    usage: str = "unknown"
+    dev_only: bool = False
+    graph_coverage_complete: bool = False
+    analysis_coverage_complete: bool = False
+    introduced_by: list[str] = field(default_factory=list)
+    import_sites: list[str] = field(default_factory=list)
+    observations: list[str] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, raw: Any) -> WorkspaceEvidence:
+        if not isinstance(raw, dict) or not isinstance(raw.get("path"), str) or not raw["path"]:
+            raise ValueError("Invalid workspace evidence: path is required")
+        enums = {
+            "relevance": {"dependency", "observed", "uncertain", "not_declared", "unknown"},
+            "dependency_type": {"direct", "transitive", "unknown"},
+            "usage": {"observed", "not_observed", "unknown"},
+        }
+        for name, allowed in enums.items():
+            if not isinstance(raw.get(name), str) or raw[name] not in allowed:
+                raise ValueError(f"Invalid workspace evidence: {name}")
+        for name in ("dev_only", "graph_coverage_complete", "analysis_coverage_complete"):
+            if type(raw.get(name)) is not bool:
+                raise ValueError(f"Invalid workspace evidence: {name} must be boolean")
+        arrays = {}
+        for name in ("introduced_by", "import_sites", "observations"):
+            value = raw.get(name, [])
+            if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+                raise ValueError(f"Invalid workspace evidence: {name} must contain strings")
+            arrays[name] = list(value)
+        return cls(
+            path=raw["path"],
+            relevance=raw["relevance"],
+            dependency_type=raw["dependency_type"],
+            usage=raw["usage"],
+            dev_only=raw["dev_only"],
+            graph_coverage_complete=raw["graph_coverage_complete"],
+            analysis_coverage_complete=raw["analysis_coverage_complete"],
+            introduced_by=arrays["introduced_by"],
+            import_sites=arrays["import_sites"],
+            observations=arrays["observations"],
+        )
+
+
+@dataclass
 class DependencyEvidence:
     """Observations from dependency analysis, not proof of exploitability."""
 
@@ -177,6 +227,10 @@ class DependencyEvidence:
     usage: str = "unknown"  # observed | not_observed | unknown
     import_sites: list[str] = field(default_factory=list)
     observations: list[str] = field(default_factory=list)
+    # None on legacy saved reports whose coverage was not recorded.
+    graph_coverage_complete: bool | None = None
+    analysis_coverage_complete: bool | None = None
+    workspace_contexts: list[WorkspaceEvidence] = field(default_factory=list)
 
 
 @dataclass
