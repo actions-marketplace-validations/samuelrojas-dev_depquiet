@@ -118,6 +118,20 @@ depquiet accepts output from any vulnerability scanner — natively or via SARIF
 
 The SARIF parser handles output from CodeQL, Semgrep, Trivy SARIF, Grype SARIF, Snyk SARIF, Checkmarx, Fortify, and any other tool that emits SARIF v2.1.0. CVE, package name, severity (CVSS or level-based), and fix version are extracted automatically from the standard SARIF fields and common scanner-specific properties.
 
+### npm component evidence
+
+For npm audit input, JSON keeps the legacy `version` value and identifies it as
+`version_kind: advisory_range`. Separate `components` record exact lockfile
+versions, node locations, source hashes and stable instance IDs. Each candidate
+has its own `range_match`; npm's package-level node list is not a per-advisory
+affected-version list. Unknown or partial resolution remains explicit.
+
+CycloneDX, SPDX and OpenVEX use those component identities instead of presenting
+an advisory range as a component version. No lockfile resolution claims an
+observed installation or product impact. See [npm component evidence](docs/npm-component-evidence.md)
+for the JSON contract, matching limits and export behavior. Existing baseline and
+diff matching rules continue to use their documented legacy identities.
+
 ### Standalone scanning with OSV.dev
 
 When no scanner output is piped in and no native package manager is detected, depquiet falls back to **lockfile scanning via [OSV.dev](https://osv.dev)** — Google's open, free vulnerability database. Just run `depquiet` in any project with a lockfile:

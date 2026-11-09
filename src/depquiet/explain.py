@@ -22,6 +22,7 @@ from typing import Any
 from depquiet.assessment import assess_finding, decision_trace_to_json
 from depquiet.kev import KevEntry
 from depquiet.models import (
+    ComponentEvidence,
     DecisionChange,
     DependencyEvidence,
     FilterReason,
@@ -62,6 +63,11 @@ class Explanation:
     assessment: dict[str, Any] = field(default_factory=dict)
     evidence: dict[str, Any] = field(default_factory=dict)
     decision_trace: list[dict[str, Any]] = field(default_factory=list)
+    version_kind: str = "reported"
+    advisory_range: str = ""
+    components: list[dict[str, str]] = field(default_factory=list)
+    component_notes: list[str] = field(default_factory=list)
+    component_resolution_complete: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
@@ -78,6 +84,11 @@ class Explanation:
             "assessment": self.assessment,
             "evidence": self.evidence,
             "decision_trace": self.decision_trace,
+            "version_kind": self.version_kind,
+            "advisory_range": self.advisory_range,
+            "components": self.components,
+            "component_notes": self.component_notes,
+            "component_resolution_complete": self.component_resolution_complete,
         }
         return d
 
@@ -260,6 +271,11 @@ def explain_triage(tr: TriageResult) -> Explanation:
         assessment=assess_finding(tr).to_dict(),
         evidence=asdict(tr.evidence),
         decision_trace=decision_trace_to_json(tr),
+        version_kind=tr.vuln.version_kind,
+        advisory_range=tr.vuln.advisory_range,
+        components=[component.to_dict() for component in tr.vuln.components],
+        component_notes=list(tr.vuln.component_notes),
+        component_resolution_complete=tr.vuln.component_resolution_complete,
     )
 
 
@@ -287,6 +303,24 @@ def find_cve_in_json(data: dict[str, Any], cve_id: str) -> TriageResult | None:
     target = cve_id.upper()
     for entry in data.get("results", []):
         if entry.get("cve", "").upper() == target:
+            raw_components = entry.get("components", [])
+            raw_notes = entry.get("component_notes", [])
+            version_kind = entry.get("version_kind", "reported")
+            advisory_range = entry.get("advisory_range", "")
+            resolution_complete = entry.get("component_resolution_complete", False)
+            if (
+                not isinstance(raw_components, list)
+                or not isinstance(raw_notes, list)
+                or not all(isinstance(note, str) for note in raw_notes)
+            ):
+                raise ValueError("Invalid saved component evidence")
+            if (
+                not isinstance(version_kind, str)
+                or version_kind not in {"reported", "advisory_range"}
+                or not isinstance(advisory_range, str)
+                or not isinstance(resolution_complete, bool)
+            ):
+                raise ValueError("Invalid saved component version metadata")
             vuln = Vulnerability(
                 cve=entry["cve"],
                 package=entry.get("package", ""),
@@ -295,6 +329,12 @@ def find_cve_in_json(data: dict[str, Any], cve_id: str) -> TriageResult | None:
                 title=entry.get("title", ""),
                 fix_version=entry.get("fix_version", ""),
                 fix_package=entry.get("fix_package", ""),
+                url=entry.get("url", ""),
+                version_kind=version_kind,
+                advisory_range=advisory_range,
+                components=[ComponentEvidence.from_dict(raw) for raw in raw_components],
+                component_notes=list(raw_notes),
+                component_resolution_complete=resolution_complete,
                 is_dev=entry.get("is_dev", "dev_dependency" in entry.get("reasons", [])),
                 is_direct=entry.get("is_direct", True),
             )
@@ -383,7 +423,18 @@ def format_explanation(exp: Explanation) -> str:
 
     icon = _VERDICT_ICONS.get(exp.verdict, "·")
     lines.append(f"{icon} {exp.cve} — {exp.title}")
-    lines.append(f"   Package: {exp.package}@{exp.version}")
+    if exp.version_kind == "advisory_range":
+        lines.append(f"   Package: {exp.package}")
+        lines.append(f"   Advisory range: {exp.advisory_range or exp.version or 'unknown'}")
+        for component in exp.components:
+            lines.append(
+                f"   Lockfile candidate: {component['package']}@{component['version']} "
+                f"at {component['location']} (range: {component['range_match']})"
+            )
+        for note in exp.component_notes:
+            lines.append(f"   Component evidence: {note}")
+    else:
+        lines.append(f"   Package: {exp.package}@{exp.version}")
     lines.append(f"   Severity: {exp.severity.upper()}")
     lines.append(f"   Verdict: {exp.verdict.upper()} ({exp.reason_summary})")
     if exp.assessment:

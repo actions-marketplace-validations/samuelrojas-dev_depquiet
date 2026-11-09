@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+import re
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
@@ -38,6 +41,78 @@ class FilterReason(Enum):
 
 
 @dataclass
+class ComponentEvidence:
+    """A lockfile-resolved candidate, not an observed runtime installation.
+
+    ``range_match`` is matched, not_matched or unknown against an advisory
+    range. It never establishes product impact or actual execution.
+    """
+
+    ecosystem: str
+    package: str
+    version: str
+    location: str
+    lockfile: str
+    lockfile_sha256: str
+    range_match: str = "unknown"
+    reason: str = ""
+
+    @property
+    def instance_id(self) -> str:
+        identity = {
+            "ecosystem": self.ecosystem,
+            "package": self.package,
+            "version": self.version,
+            "location": self.location,
+            "lockfile": self.lockfile,
+        }
+        raw = json.dumps(identity, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        return "component-sha256:" + hashlib.sha256(raw).hexdigest()
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "instance_id": self.instance_id,
+            "ecosystem": self.ecosystem,
+            "package": self.package,
+            "version": self.version,
+            "location": self.location,
+            "lockfile": self.lockfile,
+            "lockfile_sha256": self.lockfile_sha256,
+            "range_match": self.range_match,
+            "reason": self.reason,
+        }
+
+    @classmethod
+    def from_dict(cls, raw: dict[str, Any]) -> ComponentEvidence:
+        fields = ("ecosystem", "package", "version", "location", "lockfile", "lockfile_sha256")
+        if not isinstance(raw, dict) or any(
+            not isinstance(raw.get(name), str) or not raw[name] for name in fields
+        ):
+            raise ValueError("Invalid component evidence: nonempty string fields are required")
+        if re.fullmatch(r"[a-fA-F0-9]{64}", raw["lockfile_sha256"]) is None:
+            raise ValueError("Invalid component evidence: lockfile SHA-256 is required")
+        match = raw.get("range_match", "unknown")
+        if not isinstance(match, str) or match not in {"matched", "not_matched", "unknown"}:
+            raise ValueError("Invalid component evidence: unknown range-match status")
+        reason = raw.get("reason", "")
+        if not isinstance(reason, str):
+            raise ValueError("Invalid component evidence: reason must be a string")
+        component = cls(
+            ecosystem=raw["ecosystem"],
+            package=raw["package"],
+            version=raw["version"],
+            location=raw["location"],
+            lockfile=raw["lockfile"],
+            lockfile_sha256=raw["lockfile_sha256"],
+            range_match=match,
+            reason=reason,
+        )
+        if "instance_id" in raw and raw["instance_id"] != component.instance_id:
+            raise ValueError("Invalid component evidence: instance ID conflicts with its fields")
+        return component
+
+
+@dataclass
 class Vulnerability:
     """A single vulnerability finding from a scanner."""
 
@@ -60,6 +135,13 @@ class Vulnerability:
     is_dev: bool = False
     # Depth in dependency tree (0 = direct)
     depth: int = 0
+    # Preserve the scanner's legacy version field while separately identifying
+    # ranges and resolved lockfile candidates. Never infer an installed version.
+    version_kind: str = "reported"
+    advisory_range: str = ""
+    components: list[ComponentEvidence] = field(default_factory=list)
+    component_notes: list[str] = field(default_factory=list)
+    component_resolution_complete: bool = False
 
     @property
     def key(self) -> str:

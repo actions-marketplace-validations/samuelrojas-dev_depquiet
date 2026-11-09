@@ -26,8 +26,14 @@ from typing import Any
 
 from depquiet import __version__
 from depquiet.assessment import assess_finding
+from depquiet.component_refs import (
+    ExportComponent,
+    association_metadata,
+    association_notes,
+    component_inventory,
+    finding_components,
+)
 from depquiet.models import ScanResult, TriageResult
-from depquiet.sbom import _components_with_references
 
 
 def _spdx_id(name: str, version: str) -> str:
@@ -40,9 +46,18 @@ def _spdx_id(name: str, version: str) -> str:
     return "".join(c if c.isalnum() or c in ".-" else "-" for c in raw)
 
 
-def _verdict_to_annotation(tr: TriageResult) -> str:
+def _verdict_to_annotation(tr: TriageResult, component: ExportComponent | None = None) -> str:
     """Record prioritization observations without asserting product impact."""
-    return assess_finding(tr).detail
+    parts = [assess_finding(tr).detail, association_notes(tr.vuln)]
+    if tr.vuln.version_kind == "advisory_range" and component is not None:
+        association = next(
+            (item for item in finding_components(tr.vuln) if item.ref == component.ref), component
+        )
+        parts.append(
+            "Advisory association: "
+            + json.dumps(association_metadata(tr.vuln, association), sort_keys=True)
+        )
+    return " ".join(part for part in parts if part)
 
 
 def generate_spdx_json(
@@ -70,18 +85,25 @@ def generate_spdx_json(
     spdx_packages: list[dict[str, Any]] = []
     relationships: list[dict[str, Any]] = []
 
-    # Build vulnerability lookup: CVE → list of TriageResults
-    vuln_by_pkg: dict[str, list[TriageResult]] = {}
+    inventory = component_inventory(scan_result, packages)
+    vuln_by_ref: dict[str, list[TriageResult]] = {}
+    unassociated: list[TriageResult] = []
     for tr in scan_result.results:
-        key = f"{tr.vuln.package}@{tr.vuln.version}"
-        vuln_by_pkg.setdefault(key, []).append(tr)
+        associated = finding_components(tr.vuln, inventory)
+        for component in associated:
+            vuln_by_ref.setdefault(component.ref, []).append(tr)
+        if not associated:
+            unassociated.append(tr)
 
-    components, _ = _components_with_references(scan_result, packages)
-    for component in components:
-        name, version = component["name"], component["version"]
-        spdx_id = _spdx_id(name, version)
+    for component in inventory:
+        name, version = component.package, component.version
+        spdx_id = (
+            "SPDXRef-" + component.ref.replace(":", "-")
+            if component.evidence is not None
+            else _spdx_id(name, version or "")
+        )
         pkg_entry = _build_package_entry(
-            spdx_id, name, version, component["purl"], vuln_by_pkg.get(f"{name}@{version}", [])
+            spdx_id, name, version, component.purl, vuln_by_ref.get(component.ref, []), component
         )
         spdx_packages.append(pkg_entry)
         relationships.append(
@@ -108,6 +130,16 @@ def generate_spdx_json(
         "packages": spdx_packages,
         "relationships": relationships,
     }
+    if unassociated:
+        doc["annotations"] = [
+            {
+                "annotationDate": timestamp,
+                "annotationType": "OTHER",
+                "annotator": f"Tool: depquiet-{__version__}",
+                "comment": _verdict_to_annotation(tr),
+            }
+            for tr in unassociated
+        ]
 
     return doc
 
@@ -115,15 +147,15 @@ def generate_spdx_json(
 def _build_package_entry(
     spdx_id: str,
     name: str,
-    version: str,
+    version: str | None,
     purl: str,
     triage_results: list[TriageResult],
+    component: ExportComponent | None = None,
 ) -> dict[str, Any]:
     """Build a single SPDX package entry."""
     pkg: dict[str, Any] = {
         "SPDXID": spdx_id,
         "name": name,
-        "versionInfo": version,
         "downloadLocation": "NOASSERTION",
         "filesAnalyzed": False,
         "externalRefs": [
@@ -134,6 +166,17 @@ def _build_package_entry(
             },
         ],
     }
+    if version is not None:
+        pkg["versionInfo"] = version
+    if component is not None and component.provenance():
+        pkg["comment"] = (
+            "Lockfile candidate evidence; not an observed runtime installation: "
+            + json.dumps(component.provenance(), sort_keys=True)
+        )
+    elif component is not None and version is None:
+        pkg["comment"] = (
+            "Version unresolved; no lockfile candidate or runtime installation established."
+        )
 
     # Add SECURITY external refs for known CVEs
     cve_seen: set[str] = set()
@@ -144,9 +187,9 @@ def _build_package_entry(
             pkg["externalRefs"].append(
                 {
                     "referenceCategory": "SECURITY",
-                    "referenceType": "cpe23Type",
-                    "referenceLocator": f"https://nvd.nist.gov/vuln/detail/{cve}",
-                    "comment": _verdict_to_annotation(tr),
+                    "referenceType": "advisory",
+                    "referenceLocator": tr.vuln.url or f"https://nvd.nist.gov/vuln/detail/{cve}",
+                    "comment": _verdict_to_annotation(tr, component),
                 }
             )
 

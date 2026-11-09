@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Auditable npm component candidates, separate from the advisory range: exact
+  lockfile versions, node locations, SHA-256 provenance, stable instance IDs and
+  per-advisory matched/not_matched/unknown associations. One lockfile snapshot is
+  shared across an audit report; no package installation or Node runtime is needed.
+- Explicit partial-resolution metadata and saved-scan explanations that preserve
+  component evidence. Unsupported version/range semantics remain unknown.
 - Structured dependency evidence and an ordered priority-decision history in scan
   JSON and saved-scan explanations. Preserve observations through policy, baseline,
   ignore and KEV decisions.
@@ -34,6 +40,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for pull requests targeting development branches as well as main.
 
 ### Fixed
+- npm CycloneDX/SPDX/OpenVEX exports correlate advisories with concrete component
+  instances, keeping versions outside the range in inventory without associating
+  that advisory. Missing/partial resolution uses an explicitly unknown unversioned
+  identity instead of manufacturing a component version from an advisory range.
+- Exported PURL versions encode build metadata while preserving the standard's
+  literal-colon rule. SPDX SECURITY references use the advisory reference type.
 - Reachability and source-absence template conditions no longer dismiss findings
   based on included-source read/metadata errors or failed source-directory enumeration.
   Evidence retains observed imports and records coverage errors; unresolved usage

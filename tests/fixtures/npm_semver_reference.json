@@ -1,0 +1,748 @@
+{
+  "schema_version": 1,
+  "purpose": "Frozen independent npm range-conformance reference, not scanner accuracy or exploitability evidence.",
+  "provenance": "Sixty cases authored independently of the Python matcher; raw results captured using the existing npm-bundled official semver library. No package installation, application execution or runtime Node dependency.",
+  "prepared_date": "2026-11-08",
+  "oracle": {
+    "package": "semver",
+    "version": "7.8.5",
+    "primary_source": "https://github.com/npm/node-semver#ranges",
+    "options": {
+      "loose": false,
+      "includePrerelease": false
+    },
+    "package_json_sha256": "84c9df3ebd1153d5177e92d7079118c0a5890c25008e31cb43d1426835d0c24c",
+    "entrypoint_sha256": "422bdd8b05a81e75d912b79569f8b7da5ba041dbfd98ea2029ac5ef83feb792f",
+    "raw_capture_sha256": "0405033644bc15f510c63326c5df353b094c66ab560e304edfa781fb7540c203",
+    "cases_sha256": "f3115363ab7520caeb98570472d083d86c70e8e30e85ac486910277398bea070",
+    "invalid_input_adaptation": "A null valid(version) or validRange(range) requires unknown rather than treating satisfies(false) as a certain negative match."
+  },
+  "required_coverage": {
+    "supported_stable_definitive": 41,
+    "invalid_input_unknown": 11,
+    "valid_prerelease_unknown": 8,
+    "interpretation": "Stable valid versions/ranges in this fixed sample require exact definitive answers. Prerelease evaluation is explicitly unsupported; invalid syntax remains unknown."
+  },
+  "cases": [
+    {
+      "id": "exact-match",
+      "category": "exact",
+      "version": "4.7.2",
+      "range": "4.7.2",
+      "oracle": {
+        "valid_version": "4.7.2",
+        "valid_range": "4.7.2",
+        "satisfies": true
+      },
+      "expected": "matched"
+    },
+    {
+      "id": "exact-mismatch",
+      "category": "exact",
+      "version": "4.7.3",
+      "range": "4.7.2",
+      "oracle": {
+        "valid_version": "4.7.3",
+        "valid_range": "4.7.2",
+        "satisfies": false
+      },
+      "expected": "not_matched"
+    },
+    {
+      "id": "spaced-less-boundary",
+      "category": "comparator",
+      "version": "4.7.2",
+      "range": "< 4.7.2",
+      "oracle": {
+        "valid_version": "4.7.2",
+        "valid_range": "<4.7.2",
+        "satisfies": false
+      },
+      "expected": "not_matched"
+    },
+    {
+      "id": "inclusive-boundary",
+      "category": "comparator",
+      "version": "4.7.2",
+      "range": "<=4.7.2",
+      "oracle": {
+        "valid_version": "4.7.2",
+        "valid_range": "<=4.7.2",
+        "satisfies": true
+      },
+      "expected": "matched"
+    },
+    {
+      "id": "and-interior",
+      "category": "and",
+      "version": "4.7.9",
+      "range": ">=4.7.2 <4.8.0",
+      "oracle": {
+        "valid_version": "4.7.9",
+        "valid_range": ">=4.7.2 <4.8.0",
+        "satisfies": true
+      },
+      "expected": "matched"
+    },
+    {
+      "id": "and-upper-excluded",
+      "category": "and",
+      "version": "4.8.0",
+      "range": ">=4.7.2 <4.8.0",
+      "oracle": {
+        "valid_version": "4.8.0",
+        "valid_range": ">=4.7.2 <4.8.0",
+        "satisfies": false
+      },
+      "expected": "not_matched"
+    },
+    {
+      "id": "or-first-arm",
+      "category": "or",
+      "version": "1.6.8",
+      "range": "<2.0.0 || >=4.2.0 <5.0.0",
+      "oracle": {
+        "valid_version": "1.6.8",
+        "valid_range": "<2.0.0||>=4.2.0 <5.0.0",
+        "satisfies": true
+      },
+      "expected": "matched"
+    },
+    {
+      "id": "or-second-arm",
+      "category": "or",
+      "version": "4.4.9",
+      "range": "<2.0.0 || >=4.2.0 <5.0.0",
+      "oracle": {
+        "valid_version": "4.4.9",
+        "valid_range": "<2.0.0||>=4.2.0 <5.0.0",
+        "satisfies": true
+      },
+      "expected": "matched"
+    },
+    {
+      "id": "or-gap",
+      "category": "or",
+      "version": "3.0.0",
+      "range": "<2.0.0 || >=4.2.0 <5.0.0",
+      "oracle": {
+        "valid_version": "3.0.0",
+        "valid_range": "<2.0.0||>=4.2.0 <5.0.0",
+        "satisfies": false
+      },
+      "expected": "not_matched"
+    },
+    {
+      "id": "or-invalid-arm",
+      "category": "invalid-range",
+      "version": "1.6.8",
+      "range": "<2.0.0 || nonsense",
+      "oracle": {
+        "valid_version": "1.6.8",
+        "valid_range": null,
+        "satisfies": false
+      },
+      "expected": "unknown"
+    },
+    {
+      "id": "hyphen-lower-inclusive",
+      "category": "hyphen",
+      "version": "1.6.8",
+      "range": "1.6.8 - 2.4.6",
+      "oracle": {
+        "valid_version": "1.6.8",
+        "valid_range": ">=1.6.8 <=2.4.6",
+        "satisfies": true
+      },
+      "expected": "matched"
+    },
+    {
+      "id": "hyphen-upper-inclusive",
+      "category": "hyphen",
+      "version": "2.4.6",
+      "range": "1.6.8 - 2.4.6",
+      "oracle": {
+        "valid_version": "2.4.6",
+        "valid_range": ">=1.6.8 <=2.4.6",
+        "satisfies": true
+      },
+      "expected": "matched"
+    },
+    {
+      "id": "hyphen-upper-excluded",
+      "category": "hyphen",
+      "version": "2.4.7",
+      "range": "1.6.8 - 2.4.6",
+      "oracle": {
+        "valid_version": "2.4.7",
+        "valid_range": ">=1.6.8 <=2.4.6",
+        "satisfies": false
+      },
+      "expected": "not_matched"
+    },
+    {
+      "id": "hyphen-partial-upper-interior",
+      "category": "hyphen",
+      "version": "2.4.99",
+      "range": "1.6 - 2.4",
+      "oracle": {
+        "valid_version": "2.4.99",
+        "valid_range": ">=1.6.0 <2.5.0-0",
+        "satisfies": true
+      },
+      "expected": "matched"
+    },
+    {
+      "id": "hyphen-partial-upper-boundary",
+      "category": "hyphen",
+      "version": "2.5.0",
+      "range": "1.6 - 2.4",
+      "oracle": {
+        "valid_version": "2.5.0",
+        "valid_range": ">=1.6.0 <2.5.0-0",
+        "satisfies": false
+      },
+      "expected": "not_matched"
+    },
+    {
+      "id": "hyphen-major-upper-interior",
+      "category": "hyphen",
+      "version": "2.99.9",
+      "range": "1.6.8 - 2",
+      "oracle": {
+        "valid_version": "2.99.9",
+        "valid_range": ">=1.6.8 <3.0.0-0",
+        "satisfies": true
+      },
+      "expected": "matched"
+    },
+    {
+      "id": "hyphen-major-upper-boundary",
+      "category": "hyphen",
+      "version": "3.0.0",
+      "range": "1.6.8 - 2",
+      "oracle": {
+        "valid_version": "3.0.0",
+        "valid_range": ">=1.6.8 <3.0.0-0",
+        "satisfies": false
+      },
+      "expected": "not_matched"
+    },
+    {
+      "id": "caret-major-compatible",
+      "category": "caret",
+      "version": "4.99.9",
+      "range": "^4.7.2",
+      "oracle": {
+        "valid_version": "4.99.9",
+        "valid_range": ">=4.7.2 <5.0.0-0",
+        "satisfies": true
+      },
+      "expected": "matched"
+    },
+    {
+      "id": "caret-major-boundary",
+      "category": "caret",
+      "version": "5.0.0",
+      "range": "^4.7.2",
+      "oracle": {
+        "valid_version": "5.0.0",
+        "valid_range": ">=4.7.2 <5.0.0-0",
+        "satisfies": false
+      },
+      "expected": "not_matched"
+    },
+    {
+      "id": "caret-zero-patch-update",
+      "category": "caret-zero",
+      "version": "0.7.9",
+      "range": "^0.7.2",
+      "oracle": {
+        "valid_version": "0.7.9",
+        "valid_range": ">=0.7.2 <0.8.0-0",
+        "satisfies": true
+      },
+      "expected": "matched"
+    },
+    {
+      "id": "caret-zero-minor-boundary",
+      "category": "caret-zero",
+      "version": "0.8.0",
+      "range": "^0.7.2",
+      "oracle": {
+        "valid_version": "0.8.0",
+        "valid_range": ">=0.7.2 <0.8.0-0",
+        "satisfies": false
+      },
+      "expected": "not_matched"
+    },
+    {
+      "id": "caret-zero-zero-exact",
+      "category": "caret-zero",
+      "version": "0.0.7",
+      "range": "^0.0.7",
+      "oracle": {
+        "valid_version": "0.0.7",
+        "valid_range": ">=0.0.7 <0.0.8-0",
+        "satisfies": true
+      },
+      "expected": "matched"
+    },
+    {
+      "id": "caret-zero-zero-patch-boundary",
+      "category": "caret-zero",
+      "version": "0.0.8",
+      "range": "^0.0.7",
+      "oracle": {
+        "valid_version": "0.0.8",
+        "valid_range": ">=0.0.7 <0.0.8-0",
+        "satisfies": false
+      },
+      "expected": "not_matched"
+    },
+    {
+      "id": "caret-zero-zero-partial-interior",
+      "category": "caret-zero",
+      "version": "0.0.99",
+      "range": "^0.0",
+      "oracle": {
+        "valid_version": "0.0.99",
+        "valid_range": "<0.1.0-0",
+        "satisfies": true
+      },
+      "expected": "matched"
+    },
+    {
+      "id": "caret-zero-zero-partial-boundary",
+      "category": "caret-zero",
+      "version": "0.1.0",
+      "range": "^0.0",
+      "oracle": {
+        "valid_version": "0.1.0",
+        "valid_range": "<0.1.0-0",
+        "satisfies": false
+      },
+      "expected": "not_matched"
+    },
+    {
+      "id": "caret-zero-partial-interior",
+      "category": "caret-zero",
+      "version": "0.99.9",
+      "range": "^0",
+      "oracle": {
+        "valid_version": "0.99.9",
+        "valid_range": "<1.0.0-0",
+        "satisfies": true
+      },
+      "expected": "matched"
+    },
+    {
+      "id": "caret-zero-partial-boundary",
+      "category": "caret-zero",
+      "version": "1.0.0",
+      "range": "^0",
+      "oracle": {
+        "valid_version": "1.0.0",
+        "valid_range": "<1.0.0-0",
+        "satisfies": false
+      },
+      "expected": "not_matched"
+    },
+    {
+      "id": "caret-prerelease-same-core",
+      "category": "prerelease",
+      "version": "4.7.2-beta.4",
+      "range": "^4.7.2-beta.2",
+      "oracle": {
+        "valid_version": "4.7.2-beta.4",
+        "valid_range": ">=4.7.2-beta.2 <5.0.0-0",
+        "satisfies": true
+      },
+      "expected": "matched"
+    },
+    {
+      "id": "caret-prerelease-next-core",
+      "category": "prerelease",
+      "version": "4.7.3-beta.4",
+      "range": "^4.7.2-beta.2",
+      "oracle": {
+        "valid_version": "4.7.3-beta.4",
+        "valid_range": ">=4.7.2-beta.2 <5.0.0-0",
+        "satisfies": false
+      },
+      "expected": "not_matched"
+    },
+    {
+      "id": "tilde-patch-interior",
+      "category": "tilde",
+      "version": "4.7.99",
+      "range": "~4.7.2",
+      "oracle": {
+        "valid_version": "4.7.99",
+        "valid_range": ">=4.7.2 <4.8.0-0",
+        "satisfies": true
+      },
+      "expected": "matched"
+    },
+    {
+      "id": "tilde-minor-boundary",
+      "category": "tilde",
+      "version": "4.8.0",
+      "range": "~4.7.2",
+      "oracle": {
+        "valid_version": "4.8.0",
+        "valid_range": ">=4.7.2 <4.8.0-0",
+        "satisfies": false
+      },
+      "expected": "not_matched"
+    },
+    {
+      "id": "tilde-major-partial-compatible",
+      "category": "tilde",
+      "version": "4.99.9",
+      "range": "~4",
+      "oracle": {
+        "valid_version": "4.99.9",
+        "valid_range": ">=4.0.0 <5.0.0-0",
+        "satisfies": true
+      },
+      "expected": "matched"
+    },
+    {
+      "id": "tilde-zero-patch-update",
+      "category": "tilde",
+      "version": "0.7.9",
+      "range": "~0.7.2",
+      "oracle": {
+        "valid_version": "0.7.9",
+        "valid_range": ">=0.7.2 <0.8.0-0",
+        "satisfies": true
+      },
+      "expected": "matched"
+    },
+    {
+      "id": "tilde-zero-minor-boundary",
+      "category": "tilde",
+      "version": "0.8.0",
+      "range": "~0.7.2",
+      "oracle": {
+        "valid_version": "0.8.0",
+        "valid_range": ">=0.7.2 <0.8.0-0",
+        "satisfies": false
+      },
+      "expected": "not_matched"
+    },
+    {
+      "id": "build-metadata-ignored-for-precedence",
+      "category": "build",
+      "version": "4.7.2+linux.27",
+      "range": "=4.7.2+other",
+      "oracle": {
+        "valid_version": "4.7.2",
+        "valid_range": "4.7.2",
+        "satisfies": true
+      },
+      "expected": "matched"
+    },
+    {
+      "id": "zero-prefixed-build-identifier-valid",
+      "category": "build",
+      "version": "4.7.2+009",
+      "range": "4.7.2",
+      "oracle": {
+        "valid_version": "4.7.2",
+        "valid_range": "4.7.2",
+        "satisfies": true
+      },
+      "expected": "matched"
+    },
+    {
+      "id": "wildcard-stable",
+      "category": "wildcard",
+      "version": "99.42.17",
+      "range": "*",
+      "oracle": {
+        "valid_version": "99.42.17",
+        "valid_range": "*",
+        "satisfies": true
+      },
+      "expected": "matched"
+    },
+    {
+      "id": "wildcard-excludes-prerelease",
+      "category": "prerelease",
+      "version": "99.42.17-rc.1",
+      "range": "*",
+      "oracle": {
+        "valid_version": "99.42.17-rc.1",
+        "valid_range": "*",
+        "satisfies": false
+      },
+      "expected": "not_matched"
+    },
+    {
+      "id": "empty-range-stable",
+      "category": "wildcard",
+      "version": "7.8.9",
+      "range": "",
+      "oracle": {
+        "valid_version": "7.8.9",
+        "valid_range": "*",
+        "satisfies": true
+      },
+      "expected": "matched"
+    },
+    {
+      "id": "wildcard-major-interior",
+      "category": "wildcard",
+      "version": "7.99.99",
+      "range": "7.x",
+      "oracle": {
+        "valid_version": "7.99.99",
+        "valid_range": ">=7.0.0 <8.0.0-0",
+        "satisfies": true
+      },
+      "expected": "matched"
+    },
+    {
+      "id": "wildcard-major-boundary",
+      "category": "wildcard",
+      "version": "8.0.0",
+      "range": "7.x",
+      "oracle": {
+        "valid_version": "8.0.0",
+        "valid_range": ">=7.0.0 <8.0.0-0",
+        "satisfies": false
+      },
+      "expected": "not_matched"
+    },
+    {
+      "id": "partial-greater-excludes-current-minor",
+      "category": "partial",
+      "version": "7.8.99",
+      "range": ">7.8",
+      "oracle": {
+        "valid_version": "7.8.99",
+        "valid_range": ">=7.9.0",
+        "satisfies": false
+      },
+      "expected": "not_matched"
+    },
+    {
+      "id": "partial-greater-next-minor-included",
+      "category": "partial",
+      "version": "7.9.0",
+      "range": ">7.8",
+      "oracle": {
+        "valid_version": "7.9.0",
+        "valid_range": ">=7.9.0",
+        "satisfies": true
+      },
+      "expected": "matched"
+    },
+    {
+      "id": "partial-exact-patch-flexibility",
+      "category": "partial",
+      "version": "7.8.99",
+      "range": "7.8",
+      "oracle": {
+        "valid_version": "7.8.99",
+        "valid_range": ">=7.8.0 <7.9.0-0",
+        "satisfies": true
+      },
+      "expected": "matched"
+    },
+    {
+      "id": "prerelease-same-core-gate",
+      "category": "prerelease",
+      "version": "7.8.9-alpha.7",
+      "range": ">7.8.9-alpha.3",
+      "oracle": {
+        "valid_version": "7.8.9-alpha.7",
+        "valid_range": ">7.8.9-alpha.3",
+        "satisfies": true
+      },
+      "expected": "matched"
+    },
+    {
+      "id": "prerelease-foreign-core-gate",
+      "category": "prerelease",
+      "version": "8.0.0-alpha.7",
+      "range": ">7.8.9-alpha.3",
+      "oracle": {
+        "valid_version": "8.0.0-alpha.7",
+        "valid_range": ">7.8.9-alpha.3",
+        "satisfies": false
+      },
+      "expected": "not_matched"
+    },
+    {
+      "id": "prerelease-stable-bounds-exclude",
+      "category": "prerelease",
+      "version": "7.8.9-beta.1",
+      "range": ">=7.0.0 <8.0.0",
+      "oracle": {
+        "valid_version": "7.8.9-beta.1",
+        "valid_range": ">=7.0.0 <8.0.0",
+        "satisfies": false
+      },
+      "expected": "not_matched"
+    },
+    {
+      "id": "prerelease-or-gate-does-not-leak",
+      "category": "prerelease",
+      "version": "2.3.4-beta.1",
+      "range": ">=1.0.0 <3.0.0 || >=2.3.4-alpha.1 <2.3.4-beta.0",
+      "oracle": {
+        "valid_version": "2.3.4-beta.1",
+        "valid_range": ">=1.0.0 <3.0.0||>=2.3.4-alpha.1 <2.3.4-beta.0",
+        "satisfies": false
+      },
+      "expected": "not_matched"
+    },
+    {
+      "id": "prerelease-numeric-identifier-order",
+      "category": "prerelease",
+      "version": "7.8.9-alpha.10",
+      "range": ">7.8.9-alpha.2",
+      "oracle": {
+        "valid_version": "7.8.9-alpha.10",
+        "valid_range": ">7.8.9-alpha.2",
+        "satisfies": true
+      },
+      "expected": "matched"
+    },
+    {
+      "id": "prerelease-leading-zero-invalid",
+      "category": "invalid-version",
+      "version": "7.8.9-alpha.01",
+      "range": ">=7.0.0",
+      "oracle": {
+        "valid_version": null,
+        "valid_range": ">=7.0.0",
+        "satisfies": false
+      },
+      "expected": "unknown"
+    },
+    {
+      "id": "comparator-whitespace-and-tab",
+      "category": "comparator",
+      "version": "7.8.9",
+      "range": ">= 7.8.0\t< 8.0.0",
+      "oracle": {
+        "valid_version": "7.8.9",
+        "valid_range": ">=7.8.0 <8.0.0",
+        "satisfies": true
+      },
+      "expected": "matched"
+    },
+    {
+      "id": "file-protocol-not-range",
+      "category": "invalid-range",
+      "version": "7.8.9",
+      "range": "file:../pkg",
+      "oracle": {
+        "valid_version": "7.8.9",
+        "valid_range": null,
+        "satisfies": false
+      },
+      "expected": "unknown"
+    },
+    {
+      "id": "workspace-protocol-not-range",
+      "category": "invalid-range",
+      "version": "7.8.9",
+      "range": "workspace:*",
+      "oracle": {
+        "valid_version": "7.8.9",
+        "valid_range": null,
+        "satisfies": false
+      },
+      "expected": "unknown"
+    },
+    {
+      "id": "dangling-comparator-invalid",
+      "category": "invalid-range",
+      "version": "7.8.9",
+      "range": ">=7.8.0 <",
+      "oracle": {
+        "valid_version": "7.8.9",
+        "valid_range": null,
+        "satisfies": false
+      },
+      "expected": "unknown"
+    },
+    {
+      "id": "comma-separated-comparators-invalid",
+      "category": "invalid-range",
+      "version": "7.8.9",
+      "range": ">=7.8.0, <8.0.0",
+      "oracle": {
+        "valid_version": "7.8.9",
+        "valid_range": null,
+        "satisfies": false
+      },
+      "expected": "unknown"
+    },
+    {
+      "id": "not-equal-operator-invalid",
+      "category": "invalid-range",
+      "version": "7.8.9",
+      "range": "!=7.8.9",
+      "oracle": {
+        "valid_version": "7.8.9",
+        "valid_range": null,
+        "satisfies": false
+      },
+      "expected": "unknown"
+    },
+    {
+      "id": "partial-version-not-concrete",
+      "category": "invalid-version",
+      "version": "7.8",
+      "range": ">=7.0.0",
+      "oracle": {
+        "valid_version": null,
+        "valid_range": ">=7.0.0",
+        "satisfies": false
+      },
+      "expected": "unknown"
+    },
+    {
+      "id": "leading-zero-version-invalid",
+      "category": "invalid-version",
+      "version": "07.8.9",
+      "range": ">=7.0.0",
+      "oracle": {
+        "valid_version": null,
+        "valid_range": ">=7.0.0",
+        "satisfies": false
+      },
+      "expected": "unknown"
+    },
+    {
+      "id": "or-invalid-second-arm-after-exact",
+      "category": "invalid-range",
+      "version": "7.8.9",
+      "range": "7.8.9 || invalid",
+      "oracle": {
+        "valid_version": "7.8.9",
+        "valid_range": null,
+        "satisfies": false
+      },
+      "expected": "unknown"
+    },
+    {
+      "id": "unsafe-integer-version-invalid",
+      "category": "invalid-version",
+      "version": "9007199254740992.1.0",
+      "range": "*",
+      "oracle": {
+        "valid_version": null,
+        "valid_range": "*",
+        "satisfies": false
+      },
+      "expected": "unknown"
+    }
+  ]
+}

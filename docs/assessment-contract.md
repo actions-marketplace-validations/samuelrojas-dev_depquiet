@@ -35,6 +35,14 @@ adds:
   verdict, rule ID, reason, path, author and expiry where available.
 - Template metadata, scanner direct/dev flags, and EPSS percentile when available.
 
+For npm audit, `version_kind: advisory_range` qualifies the legacy `version`
+field; `advisory_range` preserves that context separately. `components` contains
+lockfile candidates with exact version/location, source hash, instance ID and
+per-advisory range-match status. `component_resolution_complete` only says all
+reported node locations were bound to candidates, not that the advisory applies
+or an installation was observed. `component_notes` retains missing/unsupported
+context. See the [component evidence contract](npm-component-evidence.md).
+
 Evidence is collected for all findings before suppressions and survives them.
 Configuration/command references are observations, not fabricated file locations.
 JSON can be reloaded with `depquiet explain --from-json`; old JSON defaults to an

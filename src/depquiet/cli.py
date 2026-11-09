@@ -194,7 +194,11 @@ def explain_main(argv: list[str]) -> int:
         except json.JSONDecodeError:
             print(f"Error: invalid JSON in {args.from_json}", file=sys.stderr)
             return 1
-        tr = find_cve_in_json(data, args.cve)
+        try:
+            tr = find_cve_in_json(data, args.cve)
+        except (ValueError, TypeError) as exc:
+            print(f"Error: invalid saved scan evidence: {exc}", file=sys.stderr)
+            return 2
     else:
         # Run a live scan
         config = load_config(args.path, config_path=args.config)
@@ -780,8 +784,14 @@ def _print_json(result: ScanResult, *, license_report: LicenseReport | None = No
             "cve": tr.vuln.cve,
             "package": tr.vuln.package,
             "version": tr.vuln.version,
+            "version_kind": tr.vuln.version_kind,
+            "advisory_range": tr.vuln.advisory_range,
+            "components": [component.to_dict() for component in tr.vuln.components],
+            "component_notes": list(tr.vuln.component_notes),
+            "component_resolution_complete": tr.vuln.component_resolution_complete,
             "severity": tr.vuln.severity.value,
             "title": tr.vuln.title,
+            "url": tr.vuln.url,
             "verdict": tr.verdict.value,
             "reasons": [r.value for r in tr.reasons],
             "epss_score": tr.epss_score,

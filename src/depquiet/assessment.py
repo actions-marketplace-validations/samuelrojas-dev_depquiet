@@ -44,10 +44,20 @@ class FindingAssessment:
 
 def assess_finding(tr: TriageResult) -> FindingAssessment:
     """Describe available evidence without converting priority into impact."""
-    observations = [
-        f"Scanner reported {tr.vuln.cve} for {tr.vuln.package}@{tr.vuln.version}.",
-        f"Priority: {tr.verdict.value}.",
-    ]
+    if tr.vuln.version_kind == "advisory_range":
+        reported = (
+            f"Scanner reported {tr.vuln.cve} for {tr.vuln.package} with advisory range "
+            f"{tr.vuln.advisory_range or tr.vuln.version or 'unknown'}."
+        )
+    else:
+        reported = f"Scanner reported {tr.vuln.cve} for {tr.vuln.package}@{tr.vuln.version}."
+    observations = [reported, f"Priority: {tr.verdict.value}."]
+    for component in tr.vuln.components:
+        observations.append(
+            f"Lockfile candidate {component.package}@{component.version} at "
+            f"{component.location}; advisory range match: {component.range_match}."
+        )
+    observations.extend(tr.vuln.component_notes)
     if tr.reasons:
         observations.append("Triage signals: " + ", ".join(r.value for r in tr.reasons) + ".")
     if tr.epss_score is not None:
@@ -75,7 +85,15 @@ def assess_finding(tr: TriageResult) -> FindingAssessment:
         status="under_investigation",
         scope="dependency_triage",
         observations=tuple(observations),
-        limitations=_LIMITATIONS,
+        limitations=_LIMITATIONS
+        + (
+            (
+                "Lockfile candidates and version-range matches do not establish an installed "
+                "runtime, deployment exposure or product impact.",
+            )
+            if tr.vuln.version_kind == "advisory_range"
+            else ()
+        ),
     )
 
 
