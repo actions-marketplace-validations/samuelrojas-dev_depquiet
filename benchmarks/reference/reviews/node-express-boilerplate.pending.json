@@ -1,0 +1,82 @@
+{
+  "labels_sha256": "fa8c0a0f2d3ce788f64c395f332c45729b95cdec2bb672c5216ab591d82166fb",
+  "purpose": "depquiet_reference_reviews",
+  "reviews": [
+    {
+      "actor": {
+        "id": null,
+        "kind": "human",
+        "relationship": "unknown"
+      },
+      "advisory": "GHSA-x5gf-qvw8-r2rm",
+      "case_id": "npm-boilerplate-pm2-production-command",
+      "case_sha256": "1c06715ef04dfea7ea0758707cac198a4aed3311c8d3ef36d5db9f434134e220",
+      "decision": null,
+      "exposure": {
+        "depquiet_result_seen": null,
+        "reference_label_seen": null
+      },
+      "limitations": [],
+      "package": "pm2",
+      "project": "upstream/node-express-boilerplate@179ae84efec61b14206d0305d941daed6c6d07f9",
+      "reason": "",
+      "record_id": "review-sha256:59360020c285862f528447d85304e764876ab7466214f171304076d008d1d58e",
+      "reviewed_sources": [],
+      "snapshot_sha256": "388d3550aeb50357755b65af71d454b0e8b7b030818df87f24dcc5def9cdb4b3",
+      "status": "pending",
+      "submitted_at": null,
+      "version": "<7.0.0"
+    },
+    {
+      "actor": {
+        "id": null,
+        "kind": "human",
+        "relationship": "unknown"
+      },
+      "advisory": "GHSA-qwph-4952-7xr6",
+      "case_id": "npm-boilerplate-jsonwebtoken-falsy-key-context",
+      "case_sha256": "15a40cc1dd034b5aaa5663184d40bf7862ca7fc461613ce4ca87066ab41e5776",
+      "decision": null,
+      "exposure": {
+        "depquiet_result_seen": null,
+        "reference_label_seen": null
+      },
+      "limitations": [],
+      "package": "jsonwebtoken",
+      "project": "upstream/node-express-boilerplate@179ae84efec61b14206d0305d941daed6c6d07f9",
+      "reason": "",
+      "record_id": "review-sha256:cf1e4647cefaacf97462d7ae24941a22d41e011985b54cf1884afe4b61afb75a",
+      "reviewed_sources": [],
+      "snapshot_sha256": "388d3550aeb50357755b65af71d454b0e8b7b030818df87f24dcc5def9cdb4b3",
+      "status": "pending",
+      "submitted_at": null,
+      "version": "<9.0.0"
+    },
+    {
+      "actor": {
+        "id": null,
+        "kind": "human",
+        "relationship": "unknown"
+      },
+      "advisory": "GHSA-9965-vmph-33xx",
+      "case_id": "npm-boilerplate-validator-isurl-context",
+      "case_sha256": "d388d8d5eabcc608828e950ddc3d70c07534c02cde095104f264c19eab25a0e7",
+      "decision": null,
+      "exposure": {
+        "depquiet_result_seen": null,
+        "reference_label_seen": null
+      },
+      "limitations": [],
+      "package": "validator",
+      "project": "upstream/node-express-boilerplate@179ae84efec61b14206d0305d941daed6c6d07f9",
+      "reason": "",
+      "record_id": "review-sha256:79ae47a1f8af9fdc745fec3472c5690dc3cd3c8dc3736f2b73063a67dc3f091d",
+      "reviewed_sources": [],
+      "snapshot_sha256": "388d3550aeb50357755b65af71d454b0e8b7b030818df87f24dcc5def9cdb4b3",
+      "status": "pending",
+      "submitted_at": null,
+      "version": "<13.15.20"
+    }
+  ],
+  "schema_version": 1
+}

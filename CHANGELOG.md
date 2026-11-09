@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Offline reference-review workflow with pending forms, strict case/label/snapshot
+  bindings, separate declared human/agent coverage, disagreement tracking and
+  opt-in review-coverage gates. Human filter votes cannot weaken proposed labels;
+  human retain/unknown constraints can make the safety gate stricter.
+- Two additional pinned configuration contexts in a separate corpus extension,
+  preserving the original ten labels/snapshots and frozen audits. Twelve pending
+  forms and CI replay retain explicit zero-human-review provenance.
 - Explicit npm/uv workspace discovery and independent dependency/source contexts,
   including deep declared members, per-workspace evidence and saved explanations.
 - Bounded Python/JavaScript dynamic-loader observations with literal targets or

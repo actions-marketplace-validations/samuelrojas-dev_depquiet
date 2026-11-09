@@ -7,6 +7,14 @@ agent-reviewed with human review pending: five `retain`, five `unknown`, and no
 rates or full-project accuracy. CI replays the four upstream projects separately
 and uploads evidence reports.
 
+A separate [configuration extension](extensions/README.md) adds two more selected
+identities from the already pinned RealWorld project, without changing original
+labels/snapshots/audits. Combined scope is twelve deliberate contexts: six retain,
+six unknown, no filter labels or completed human reviews. The
+[review workflow](../../docs/reference-reviews.md) validates separate records and
+reports declared human/agent coverage with optional gates. Pending packets are
+not human validation, and legacy provenance kind `reviewed` is not reinterpreted.
+
 For the synthetic examples, package names,
 advisory identifiers, audit output and labels are invented together. They test
 retention of an imported runtime package and permitted filtering of a dev-only

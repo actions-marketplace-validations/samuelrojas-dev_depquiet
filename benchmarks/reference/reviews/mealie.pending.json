@@ -1,0 +1,107 @@
+{
+  "labels_sha256": "bf7698d31e164c00324d5e84033100bb45b4dbc07e169ed865b022e1de1ded92",
+  "purpose": "depquiet_reference_reviews",
+  "reviews": [
+    {
+      "actor": {
+        "id": null,
+        "kind": "human",
+        "relationship": "unknown"
+      },
+      "advisory": "PYSEC-2026-1941",
+      "case_id": "real-python-mealie-starlette-cve-2025-54121",
+      "case_sha256": "58d749070e72d303798bf6b3ad16c419297ce7c9e887240de37e6961992de5a7",
+      "decision": null,
+      "exposure": {
+        "depquiet_result_seen": null,
+        "reference_label_seen": null
+      },
+      "limitations": [],
+      "package": "starlette",
+      "project": "upstream/mealie@01713b04163e9524b2665ad8089148b6d2f90233",
+      "reason": "",
+      "record_id": "review-sha256:1a6e72873d0ebb296ffae080b7e67d916850a6343ad2248d2d358a1d8e296413",
+      "reviewed_sources": [],
+      "snapshot_sha256": "7cc93681aa3c0222de1264dcc80e6a69e3b35eb1558d9076e56d46facb6283bd",
+      "status": "pending",
+      "submitted_at": null,
+      "version": "0.41.0"
+    },
+    {
+      "actor": {
+        "id": null,
+        "kind": "human",
+        "relationship": "unknown"
+      },
+      "advisory": "PYSEC-2026-120",
+      "case_id": "real-python-mealie-pyjwt-cve-2026-32597",
+      "case_sha256": "db30a011821a263c8b2cef2de40de93834de1160b62a86127e46a90db591aeee",
+      "decision": null,
+      "exposure": {
+        "depquiet_result_seen": null,
+        "reference_label_seen": null
+      },
+      "limitations": [],
+      "package": "pyjwt",
+      "project": "upstream/mealie@01713b04163e9524b2665ad8089148b6d2f90233",
+      "reason": "",
+      "record_id": "review-sha256:1ae6f32ece38088f032e652a6b7534438926b1f455649ca3c1cd833f9af199f4",
+      "reviewed_sources": [],
+      "snapshot_sha256": "7cc93681aa3c0222de1264dcc80e6a69e3b35eb1558d9076e56d46facb6283bd",
+      "status": "pending",
+      "submitted_at": null,
+      "version": "2.10.1"
+    },
+    {
+      "actor": {
+        "id": null,
+        "kind": "human",
+        "relationship": "unknown"
+      },
+      "advisory": "PYSEC-2026-348",
+      "case_id": "real-python-mealie-h11-cve-2025-43859",
+      "case_sha256": "0e18847eaa96d2911911c1807a9ba23debf9ae4ad5f0741c5e1b82c3a10b62fa",
+      "decision": null,
+      "exposure": {
+        "depquiet_result_seen": null,
+        "reference_label_seen": null
+      },
+      "limitations": [],
+      "package": "h11",
+      "project": "upstream/mealie@01713b04163e9524b2665ad8089148b6d2f90233",
+      "reason": "",
+      "record_id": "review-sha256:157a445c1151afb9c3833bdca4cabf832abacf81c85f1919af55711e23a86301",
+      "reviewed_sources": [],
+      "snapshot_sha256": "7cc93681aa3c0222de1264dcc80e6a69e3b35eb1558d9076e56d46facb6283bd",
+      "status": "pending",
+      "submitted_at": null,
+      "version": "0.14.0"
+    },
+    {
+      "actor": {
+        "id": null,
+        "kind": "human",
+        "relationship": "unknown"
+      },
+      "advisory": "PYSEC-2026-1285",
+      "case_id": "real-python-mealie-cryptography-cve-2024-0727",
+      "case_sha256": "b7d474ae91d73deede29313dfa716f6234429932e1b82fcb83e3835ef31f69f9",
+      "decision": null,
+      "exposure": {
+        "depquiet_result_seen": null,
+        "reference_label_seen": null
+      },
+      "limitations": [],
+      "package": "cryptography",
+      "project": "upstream/mealie@01713b04163e9524b2665ad8089148b6d2f90233",
+      "reason": "",
+      "record_id": "review-sha256:ff40cb6ceb34b8c6d13494bf261bd96dc71169e55e258563a600d1cda2934285",
+      "reviewed_sources": [],
+      "snapshot_sha256": "7cc93681aa3c0222de1264dcc80e6a69e3b35eb1558d9076e56d46facb6283bd",
+      "status": "pending",
+      "submitted_at": null,
+      "version": "41.0.7"
+    }
+  ],
+  "schema_version": 1
+}

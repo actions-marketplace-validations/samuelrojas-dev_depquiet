@@ -1118,6 +1118,18 @@ The separate [upstream reference set](benchmarks/reference/real/README.md) conta
 10 selected advisory contexts from four pinned npm/Python projects, with frozen
 audits, source hashes and review evidence. CI checks that five `retain` and five
 `unknown` cases remain visible. Labels are agent-reviewed; human review is pending.
+
+A separate [configuration extension](benchmarks/reference/extensions/README.md)
+adds two identities from the same pinned RealWorld project, preserving the original
+inputs. The combined deliberate sample has 12 contexts: six `retain`, six
+`unknown`, no `filter` labels and no human adjudications. It does not measure safe
+noise reduction.
+
+The [review workflow](docs/reference-reviews.md) prepares pending records, binds
+them to exact label/snapshot/case identities and reports caller-declared human,
+external and agent coverage separately. Disagreements remain uncertain; a human
+`filter` record cannot weaken a proposed `retain` or `unknown`. Optional coverage
+gates require explicit records without treating metadata as authenticated review.
 There are no real `filter` labels, so this set does not measure safe dismissal,
 full-project coverage or real-world accuracy. Replay requires no upstream code
 execution or package installation.

@@ -15,6 +15,11 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
+if __package__:
+    from .reviews import summarize_reviews
+else:
+    from reviews import summarize_reviews
+
 LABELS = {"retain", "filter", "unknown"}
 VERDICTS = {"action", "review", "filtered"}
 IDENTITY = ("package", "version", "advisory")
@@ -43,7 +48,7 @@ def _hash(value: Any, context: str) -> str:
     return text.lower()
 
 
-def _read(path: Path) -> dict[str, Any]:
+def _parse(raw: bytes, path: Path) -> dict[str, Any]:
     def unique_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
         result: dict[str, Any] = {}
         for key, value in pairs:
@@ -52,9 +57,21 @@ def _read(path: Path) -> dict[str, Any]:
             result[key] = value
         return result
 
+    def reject_constant(value: str) -> Any:
+        raise InvalidInput(f"non-finite JSON constant in {path}: {value}")
+
     return _object(
-        json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=unique_keys), str(path)
+        json.loads(
+            raw.decode("utf-8"),
+            object_pairs_hook=unique_keys,
+            parse_constant=reject_constant,
+        ),
+        str(path),
     )
+
+
+def _read(path: Path) -> dict[str, Any]:
+    return _parse(path.read_bytes(), path)
 
 
 def evaluate(
@@ -63,6 +80,10 @@ def evaluate(
     *,
     snapshot_sha256: str | None = None,
     project: str | None = None,
+    reviews: dict[str, Any] | None = None,
+    labels_sha256: str | None = None,
+    require_human_review: bool = False,
+    require_unexposed_external_review: bool = False,
 ) -> dict[str, Any]:
     """Return counts, explicit denominators and a conservative safety gate.
 
@@ -72,6 +93,11 @@ def evaluate(
     """
     if type(labels.get("schema_version")) is not int or labels["schema_version"] != 1:
         raise InvalidInput("labels.schema_version must be 1")
+    if (
+        type(require_human_review) is not bool
+        or type(require_unexposed_external_review) is not bool
+    ):
+        raise InvalidInput("review coverage requirements must be boolean")
     cases = labels.get("cases")
     if not isinstance(cases, list) or not cases:
         raise InvalidInput("labels.cases must be a non-empty array")
@@ -210,6 +236,21 @@ def evaluate(
     complete = scan.get("scanned") is True
     if not complete:
         failures.insert(0, "incomplete_scan")
+    review_coverage = summarize_reviews(labels, reviews, labels_sha256=labels_sha256)
+    review_coverage["labels_sha256"] = (
+        _hash(labels_sha256, "labels hash") if labels_sha256 is not None else None
+    )
+    review_coverage["input"] = "supplied" if reviews is not None else "not_supplied"
+    human_audit = _human_review_audit(review_coverage, observed)
+    if human_audit["counts"]["dismissals"]:
+        failures.append("human_review_dismissals")
+    if require_human_review and not review_coverage["gate"]["declared_human_coverage_complete"]:
+        failures.append("human_review_coverage")
+    if (
+        require_unexposed_external_review
+        and not review_coverage["gate"]["declared_unexposed_external_coverage_complete"]
+    ):
+        failures.append("unexposed_external_review_coverage")
     return {
         "schema_version": 1,
         "status": "fail" if failures else "pass",
@@ -222,10 +263,57 @@ def evaluate(
         "scanned": complete,
         "scope": {"synthetic_cases": scope["synthetic"], "reviewed_cases": scope["reviewed"]},
         "interpretation": "Labelled sample checks only; not a real-world accuracy estimate.",
+        "evaluation_basis": "proposed_labels",
+        "review_coverage": review_coverage,
+        "human_review_audit": human_audit,
         "counts": counts,
         "by_label": by_label,
         "rates": rates,
         "details": details,
+    }
+
+
+def _human_review_audit(
+    coverage: dict[str, Any], observed: dict[tuple[str, ...], list[dict[str, Any]]]
+) -> dict[str, Any]:
+    """A declared human decision can add retention constraints, never remove them."""
+    matched = 0
+    retention_denominator = 0
+    dismissed = []
+    for case in coverage["cases"]:
+        if not case["human_reviewer_ids"]:
+            continue
+        key = tuple(case[field] for field in IDENTITY)
+        matches = observed.get(key, [])
+        if len(matches) != 1:
+            continue
+        matched += 1
+        if case["human_consensus"] not in {"retain", "unknown"}:
+            continue
+        retention_denominator += 1
+        if matches[0]["verdict"] == "filtered":
+            dismissed.append({**case, "verdict": "filtered"})
+    return {
+        "interpretation": "Additional retention constraints from declared human records; "
+        "not authenticated review or a population accuracy estimate. "
+        "Proposed labels remain unchanged.",
+        "counts": {
+            "matched_unique_human_cases": matched,
+            "matched_retention_or_unknown_cases": retention_denominator,
+            "dismissals": len(dismissed),
+        },
+        "rates": {
+            "dismissals": {
+                "numerator": len(dismissed),
+                "denominator": retention_denominator,
+                "fraction": len(dismissed) / retention_denominator
+                if retention_denominator
+                else None,
+                "denominator_definition": "uniquely matched cases with declared human consensus "
+                "retain or unknown, including disputes",
+            }
+        },
+        "details": {"dismissals": dismissed},
     }
 
 
@@ -235,17 +323,39 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--scan", required=True, type=Path)
     parser.add_argument("--snapshot", type=Path, help="Hash the exact versioned snapshot bytes")
     parser.add_argument("--project", help="Explicitly map a report path to a reference project ID")
+    parser.add_argument(
+        "--reviews", type=Path, help="Separate records bound to the exact labels bytes"
+    )
+    parser.add_argument(
+        "--require-human-review",
+        action="store_true",
+        help="Require undisputed declared human coverage of every reference case",
+    )
+    parser.add_argument(
+        "--require-unexposed-external-review",
+        action="store_true",
+        help="Require external human records declaring no prior label/result exposure",
+    )
     parser.add_argument("--json", action="store_true", dest="json_output")
     args = parser.parse_args(argv)
     try:
         snapshot_hash = (
             hashlib.sha256(args.snapshot.read_bytes()).hexdigest() if args.snapshot else None
         )
+        labels_raw = args.labels.read_bytes()
+        reviews_raw = args.reviews.read_bytes() if args.reviews else None
         report = evaluate(
-            _read(args.labels),
+            _parse(labels_raw, args.labels),
             _read(args.scan),
             snapshot_sha256=snapshot_hash,
             project=args.project,
+            reviews=_parse(reviews_raw, args.reviews) if reviews_raw is not None else None,
+            labels_sha256=hashlib.sha256(labels_raw).hexdigest(),
+            require_human_review=args.require_human_review,
+            require_unexposed_external_review=args.require_unexposed_external_review,
+        )
+        report["review_coverage"]["review_bundle_sha256"] = (
+            hashlib.sha256(reviews_raw).hexdigest() if reviews_raw is not None else None
         )
     except (OSError, UnicodeError, ValueError, TypeError) as exc:
         if args.json_output:
@@ -260,6 +370,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Scope: {report['scope']}")
         print(f"Counts: {report['counts']}")
         print(f"Denominators: {report['by_label']}")
+        print(f"Declared review coverage: {report['review_coverage']['counts']}")
+        print(f"Human-record retention audit: {report['human_review_audit']['counts']}")
         if report["gate_failures"]:
             print("Failures: " + ", ".join(report["gate_failures"]))
     return 0 if report["gate_passed"] else 1
