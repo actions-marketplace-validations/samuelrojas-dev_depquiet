@@ -79,12 +79,13 @@ PURLs encode version data, including `+` in build metadata, while preserving
 the standard's literal-colon exception. Raw version fields and instance IDs
 retain the original version string. [PURL specification](https://github.com/package-url/purl-spec/blob/main/docs/specification/standard/Clause-5-Package-URL-Specification.md).
 
-## Compatibility and next identity changes
+## Baselines and diffs
 
 This metadata does not change triage priorities or turn range matches into impact
 assessments. The reference corpus keeps its original advisory-context selections
-and labels. Existing baseline acceptance remains advisory/package based; saved
-diffs still use advisory/package/reported-version identities. They do not yet
-apply new instance IDs. Instance-aware gates and a versioned baseline format are
-a separate follow-up requiring explicit migration, project scope and regressions.
-Do not assume an added npm candidate is already a new baseline/diff identity.
+and labels. [Baseline v2 and scoped diffs](instance-baselines.md) now use these
+instance IDs together with explicit `project_id`, advisory and range/status
+context. New candidate versions or locations remain visible. Unknown and partial
+resolution cannot become v2 acceptance. Existing baseline files retain their
+broad advisory/package semantics; unscoped saved diffs retain literal
+advisory/package/reported-version matching. Migration is explicit.

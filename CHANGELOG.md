@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Project-scoped baseline v2 creation (`depquiet baseline create`) with exact npm
+  component contexts, reason/author metadata and a source-report SHA-256. Partial
+  or unknown evidence remains unaccepted; every current context must be eligible
+  and accepted before the finding's priority can be demoted.
+- Instance-aware saved-scan diffs for matching explicit project IDs, including
+  concrete versions/locations, unresolved context counts and a new-ACTION gate.
+  Added `--project-id`, `--instances` and `--legacy-identities` for explicit scope
+  binding and compatibility. Existing unscoped report identities remain supported.
 - Auditable npm component candidates, separate from the advisory range: exact
   lockfile versions, node locations, SHA-256 provenance, stable instance IDs and
   per-advisory matched/not_matched/unknown associations. One lockfile snapshot is
@@ -40,6 +48,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for pull requests targeting development branches as well as main.
 
 ### Fixed
+- Legacy baselines with a declared project ID cannot suppress a different or
+  unscoped project. Conflicting project IDs also fail in explicit legacy diffs.
+- New npm versions or node locations no longer inherit an instance baseline's
+  acceptance solely because their advisory/package is already known. Invalid
+  instance inputs fail before priority changes or successful output artifacts.
 - npm CycloneDX/SPDX/OpenVEX exports correlate advisories with concrete component
   instances, keeping versions outside the range in inventory without associating
   that advisory. Missing/partial resolution uses an explicitly unknown unversioned

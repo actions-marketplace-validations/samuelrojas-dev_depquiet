@@ -46,6 +46,7 @@ from pathlib import Path
 from typing import Any
 
 from depquiet.filters.templates import _parse_yaml_simple
+from depquiet.finding_identity import validate_project_id
 
 
 @dataclass
@@ -79,6 +80,7 @@ class Config:
     sbom_format: str | None = None  # "json" | "xml" | "spdx"
     vex: Path | None = None
     annotations: Path | None = None
+    project_id: str = ""
 
     def merge_cli(
         self,
@@ -100,6 +102,7 @@ class Config:
         sbom_format: str | None = None,
         vex: Path | None = None,
         annotations: Path | None = None,
+        project_id: str | None = None,
     ) -> Config:
         """Return a new Config with CLI overrides applied.
 
@@ -137,6 +140,7 @@ class Config:
             sbom_format=sbom_format if sbom_format is not None else self.sbom_format,
             vex=vex if vex is not None else self.vex,
             annotations=annotations if annotations is not None else self.annotations,
+            project_id=project_id if project_id is not None else self.project_id,
         )
 
 
@@ -265,6 +269,7 @@ def _parse_config(path: Path, project: Path) -> Config:
 
     return Config(
         epss_threshold=epss_threshold,
+        project_id=validate_project_id(data["project_id"]) if "project_id" in data else "",
         template_dirs=template_dirs,
         always_flag=always_flag,
         offline=offline,
