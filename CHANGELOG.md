@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Explicit npm/uv workspace discovery and independent dependency/source contexts,
+  including deep declared members, per-workspace evidence and saved explanations.
+- Bounded Python/JavaScript dynamic-loader observations with literal targets or
+  explicit unresolved file/line evidence. Added graph and analysis coverage fields;
+  legacy saved reports preserve unknown coverage when those fields are absent.
 - Project-scoped baseline v2 creation (`depquiet baseline create`) with exact npm
   component contexts, reason/author metadata and a source-report SHA-256. Partial
   or unknown evidence remains unaccepted; every current context must be eligible
@@ -48,6 +53,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for pull requests targeting development branches as well as main.
 
 ### Fixed
+- Root development metadata no longer hides a production dependency in a deep
+  declared workspace. Member sources/commands and shared-lock direct roots no
+  longer bleed into sibling contexts; exported member edges exclude dev tools.
+- Unreadable, malformed, missing or ambiguous graph/workspace inputs prevent
+  dev-only and absence-based filtering. Recognized unresolved dynamic loaders
+  block unreachable and conditional source-absence template decisions while
+  preserving positive usage evidence. Cross-ecosystem name collisions and linked
+  source boundaries retain explicit uncertainty.
 - Legacy baselines with a declared project ID cannot suppress a different or
   unscoped project. Conflicting project IDs also fail in explicit legacy diffs.
 - New npm versions or node locations no longer inherit an instance baseline's

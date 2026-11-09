@@ -166,6 +166,7 @@ class TemplateFilter:
         project: Path | None = None,
         graph: DependencyGraph | None = None,
         reachability: ReachabilityFilter | None = None,
+        allow_conditional: bool = True,
     ) -> Template | None:
         """Find a matching template whose conditions have project evidence.
 
@@ -178,11 +179,13 @@ class TemplateFilter:
             if tmpl.matches_cve(cve) and tmpl.matches_package(package):
                 if not tmpl.not_imported:
                     return tmpl
-                if project is None:
+                if project is None or not allow_conditional:
                     continue
                 project_graph = (
                     graph if graph is not None else DependencyGraph.from_project(project)
                 )
+                if not project_graph.coverage_complete:
+                    continue
                 source = reachability if reachability is not None else ReachabilityFilter(project)
                 kind = project_graph.directness(package)
                 ancestors = project_graph.direct_ancestors(package)

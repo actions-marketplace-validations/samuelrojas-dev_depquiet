@@ -55,6 +55,7 @@ import re
 import tomllib
 import xml.etree.ElementTree as ET
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -104,6 +105,11 @@ class DependencyGraph:
     # Procfile, Dockerfiles. A dependency run as a command is in use even if
     # nothing imports it (pm2, cross-env, next, ...).
     commands: set[str] = field(default_factory=set)
+    coverage_complete: bool = True
+    coverage_observations: list[str] = field(default_factory=list)
+    scope_path: str = "."
+    workspace_graphs: dict[str, DependencyGraph] = field(default_factory=dict)
+    _ecosystems: dict[str, set[str]] = field(default_factory=dict, repr=False)
 
     # -- construction -----------------------------------------------------
 
@@ -132,6 +138,12 @@ class DependencyGraph:
         for cmd, pkgs in other.bins.items():
             self.bins.setdefault(cmd, set()).update(pkgs)
         self.commands |= other.commands
+        self.coverage_complete = self.coverage_complete and other.coverage_complete
+        self.coverage_observations.extend(other.coverage_observations)
+        for name, ecosystems in other._ecosystems.items():
+            self._ecosystems.setdefault(name, set()).update(ecosystems)
+            if len(self._ecosystems[name]) > 1:
+                _incomplete(self, f"{name}: dependency name occurs in multiple ecosystems")
 
     # -- queries ----------------------------------------------------------
 
@@ -175,6 +187,8 @@ class DependencyGraph:
         A package declared both as a dependency and a devDependency (or in a
         second manifest as a regular dependency) counts as production.
         """
+        if not self.coverage_complete:
+            return False
         keys = [_keys(n) for n in names]
         return bool(keys) and all(k & self.direct and not k & self.prod_direct for k in keys)
 
@@ -209,56 +223,317 @@ class DependencyGraph:
     def from_project(cls, project: Path) -> DependencyGraph:
         """Build the graph from every supported manifest/lockfile in ``project``.
 
-        Malformed files are skipped: a broken lockfile must not crash a scan,
-        and skipping it can only make the graph *less* informative, which
-        makes the caller filter less, never more.
+        Unreadable, malformed or ambiguous inputs leave recorded incomplete
+        coverage. They cannot justify development-only or absence decisions.
+        Declared npm/uv members have local graphs; other layouts retain the
+        bounded legacy discovery with explicit error reporting.
         """
-        graph = cls()
-        if not project.is_dir():
-            return graph
-        for path in _iter_files(project):
-            loader = _LOADERS.get(path.name)
-            if loader is None and path.name.startswith("requirements") and path.suffix == ".txt":
-                loader = _load_requirements_txt
-            if loader is None and path.name.startswith("Dockerfile."):
-                loader = _load_commands_file
-            if loader is None:
-                continue
-            try:
-                part = loader(path)
-            except (OSError, ValueError, KeyError, TypeError, ET.ParseError):
-                # ValueError covers JSON, TOML and Unicode decode errors.
-                continue
-            if part is not None:
-                part.sources.append(str(path.relative_to(project)))
-                graph.merge(part)
-        if graph.has_manifest:
-            # Plugins a library imports on its own (FastAPI -> python-multipart,
-            # SQLAlchemy -> database drivers): edges the lockfile can't record.
-            from depquiet.pynames import IMPLICIT_PLUGINS
+        from depquiet.workspaces import discover_workspaces
 
-            for parent, plugins in IMPLICIT_PLUGINS.items():
-                if parent in graph.direct or any(parent in c for c in graph.edges.values()):
-                    for plugin in plugins:
-                        graph.add_edge(parent, plugin)
+        project = project.resolve()
+        graph = cls()
+        try:
+            if not project.is_dir():
+                graph.coverage_complete = False
+                graph.coverage_observations.append(
+                    ".: project directory is missing or inaccessible"
+                )
+                return graph
+        except OSError as exc:
+            graph.coverage_complete = False
+            graph.coverage_observations.append(f".: inspect project directory: {exc}")
+            return graph
+        discovery = discover_workspaces(project)
+        if discovery.declared:
+            return _workspace_graph(project, discovery.members, discovery.observations)
+        graph = _load_scope(project, project, recursive=True)
+        for note in discovery.observations:
+            _incomplete(graph, note)
         return graph
 
 
-def _iter_files(project: Path, max_depth: int = 3) -> list[Path]:
+def _incomplete(graph: DependencyGraph, note: str) -> None:
+    graph.coverage_complete = False
+    if note not in graph.coverage_observations:
+        graph.coverage_observations.append(note)
+
+
+def _load_scope(
+    scope: Path,
+    project: Path,
+    *,
+    recursive: bool,
+    skip: set[Path] | None = None,
+    locks_edges_only: bool = False,
+) -> DependencyGraph:
+    graph = DependencyGraph(scope_path=scope.relative_to(project).as_posix())
+    for path in _iter_files(
+        scope,
+        max_depth=3 if recursive else 0,
+        on_error=lambda path, error: _incomplete(
+            graph,
+            f"{path.relative_to(project).as_posix()}: enumerate/inspect graph source: {error}",
+        ),
+    ):
+        if skip and path in skip:
+            continue
+        _merge_source(
+            graph, path, project, edges_only=locks_edges_only and path.name in _WORKSPACE_LOCKS
+        )
+    if graph.has_manifest:
+        from depquiet.pynames import IMPLICIT_PLUGINS
+
+        for parent, plugins in IMPLICIT_PLUGINS.items():
+            if parent in graph.direct or any(
+                parent in children for children in graph.edges.values()
+            ):
+                for plugin in plugins:
+                    graph.add_edge(parent, plugin)
+    return graph
+
+
+def _merge_source(
+    graph: DependencyGraph, path: Path, project: Path, *, edges_only: bool = False
+) -> None:
+    loader = _LOADERS.get(path.name)
+    if loader is None and path.name.startswith("requirements") and path.suffix == ".txt":
+        loader = _load_requirements_txt
+    if loader is None and path.name.startswith("Dockerfile."):
+        loader = _load_commands_file
+    if loader is None:
+        return
+    try:
+        part = loader(path)
+    except (
+        OSError,
+        ValueError,
+        KeyError,
+        TypeError,
+        AttributeError,
+        RecursionError,
+        ET.ParseError,
+    ) as exc:
+        _incomplete(
+            graph, f"{path.relative_to(project).as_posix()}: read/parse graph source: {exc}"
+        )
+        return
+    if part is not None:
+        if edges_only:
+            part.direct.clear()
+            part.prod_direct.clear()
+            part.has_manifest = False
+            part.commands.clear()
+        part.sources.append(path.relative_to(project).as_posix())
+        namespace = _source_ecosystem(path.name)
+        if namespace:
+            names = part.direct | part.known_transitive | set(part.edges)
+            names |= {name for children in part.edges.values() for name in children}
+            for name in names:
+                for key in _keys(name):
+                    part._ecosystems.setdefault(key, set()).add(namespace)
+        graph.merge(part)
+
+
+_WORKSPACE_LOCKS = {"package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "uv.lock"}
+
+
+def _source_ecosystem(filename: str) -> str:
+    if filename in {"package.json", "package-lock.json", "npm-shrinkwrap.json", "yarn.lock"}:
+        return "npm"
+    if filename in {
+        "pyproject.toml",
+        "uv.lock",
+        "poetry.lock",
+        "Pipfile",
+        "requirements.in",
+    } or filename.startswith("requirements"):
+        return "python"
+    return {
+        "Cargo.lock": "rust",
+        "Gemfile.lock": "ruby",
+        "composer.json": "php",
+        "composer.lock": "php",
+        "packages.lock.json": "dotnet",
+        "pubspec.lock": "dart",
+        "go.mod": "go",
+        "pom.xml": "maven",
+    }.get(filename, "")
+
+
+def _lock_inventory(path: Path) -> tuple[set[str], set[str]]:
+    """Return names and collisions that a name-only graph cannot attribute."""
+    identities: dict[str, set[str]] = {}
+
+    def record(name: str, info: dict[str, Any]) -> None:
+        if name:
+            identity = json.dumps(
+                {key: info.get(key) for key in ("version", "source", "dependencies", "requires")},
+                sort_keys=True,
+            )
+            identities.setdefault(
+                _pep503(name) if path.name == "uv.lock" else _norm(name), set()
+            ).add(identity)
+
+    text = path.read_text(encoding="utf-8")
+    if path.name == "uv.lock":
+        for package in tomllib.loads(text).get("package", []):
+            record(package["name"], package)
+    elif path.name in {"package-lock.json", "npm-shrinkwrap.json"}:
+        data = json.loads(text)
+        packages = data.get("packages")
+        if isinstance(packages, dict) and packages:
+            for location, info in packages.items():
+                if location:
+                    record(info.get("name") or _npm_name_from_key(location), info)
+        else:
+
+            def walk(dependencies: dict[str, Any]) -> None:
+                for name, info in dependencies.items():
+                    record(name, info)
+                    walk(info.get("dependencies") or {})
+
+            walk(data.get("dependencies") or {})
+    return set(identities), {name for name, versions in identities.items() if len(versions) > 1}
+
+
+def _workspace_graph(
+    project: Path, members: dict[str, set[str]], observations: list[str]
+) -> DependencyGraph:
+    aggregate = DependencyGraph()
+    shared = DependencyGraph()
+    files = _iter_files(
+        project,
+        max_depth=0,
+        on_error=lambda path, error: _incomplete(
+            shared, f"{path.relative_to(project).as_posix()}: inspect shared lock: {error}"
+        ),
+    )
+    shared_paths = {path for path in files if path.name in _WORKSPACE_LOCKS}
+    if any(path.name == "npm-shrinkwrap.json" for path in shared_paths):
+        selected = {path for path in shared_paths if path.name != "package-lock.json"}
+    else:
+        selected = shared_paths
+    inventory: set[str] = set()
+    ambiguous: set[str] = set()
+    for path in sorted(selected):
+        _merge_source(shared, path, project, edges_only=True)
+        try:
+            names, collisions = _lock_inventory(path)
+            inventory |= names
+            ambiguous |= collisions
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RecursionError) as exc:
+            _incomplete(shared, f"{path.name}: inspect lock resolution: {exc}")
+    scopes: dict[str, DependencyGraph] = {}
+    owners: dict[str, str] = {}
+    for member in sorted(members):
+        scope = project / member
+        local = _load_scope(
+            scope, project, recursive=False, skip=shared_paths, locks_edges_only=True
+        )
+        for note in observations:
+            _incomplete(local, note)
+        # Workspace package names connect references to another declared
+        # member, while its dependencies remain transitive in this scope.
+        for filename in members[member]:
+            try:
+                text = (scope / filename).read_text(encoding="utf-8")
+                data = json.loads(text) if filename == "package.json" else tomllib.loads(text)
+                name = (
+                    data.get("name")
+                    if filename == "package.json"
+                    else (data.get("project") or {}).get("name")
+                )
+                if isinstance(name, str) and name:
+                    key = _norm(name) if filename == "package.json" else _pep503(name)
+                    if key in owners and owners[key] != member:
+                        _incomplete(shared, f"{key}: duplicate workspace package names")
+                    owners[key] = member
+                    inventory.add(key)
+                    # A member's development tools are not its exported
+                    # production dependencies when another member uses it.
+                    for child in local.prod_direct:
+                        shared.add_edge(key, child)
+            except (OSError, ValueError, TypeError, AttributeError) as exc:
+                _incomplete(local, f"{member}/{filename}: read workspace manifest: {exc}")
+        scopes[member] = local
+    for local in scopes.values():
+        local.merge(shared)
+        closure = set(local.direct)
+        pending = deque(closure)
+        while pending:
+            for child in local.edges.get(pending.popleft(), set()):
+                if child not in closure:
+                    closure.add(child)
+                    pending.append(child)
+        conflicts = closure & ambiguous
+        if conflicts:
+            _incomplete(
+                local,
+                "shared lock has ambiguous dependency versions/resolution: "
+                + ", ".join(sorted(conflicts)),
+            )
+        if inventory:
+            unresolved = {
+                child
+                for parent in closure
+                for child in local.edges.get(parent, set())
+                if child not in inventory and child not in local.direct
+            }
+            if unresolved:
+                _incomplete(
+                    local,
+                    "shared lock has unresolved dependency edges: " + ", ".join(sorted(unresolved)),
+                )
+        local.edges = {
+            parent: children & closure
+            for parent, children in local.edges.items()
+            if parent in closure
+        }
+        local.known_transitive = (local.known_transitive & closure) | (closure - local.direct)
+        local.bins = {
+            command: packages & closure
+            for command, packages in local.bins.items()
+            if packages & closure
+        }
+        aggregate.merge(local)
+    aggregate.workspace_graphs = scopes
+    return aggregate
+
+
+def _iter_files(
+    project: Path,
+    max_depth: int = 3,
+    *,
+    on_error: Callable[[Path, OSError], None] | None = None,
+) -> list[Path]:
     """Manifest files up to ``max_depth`` levels deep (monorepos), skipping vendored dirs."""
     out: list[Path] = []
 
     def walk(d: Path, depth: int) -> None:
         try:
             entries = sorted(d.iterdir())
-        except OSError:
+        except OSError as exc:
+            if on_error:
+                on_error(d, exc)
             return
         for e in entries:
-            if e.is_dir():
-                if depth < max_depth and e.name not in _SKIP_DIRS and not e.name.startswith("."):
-                    walk(e, depth + 1)
-            elif e.is_file():
-                out.append(e)
+            try:
+                if e.is_symlink() or not e.resolve().is_relative_to(project.resolve()):
+                    if on_error:
+                        on_error(e, OSError("symlink or graph source escapes project"))
+                    continue
+                if e.is_dir():
+                    if (
+                        depth < max_depth
+                        and e.name not in _SKIP_DIRS
+                        and not e.name.startswith(".")
+                    ):
+                        walk(e, depth + 1)
+                elif e.is_file():
+                    out.append(e)
+            except OSError as exc:
+                if on_error:
+                    on_error(e, exc)
 
     walk(project, 0)
     return out
@@ -273,11 +548,21 @@ _NPM_DEP_KEYS = ("dependencies", "devDependencies", "optionalDependencies", "pee
 
 def _load_package_json(path: Path) -> DependencyGraph:
     data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError("package.json must be an object")
     g = DependencyGraph(has_manifest=True)
     for key in _NPM_DEP_KEYS:
-        for name in data.get(key) or {}:
+        dependencies = data.get(key, {})
+        if not isinstance(dependencies, dict) or not all(
+            isinstance(name, str) and isinstance(spec, str) for name, spec in dependencies.items()
+        ):
+            raise ValueError(f"package.json {key} must be a dependency object")
+        for name in dependencies:
             g.add_direct(name, dev=key == "devDependencies")
-    for script in (data.get("scripts") or {}).values():
+    scripts = data.get("scripts", {})
+    if not isinstance(scripts, dict):
+        raise ValueError("package.json scripts must be an object")
+    for script in scripts.values():
         if isinstance(script, str):
             g.commands |= _command_words(script)
     return g
@@ -309,17 +594,25 @@ def _npm_name_from_key(key: str) -> str:
 
 def _load_package_lock(path: Path) -> DependencyGraph:
     data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError("npm lock must be an object")
     g = DependencyGraph()
     packages: dict[str, Any] = data.get("packages") or {}
+    if not isinstance(packages, dict):
+        raise ValueError("npm lock packages must be an object")
     if packages:
         root = packages.get("") or {}
+        if not isinstance(root, dict):
+            raise ValueError("npm lock root must be an object")
         if root:
             g.has_manifest = True
             for key in _NPM_DEP_KEYS:
                 for name in root.get(key) or {}:
                     g.add_direct(name, dev=key == "devDependencies")
         for key, info in packages.items():
-            if not key or not isinstance(info, dict):
+            if not isinstance(info, dict):
+                raise ValueError("npm lock package entries must be objects")
+            if not key:
                 continue
             parent = info.get("name") or _npm_name_from_key(key)
             bin_field = info.get("bin")
@@ -330,15 +623,20 @@ def _load_package_lock(path: Path) -> DependencyGraph:
                 cmd = parent.rsplit("/", 1)[-1].lower()
                 g.bins.setdefault(cmd, set()).add(_norm(parent))
             for dep_key in ("dependencies", "optionalDependencies", "peerDependencies"):
-                for child in info.get(dep_key) or {}:
+                dependencies = info.get(dep_key) or {}
+                if not isinstance(dependencies, dict):
+                    raise ValueError(f"npm lock {dep_key} must be an object")
+                for child in dependencies:
                     g.add_edge(parent, child)
         return g
 
     # lockfileVersion 1: nested "dependencies" with "requires"
     def walk(deps: dict[str, Any]) -> None:
+        if not isinstance(deps, dict):
+            raise ValueError("npm lock dependencies must be an object")
         for name, info in deps.items():
             if not isinstance(info, dict):
-                continue
+                raise ValueError("npm lock dependency entries must be objects")
             for child in info.get("requires") or {}:
                 g.add_edge(name, child)
             walk(info.get("dependencies") or {})
@@ -394,6 +692,20 @@ def _load_pyproject(path: Path) -> DependencyGraph | None:
     data = tomllib.loads(path.read_text(encoding="utf-8"))
     entries: list[tuple[str, bool]] = []  # (name, dev)
     project = data.get("project") or {}
+    if not isinstance(project, dict):
+        raise ValueError("pyproject project must be a table")
+    dependencies = project.get("dependencies", [])
+    if not isinstance(dependencies, list) or not all(
+        isinstance(spec, str) for spec in dependencies
+    ):
+        raise ValueError("pyproject dependencies must be a string array")
+    optional = project.get("optional-dependencies") or {}
+    groups = data.get("dependency-groups") or {}
+    if not isinstance(optional, dict) or not isinstance(groups, dict):
+        raise ValueError("pyproject dependency groups must be tables")
+    for group in [*optional.values(), *groups.values()]:
+        if not isinstance(group, list) or not all(isinstance(spec, str) for spec in group):
+            raise ValueError("pyproject dependency group is malformed or uses unsupported includes")
     entries += [(_req_name(s), False) for s in project.get("dependencies") or []]
     for group in (project.get("optional-dependencies") or {}).values():
         entries += [(_req_name(s), False) for s in group]
@@ -406,7 +718,7 @@ def _load_pyproject(path: Path) -> DependencyGraph | None:
         entries += [(n, True) for n in (grp or {}).get("dependencies") or {}]
     entries = [(n, dev) for n, dev in entries if n and n.lower() != "python"]
     if not entries:
-        return None
+        return DependencyGraph(has_manifest=True) if project else None
     g = DependencyGraph(has_manifest=True)
     for n, dev in entries:
         g.add_direct(n, python=True, dev=dev)

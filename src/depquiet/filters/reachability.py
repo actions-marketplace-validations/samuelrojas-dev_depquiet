@@ -43,11 +43,17 @@ from functools import lru_cache, partial
 from pathlib import Path
 
 from depquiet.depgraph import DependencyGraph
+from depquiet.filters.dynamic_imports import (
+    DynamicImport,
+    js_dynamic_imports,
+    python_dynamic_imports,
+)
 from depquiet.models import FilterReason, Vulnerability
 from depquiet.pynames import import_candidates
 
 _TEXT_CACHE: dict[tuple[str, int, int], str] = {}
 _TextReader = Callable[[Path], str]
+_ScopeErrorHandler = Callable[[Path, str | OSError], None]
 
 
 def _read_text(f: Path) -> str:
@@ -138,20 +144,56 @@ _MENTION_MAX_BYTES = 512 * 1024
 _WORD = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_\-]*")
 
 
+class _SourceScope:
+    """Keep traversal inside the requested root without following source links."""
+
+    def __init__(self, project: Path, exclude_roots: list[Path] | None = None):
+        self.project = project.resolve()
+        self.excluded = [
+            (path if path.is_absolute() else self.project / path).resolve()
+            for path in exclude_roots or []
+        ]
+
+    def includes(self, path: Path, on_scope_error: _ScopeErrorHandler | None = None) -> bool:
+        try:
+            resolved = path.resolve()
+            if any(resolved.is_relative_to(excluded) for excluded in self.excluded):
+                return False
+            if not resolved.is_relative_to(self.project):
+                reason = "resolved source path is outside the requested project"
+            elif path.is_symlink() or getattr(path, "is_junction", lambda: False)():
+                reason = "source symlink or junction is not followed"
+            else:
+                return True
+        except OSError as error:
+            if on_scope_error is not None:
+                on_scope_error(path, error)
+            return False
+        if on_scope_error is not None:
+            on_scope_error(path, reason)
+        return False
+
+
 def _mention_words(
     project: Path,
     *,
     read_text: _TextReader | None = None,
     onerror: Callable[[OSError], None] | None = None,
     on_read_error: Callable[[str, Path, OSError], None] | None = None,
+    exclude_roots: list[Path] | None = None,
+    on_scope_error: _ScopeErrorHandler | None = None,
 ) -> set[str]:
     """Lower-cased words in the project's code, scripts and config files."""
     words: set[str] = set()
+    scope = _SourceScope(project, exclude_roots)
     for root, dirs, files in os.walk(project, onerror=onerror):
         dirs[:] = [
             d
             for d in dirs
-            if d not in _SKIP_DIRS and d not in _MENTION_EXCLUDED_DIRS and not d.startswith(".")
+            if d not in _SKIP_DIRS
+            and d not in _MENTION_EXCLUDED_DIRS
+            and not d.startswith(".")
+            and scope.includes(Path(root) / d, on_scope_error)
         ]
         for name in files:
             if name in _MENTION_EXCLUDED_NAMES or name.startswith("requirements"):
@@ -160,6 +202,8 @@ def _mention_words(
             suffix = path.suffix.lower()
             extensionless = not suffix and not name.startswith(".")
             if suffix not in _MENTION_SUFFIXES and not extensionless:
+                continue
+            if not scope.includes(path, on_scope_error):
                 continue
             try:
                 size = path.stat().st_size
@@ -249,14 +293,21 @@ def _source_files(
     extensions: set[str],
     *,
     onerror: Callable[[OSError], None] | None = None,
+    exclude_roots: list[Path] | None = None,
+    on_scope_error: _ScopeErrorHandler | None = None,
 ) -> list[Path]:
     """Walk project tree and collect source files, skipping vendored dirs."""
     files: list[Path] = []
+    scope = _SourceScope(project, exclude_roots)
     for root, dirs, filenames in os.walk(project, onerror=onerror):
-        dirs[:] = [d for d in dirs if d not in _SKIP_DIRS]
+        dirs[:] = [
+            d
+            for d in dirs
+            if d not in _SKIP_DIRS and scope.includes(Path(root) / d, on_scope_error)
+        ]
         for f in filenames:
             p = Path(root) / f
-            if p.suffix in extensions:
+            if p.suffix in extensions and scope.includes(p, on_scope_error):
                 files.append(p)
     return files
 
@@ -299,21 +350,14 @@ def _ast_imports(source: str) -> set[str] | None:
             for alias in node.names:
                 # 'import foo.bar' → top-level is 'foo'
                 names.add(alias.name.split(".")[0])
-        elif isinstance(node, ast.ImportFrom):
-            if node.module:
-                # 'from foo.bar import baz' → top-level is 'foo'
-                names.add(node.module.split(".")[0])
-        elif isinstance(node, ast.Call):
-            # __import__('foo')
-            func = node.func
-            if (
-                isinstance(func, ast.Name)
-                and func.id == "__import__"
-                and node.args
-                and isinstance(node.args[0], ast.Constant)
-                and isinstance(node.args[0].value, str)
-            ):
-                names.add(node.args[0].value.split(".")[0])
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            # 'from foo.bar import baz' → top-level is 'foo'
+            names.add(node.module.split(".")[0])
+    names.update(
+        observation.target.split(".")[0]
+        for observation in python_dynamic_imports(source)
+        if observation.target is not None
+    )
     return names
 
 
@@ -442,13 +486,12 @@ def _js_extract_imports(source: str) -> set[str]:
     ):
         names.add(_js_package_name(m.group(1)))
 
-    # CommonJS require: require('pkg') or require("pkg")
-    for m in re.finditer(r"""\brequire\s*\(\s*["']([^"']+)["']\s*\)""", stripped):
-        names.add(_js_package_name(m.group(1)))
-
-    # Dynamic import: import('pkg')
-    for m in re.finditer(r"""\bimport\s*\(\s*["']([^"']+)["']\s*\)""", stripped):
-        names.add(_js_package_name(m.group(1)))
+    # Loader calls use lexical context so strings/comments/regex are not code.
+    names.update(
+        _js_package_name(observation.target)
+        for observation in js_dynamic_imports(source)
+        if observation.target is not None
+    )
 
     # Re-exports: export ... from 'pkg'
     for m in re.finditer(
@@ -1219,8 +1262,9 @@ class ReachabilityFilter:
 
     reason = FilterReason.UNREACHABLE
 
-    def __init__(self, project: Path):
+    def __init__(self, project: Path, *, exclude_roots: list[Path] | None = None):
         self._project = project
+        self._exclude_roots = _SourceScope(project, exclude_roots).excluded
         self._js_files: list[Path] | None = None
         self._py_files: list[Path] | None = None
         self._go_files: list[Path] | None = None
@@ -1239,6 +1283,26 @@ class ReachabilityFilter:
         self._text_by_path: dict[Path, str] = {}
         self._text_errors: dict[Path, OSError] = {}
         self._coverage_errors: dict[tuple[str, Path], str] = {}
+        self._scope_errors: dict[Path, str] = {}
+        self._dynamic_imports: dict[Path, tuple[DynamicImport, ...]] | None = None
+
+    def _display_path(self, path: Path) -> str:
+        try:
+            return path.relative_to(self._project).as_posix() or "."
+        except ValueError:
+            return str(path)
+
+    def _scope_error(self, path: Path, reason: str | OSError) -> None:
+        if isinstance(reason, OSError):
+            self._record_coverage_error("inspect source metadata", path, reason)
+            return
+        self._scope_errors[path] = (
+            f"Source analysis incomplete: skipped {self._display_path(path)} ({reason})."
+        )
+
+    def _mention_scope_error(self, path: Path, reason: str | OSError) -> None:
+        if path in self._included_source_paths:
+            self._scope_error(path, reason)
 
     def _record_coverage_error(self, operation: str, path: Path, error: OSError) -> None:
         try:
@@ -1279,7 +1343,11 @@ class ReachabilityFilter:
         if self._source_inventory is not None:
             return
         self._source_inventory = _source_files(
-            self._project, _ALL_EXTENSIONS, onerror=self._enumeration_error
+            self._project,
+            _ALL_EXTENSIONS,
+            onerror=self._enumeration_error,
+            exclude_roots=self._exclude_roots,
+            on_scope_error=self._scope_error,
         )
         self._included_source_paths = set(self._source_inventory)
         for path in self._source_inventory:
@@ -1310,6 +1378,75 @@ class ReachabilityFilter:
         self._ensure_source_inventory()
         keys = sorted(self._coverage_errors, key=lambda key: (str(key[1]), key[0]))
         return [self._coverage_errors[key] for key in keys]
+
+    def _ensure_dynamic_imports(self) -> None:
+        self._ensure_source_inventory()
+        if self._dynamic_imports is not None:
+            return
+        self._dynamic_imports = {}
+        for path in self.py_files + self.js_files:
+            text = self._text_by_path[path]
+            analyzer = (
+                python_dynamic_imports if path.suffix in _PY_EXTENSIONS else js_dynamic_imports
+            )
+            self._dynamic_imports[path] = analyzer(text)
+
+    @property
+    def dynamic_import_observations(self) -> list[str]:
+        """Recognized static loader calls, with source locations and uncertainty."""
+        self._ensure_dynamic_imports()
+        assert self._dynamic_imports is not None
+        observations: list[str] = []
+        for path, imports in sorted(self._dynamic_imports.items(), key=lambda item: str(item[0])):
+            for item in imports:
+                site = f"{self._display_path(path)}:{item.line}"
+                if item.target is None:
+                    observations.append(
+                        f"Dynamic import unresolved at {site}: {item.loader} ({item.reason})."
+                    )
+                else:
+                    observations.append(
+                        f"Dynamic import literal at {site}: {item.loader}({item.target!r}); "
+                        "static source observation, not proof of runtime execution."
+                    )
+        return observations
+
+    @property
+    def analysis_coverage_complete(self) -> bool:
+        """Whether source coverage and recognized dynamic loaders permit absence claims.
+
+        This does not assert complete parsing or support for arbitrary loader
+        aliases/dataflow. Explicit source exclusions define the analysis scope.
+        """
+        self._ensure_dynamic_imports()
+        assert self._dynamic_imports is not None
+        return (
+            self.source_coverage_complete
+            and not self._scope_errors
+            and all(
+                item.target is not None
+                for items in self._dynamic_imports.values()
+                for item in items
+            )
+        )
+
+    @property
+    def analysis_coverage_observations(self) -> list[str]:
+        """Read/scope failures and unresolved loaders, plus intentional scope exclusions."""
+        observations = self.source_coverage_observations
+        observations.extend(
+            self._scope_errors[path] for path in sorted(self._scope_errors, key=str)
+        )
+        observations.extend(
+            item
+            for item in self.dynamic_import_observations
+            if item.startswith("Dynamic import unresolved")
+        )
+        observations.extend(
+            f"Source scope excludes {self._display_path(path)}."
+            for path in sorted(self._exclude_roots, key=str)
+        )
+        return observations
 
     @property
     def js_files(self) -> list[Path]:
@@ -1382,7 +1519,7 @@ class ReachabilityFilter:
         JS and Python source files so mixed-language projects work correctly.
         """
         pkg = vuln.package
-        if not self.source_coverage_complete:
+        if not self.analysis_coverage_complete:
             return False
 
         # If we know which specific functions are vulnerable, check those
@@ -1466,6 +1603,8 @@ class ReachabilityFilter:
                 read_text=self._read_project_text,
                 onerror=self._enumeration_error,
                 on_read_error=self._mention_error,
+                exclude_roots=self._exclude_roots,
+                on_scope_error=self._mention_scope_error,
             )
         names = {pkg.lower(), pkg.rsplit("/", 1)[-1].lower()}
         names |= import_candidates(pkg, self._project)
@@ -1490,7 +1629,7 @@ class ReachabilityFilter:
         through a namespace alias such as ``_.merge``.
         """
         self._ensure_source_inventory()
-        if not self.source_coverage_complete:
+        if not self.analysis_coverage_complete:
             return False
         files = self._source_inventory
         if not files or not names:
@@ -1535,7 +1674,8 @@ class ReachabilityFilter:
                 unreachable=not imported
                 and not graph.is_executed(vuln.package)
                 and not self._mentioned(vuln.package)
-                and self.check(vuln),
+                and self.check(vuln)
+                and getattr(graph, "coverage_complete", True),
                 dependency_type="direct",
                 introduced_by=ancestors,
                 imported_ancestors=imported,
@@ -1549,7 +1689,8 @@ class ReachabilityFilter:
                 and self._has_source()
                 and not imported
                 and not used(vuln.package)
-                and self.source_coverage_complete,
+                and self.analysis_coverage_complete
+                and getattr(graph, "coverage_complete", True),
                 dependency_type="transitive",
                 introduced_by=ancestors,
                 imported_ancestors=imported,

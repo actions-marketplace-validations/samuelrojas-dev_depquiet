@@ -238,12 +238,10 @@ class TestJsExtractImports:
         code = "/* import lodash from 'lodash'; */\nconst x = 1;\n"
         assert "lodash" not in _js_extract_imports(code)
 
-    def test_string_require_matches_conservatively(self) -> None:
-        """A full require() in a string matches — conservative (safe)."""
+    def test_string_require_is_not_a_loader_call(self) -> None:
+        """A loader expression quoted as data supplies no import site."""
         code = "const x = \"require('lodash')\";\n"
-        # This matches because we only strip comments, not strings.
-        # Conservative: treating it as reachable is the safe choice.
-        assert "lodash" in _js_extract_imports(code)
+        assert "lodash" not in _js_extract_imports(code)
 
     def test_template_literal_import_matches_conservatively(self) -> None:
         """A full import in a template literal matches — conservative (safe)."""
