@@ -1,0 +1,32 @@
+{
+  "labels_sha256": "741cf29386d55ecb7b2ea99f8b3d5fed9e2506a06ba7908e4500b700d13c8b4c",
+  "purpose": "depquiet_reference_reviews",
+  "reviews": [
+    {
+      "actor": {
+        "id": null,
+        "kind": "human",
+        "relationship": "unknown"
+      },
+      "advisory": "CVE-2026-116577",
+      "case_id": "real-python-paperless-ngx-tornado-cve-2026-116577",
+      "case_sha256": "612d086905d9474701847b2bf84439ab9b22508091ae6e374bfe20fae21a0755",
+      "decision": null,
+      "exposure": {
+        "depquiet_result_seen": null,
+        "reference_label_seen": null
+      },
+      "limitations": [],
+      "package": "tornado",
+      "project": "upstream/paperless-ngx@09d70ed7da7f56b9c197a57518fd363a1fddc3ff",
+      "reason": "",
+      "record_id": "review-sha256:f4fa771cb7e294a1c9bd580c7e444169bcb8ecfd4a53eb23997e1d0ae1735024",
+      "reviewed_sources": [],
+      "snapshot_sha256": "53982c6c7a6e1b9da9b11f285fc01ff4ced1a6c03269d2b44e69ee4ffdc6a693",
+      "status": "pending",
+      "submitted_at": null,
+      "version": "6.5.9"
+    }
+  ],
+  "schema_version": 1
+}

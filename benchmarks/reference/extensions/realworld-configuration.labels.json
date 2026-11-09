@@ -1,0 +1,211 @@
+{
+  "schema_version": 1,
+  "corpus": "upstream-configuration-extension-v1",
+  "review_status": "agent_proposed_human_pending",
+  "interpretation": "Two additional configuration-focused expectations proposed by agents. No human approval, safe-dismissal labels, exploitability finding or accuracy estimate.",
+  "cases": [
+    {
+      "id": "npm-realworld-serve-static-redirect-template",
+      "project": "upstream/node-express-realworld@30b68e1e881462b2f4164ea09ab4c4f5699c7b0b",
+      "package": "serve-static",
+      "version": "<1.16.0",
+      "advisory": "GHSA-cm22-4g7w-348p",
+      "label": "retain",
+      "reason": "Keep visible: the frozen production entry point mounts Express static-file middleware. The selected advisory concerns its redirect response template; the static middleware configuration supplies a concrete reason to investigate. Browser interaction, request handling and exploitation were not observed.",
+      "provenance": {
+        "kind": "reviewed",
+        "source": "https://github.com/gothinkster/node-express-realworld-example-app/tree/30b68e1e881462b2f4164ea09ab4c4f5699c7b0b",
+        "reviewer": "Codex agent candidate curation; no human adjudication",
+        "review_date": "2026-11-09",
+        "method": "pinned_static_source_lockfile_and_primary_advisory_check",
+        "human_reviewed": false,
+        "independent_external_validation": false
+      },
+      "version_evidence": {
+        "reported_kind": "npm via[].range; advisory range, not an observed installed version",
+        "locked_versions": [
+          {
+            "node": "node_modules/serve-static",
+            "version": "1.15.0",
+            "lockfile_line": 9047,
+            "url": "https://github.com/gothinkster/node-express-realworld-example-app/blob/30b68e1e881462b2f4164ea09ab4c4f5699c7b0b/package-lock.json#L9047-L9051"
+          }
+        ],
+        "installation_observed": false,
+        "installed_versions": null,
+        "lockfile": {
+          "path": "package-lock.json",
+          "content_sha256": "1fbe3ed3b932a4bc6daba7eed3a5648622f801e8cf33b65eefa654a42c1054da",
+          "provenance": "Upstream Git blob at the pinned commit.",
+          "generated_lockfile": false
+        }
+      },
+      "primary_advisory": {
+        "kind": "Live primary-source advisory verification",
+        "verified_date": "2026-11-09",
+        "url": "https://github.com/advisories/GHSA-cm22-4g7w-348p",
+        "alias": "CVE-2024-43800",
+        "summary": "Redirect-template content can be influenced by request input under the advisory prerequisites, including a browser interaction.",
+        "selected_version_bound": "<1.16.0",
+        "all_selected_locked_versions_match_bound": true
+      },
+      "evidence": [
+        {
+          "kind": "upstream_git_blob",
+          "path": "src/main.ts",
+          "git_blob": "0c2752fccf6ace80a5bb844f9a6d7305b0489b6d",
+          "content_sha256": "61bd12b5b278695a96d2207a684b3e2067ebf4b0ff11910654628329ea64f825",
+          "url": "https://github.com/gothinkster/node-express-realworld-example-app/blob/30b68e1e881462b2f4164ea09ab4c4f5699c7b0b/src/main.ts#L19-L19",
+          "start_line": 19,
+          "end_line": 19,
+          "observation": "The entry point mounts express.static for the assets directory."
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "src/main.ts",
+          "git_blob": "0c2752fccf6ace80a5bb844f9a6d7305b0489b6d",
+          "content_sha256": "61bd12b5b278695a96d2207a684b3e2067ebf4b0ff11910654628329ea64f825",
+          "url": "https://github.com/gothinkster/node-express-realworld-example-app/blob/30b68e1e881462b2f4164ea09ab4c4f5699c7b0b/src/main.ts#L53-L57",
+          "start_line": 53,
+          "end_line": 57,
+          "observation": "The same source file configures the HTTP listening port and starts the listener."
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "package-lock.json",
+          "git_blob": "95e7c45e687fc0fb221aa7a4a6dd572b04cedbef",
+          "content_sha256": "1fbe3ed3b932a4bc6daba7eed3a5648622f801e8cf33b65eefa654a42c1054da",
+          "url": "https://github.com/gothinkster/node-express-realworld-example-app/blob/30b68e1e881462b2f4164ea09ab4c4f5699c7b0b/package-lock.json#L9047-L9051",
+          "start_line": 9047,
+          "end_line": 9051,
+          "observation": "The root lockfile records serve-static 1.15.0 at the reported node."
+        }
+      ],
+      "dependency_chains": [
+        [
+          "express",
+          "serve-static"
+        ]
+      ],
+      "limitations": [
+        "Agent-proposed triage expectations only; human adjudication and independent external validation are pending.",
+        "Lockfile candidates are not observations of installed or deployed versions.",
+        "No upstream application or dependency code was installed or executed.",
+        "Source/configuration observations do not establish vulnerable-function execution, exploitation or product non-affectedness.",
+        "The two cases were selected deliberately from one existing project, not sampled randomly; no population-level accuracy or safe-noise-reduction claim is supported.",
+        "Actual redirect responses, browser interaction, proxy behavior and deployment were not observed."
+      ],
+      "assessment_status": "under_investigation",
+      "snapshot_sha256": "f96b5cce80d9a3585dcd7e2e6d7ef9136ac20498662c9739cc88a6a0b037e2dd"
+    },
+    {
+      "id": "npm-realworld-body-parser-invalid-limit",
+      "project": "upstream/node-express-realworld@30b68e1e881462b2f4164ea09ab4c4f5699c7b0b",
+      "package": "body-parser",
+      "version": "<1.20.6",
+      "advisory": "GHSA-v422-hmwv-36x6",
+      "label": "unknown",
+      "reason": "Keep uncertain: the visible entry point constructs JSON parsing without options and URL-encoded parsing with a literal extended option, without a supplied limit value. The advisory requires an invalid configured limit and documents a default for omitted values. This is useful configuration evidence to review, but it does not establish every runtime construction or deployment condition, so it is not an accepted safe dismissal.",
+      "provenance": {
+        "kind": "reviewed",
+        "source": "https://github.com/gothinkster/node-express-realworld-example-app/tree/30b68e1e881462b2f4164ea09ab4c4f5699c7b0b",
+        "reviewer": "Codex agent candidate curation; no human adjudication",
+        "review_date": "2026-11-09",
+        "method": "pinned_static_source_lockfile_and_primary_advisory_check",
+        "human_reviewed": false,
+        "independent_external_validation": false
+      },
+      "version_evidence": {
+        "reported_kind": "npm via[].range; advisory range, not an observed installed version",
+        "locked_versions": [
+          {
+            "node": "node_modules/body-parser",
+            "version": "1.20.2",
+            "lockfile_line": 4808,
+            "url": "https://github.com/gothinkster/node-express-realworld-example-app/blob/30b68e1e881462b2f4164ea09ab4c4f5699c7b0b/package-lock.json#L4808-L4812"
+          },
+          {
+            "node": "node_modules/express/node_modules/body-parser",
+            "version": "1.20.1",
+            "lockfile_line": 6051,
+            "url": "https://github.com/gothinkster/node-express-realworld-example-app/blob/30b68e1e881462b2f4164ea09ab4c4f5699c7b0b/package-lock.json#L6051-L6055"
+          }
+        ],
+        "installation_observed": false,
+        "installed_versions": null,
+        "lockfile": {
+          "path": "package-lock.json",
+          "content_sha256": "1fbe3ed3b932a4bc6daba7eed3a5648622f801e8cf33b65eefa654a42c1054da",
+          "provenance": "Upstream Git blob at the pinned commit.",
+          "generated_lockfile": false
+        }
+      },
+      "primary_advisory": {
+        "kind": "Live primary-source advisory verification",
+        "verified_date": "2026-11-09",
+        "url": "https://github.com/advisories/GHSA-v422-hmwv-36x6",
+        "alias": "CVE-2026-12590",
+        "summary": "An invalid limit configuration can disable request-body size enforcement. The advisory documents that omitted values use the default and recommends configuration validation.",
+        "selected_version_bound": "<1.20.6",
+        "all_selected_locked_versions_match_bound": true
+      },
+      "evidence": [
+        {
+          "kind": "upstream_git_blob",
+          "path": "src/main.ts",
+          "git_blob": "0c2752fccf6ace80a5bb844f9a6d7305b0489b6d",
+          "content_sha256": "61bd12b5b278695a96d2207a684b3e2067ebf4b0ff11910654628329ea64f825",
+          "url": "https://github.com/gothinkster/node-express-realworld-example-app/blob/30b68e1e881462b2f4164ea09ab4c4f5699c7b0b/src/main.ts#L14-L15",
+          "start_line": 14,
+          "end_line": 15,
+          "observation": "The inspected entry point calls bodyParser.json() and bodyParser.urlencoded({ extended: true }); these literal constructions do not supply a limit."
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "package-lock.json",
+          "git_blob": "95e7c45e687fc0fb221aa7a4a6dd572b04cedbef",
+          "content_sha256": "1fbe3ed3b932a4bc6daba7eed3a5648622f801e8cf33b65eefa654a42c1054da",
+          "url": "https://github.com/gothinkster/node-express-realworld-example-app/blob/30b68e1e881462b2f4164ea09ab4c4f5699c7b0b/package-lock.json#L4808-L4812",
+          "start_line": 4808,
+          "end_line": 4812,
+          "observation": "The direct reported node is locked at body-parser 1.20.2."
+        },
+        {
+          "kind": "upstream_git_blob",
+          "path": "package-lock.json",
+          "git_blob": "95e7c45e687fc0fb221aa7a4a6dd572b04cedbef",
+          "content_sha256": "1fbe3ed3b932a4bc6daba7eed3a5648622f801e8cf33b65eefa654a42c1054da",
+          "url": "https://github.com/gothinkster/node-express-realworld-example-app/blob/30b68e1e881462b2f4164ea09ab4c4f5699c7b0b/package-lock.json#L6051-L6055",
+          "start_line": 6051,
+          "end_line": 6055,
+          "observation": "The nested reported node is locked at body-parser 1.20.1."
+        }
+      ],
+      "dependency_chains": [
+        [
+          "body-parser"
+        ],
+        [
+          "express",
+          "body-parser"
+        ]
+      ],
+      "candidate_dismissal_evidence": {
+        "status": "requires_human_adjudication",
+        "observation": "The two inspected literal constructions omit the configuration option required by this advisory condition.",
+        "why_not_filter": "This source observation has not been adjudicated as a complete account of runtime parser construction or effective deployment configuration. Missing conditions must not be silently supplied."
+      },
+      "limitations": [
+        "Agent-proposed triage expectations only; human adjudication and independent external validation are pending.",
+        "Lockfile candidates are not observations of installed or deployed versions.",
+        "No upstream application or dependency code was installed or executed.",
+        "Source/configuration observations do not establish vulnerable-function execution, exploitation or product non-affectedness.",
+        "The two cases were selected deliberately from one existing project, not sampled randomly; no population-level accuracy or safe-noise-reduction claim is supported.",
+        "No invalid limit is visible in the inspected entry-point constructions; absence there is not a complete runtime or deployment proof.",
+        "Express-internal and deployment-specific parser construction was not observed at runtime."
+      ],
+      "assessment_status": "under_investigation",
+      "snapshot_sha256": "f96b5cce80d9a3585dcd7e2e6d7ef9136ac20498662c9739cc88a6a0b037e2dd"
+    }
+  ]
+}
