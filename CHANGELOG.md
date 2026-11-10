@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-11-10
+
 ### Added
 - Offline reference-review workflow with pending forms, strict case/label/snapshot
   bindings, separate declared human/agent coverage, disagreement tracking and
@@ -576,7 +578,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.20.0...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.31.0...HEAD
+[0.31.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.30.1...v0.31.0
 [0.21.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.18.0...v0.19.0
