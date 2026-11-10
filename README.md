@@ -70,11 +70,12 @@ alerts, real ones included.
 
 ## How it works
 
-depquiet applies four deterministic filters to separate signal from noise:
+depquiet applies five deterministic filters to separate signal from noise:
 
 | Filter | Filters an alert when |
 |---|---|
 | **Reachability** | No source file imports the package, and (for a transitive package) no source file imports any direct dependency that pulls it in |
+| **Test-only use** | The package is imported, but only from test files (`tests/`, `e2e/`, `*.test.*`, `*.spec.*`, test-runner configs), it is not run as a project command, and no application file names it |
 | **Dev dependencies** | Every known dependency path is for development, with no production parent |
 | **EPSS scoring** | The CVE's probability of exploitation is below the threshold (default 10%) |
 | **Community templates** | A matching template's dismissal conditions can be verified against the project |
@@ -1075,22 +1076,25 @@ app pinned to 2022 versions. npm projects are audited with `npm audit`, Python p
 
 | Project | Scanner | Alerts | Filtered by 0.27 | Filtered now | Filtered by 0.27, kept now |
 |---|---|---:|---:|---:|---:|
-| [mealie-recipes/mealie](https://github.com/mealie-recipes/mealie) | pip-audit | 229 | 200 | 28 | 172 |
+| [mealie-recipes/mealie](https://github.com/mealie-recipes/mealie) | pip-audit | 229 | 200 | 31 | 170 |
 | [hagopj13/node-express-boilerplate](https://github.com/hagopj13/node-express-boilerplate) | npm audit | 163 | 115 | 18 | 97 |
-| [gothinkster/node-express-realworld-example-app](https://github.com/gothinkster/node-express-realworld-example-app) | npm audit | 95 | 59 | 41 | 18 |
+| [gothinkster/node-express-realworld-example-app](https://github.com/gothinkster/node-express-realworld-example-app) | npm audit | 95 | 59 | 74 | 16 |
 | Express app, 2022 versions | npm audit | 29 | 26 | 13 | 13 |
 | [paperless-ngx/paperless-ngx](https://github.com/paperless-ngx/paperless-ngx) | pip-audit | 17 | 17 | 0 | 17 |
 | [sahat/hackathon-starter](https://github.com/sahat/hackathon-starter) | npm audit | 2 | 2 | 2 | 0 |
-| **Total** | | **535** | **419 (78%)** | **102 (19%)** | **317** |
+| **Total** | | **535** | **419 (78%)** | **138 (26%)** | **313** |
 
-0.27 dismissed 317 alerts without evidence. It counted any package the app didn't import
+0.27 dismissed 313 alerts without evidence. It counted any package the app didn't import
 itself as unreachable, which is true of nearly every transitive package, and it compared
 Python distribution names literally, so `Django`, `PyYAML` or `llama-index-core` never matched
 `import django`, `import yaml` or `import llama_index`.
 
 What depquiet filters now is almost entirely packages that only development tooling pulls in
-(jest, eslint, nx, nodemon, pre-commit, mkdocs). On these projects nearly every production
-dependency is in use, so the useful output is less the filtering than the trace: each kept
+(jest, eslint, nx, nodemon, pre-commit, mkdocs). On the npm projects those are alerts
+`npm audit --omit=dev` also removes, with one exception: the realworld app declares `axios` under
+`dependencies` but imports it only from its end-to-end tests, so 33 axios and form-data
+alerts that `--omit=dev` keeps are filtered as test-only. On these projects nearly every
+other production dependency is in use, so the useful output is less the filtering than the trace: each kept
 alert names the direct dependency it comes through and where the app uses it.
 
 Run them yourself: `python -I benchmarks/run_benchmark.py`. The first run clones the pinned

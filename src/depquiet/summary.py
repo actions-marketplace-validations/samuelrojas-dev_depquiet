@@ -98,6 +98,7 @@ def render_summary(result: ScanResult) -> str:
 
         reason_labels = {
             FilterReason.UNREACHABLE: "No dependency usage observed",
+            FilterReason.TEST_ONLY: "Imported only from test code",
             FilterReason.DEV_DEPENDENCY: "Dev dependency only",
             FilterReason.LOW_EPSS: "Low EPSS score",
             FilterReason.COMMUNITY_TEMPLATE: "Community template match",

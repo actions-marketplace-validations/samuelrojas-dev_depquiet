@@ -135,7 +135,7 @@ def explain_triage(tr: TriageResult) -> Explanation:
 
     # 2. Reachability
     via = ", ".join(tr.introduced_by)
-    if tr.reachable_imports:
+    if tr.reachable_imports and FilterReason.TEST_ONLY not in tr.reasons:
         imports = ", ".join(tr.reachable_imports)
         detail = f"Imported by: {imports}"
         if tr.dependency_type == "transitive" and via:
@@ -158,6 +158,18 @@ def explain_triage(tr: TriageResult) -> Explanation:
                 value="unreachable",
                 effect="filtered",
                 detail=detail,
+            )
+        )
+    elif FilterReason.TEST_ONLY in tr.reasons:
+        signals.append(
+            Signal(
+                name="Reachability",
+                value="test_only",
+                effect="filtered",
+                detail=(
+                    "Imported only from test code or test-runner configuration: "
+                    + ", ".join(tr.reachable_imports[:5])
+                ),
             )
         )
     elif tr.dependency_type == "unknown":

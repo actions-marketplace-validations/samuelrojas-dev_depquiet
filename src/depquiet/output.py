@@ -65,6 +65,7 @@ def print_scan_result(result: ScanResult) -> None:
 
         reason_labels = {
             FilterReason.UNREACHABLE: "no usage observed in inspected imports or dependency roots",
+            FilterReason.TEST_ONLY: "imported only from test code, not from application sources",
             FilterReason.DEV_DEPENDENCY: "development-only paths in available dependency metadata",
             FilterReason.LOW_EPSS: "EPSS below configured threshold — lower remediation priority",
             FilterReason.COMMUNITY_TEMPLATE: "community template — dismissal conditions matched",

@@ -278,6 +278,8 @@ def scan(
 
         if decision.unreachable:
             reasons.append(FilterReason.UNREACHABLE)
+        elif decision.test_only:
+            reasons.append(FilterReason.TEST_ONLY)
 
         # Filter 3: Low EPSS score
         epss_data = epss_filter.get_score(vuln.cve)
@@ -445,6 +447,11 @@ def _collect_evidence(
         observations.append("Usage is inferred from project references, not a verified call path.")
     if decision.unreachable:
         observations.append("No dependency usage was observed in the inspected project sources.")
+    if decision.test_only:
+        observations.append(
+            "Every import found is in test code or test-runner configuration; "
+            "no use was observed in application sources."
+        )
     observations.extend(graph.coverage_observations)
     observations.extend(reachability.analysis_coverage_observations)
     observations.extend(reachability.dynamic_import_observations)
@@ -558,6 +565,11 @@ def _evaluate_dependency(
         imported_ancestors=sorted(
             {name for item in selected for name in item.decision.imported_ancestors}
         ),
+        # Every relevant workspace must agree; a mix proves nothing here.
+        test_only=bool(selected)
+        and graph_complete
+        and analysis_complete
+        and all(item.decision.test_only for item in selected),
     )
     sites = sorted({site for item in selected for site in item.evidence.import_sites})
     usage = (

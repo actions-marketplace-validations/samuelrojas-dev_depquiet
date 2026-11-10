@@ -34,6 +34,8 @@ class FilterReason(Enum):
     """Why a vulnerability was filtered out."""
 
     UNREACHABLE = "unreachable"
+    # Imported, but only from test files and test-runner configuration.
+    TEST_ONLY = "test_only"
     DEV_DEPENDENCY = "dev_dependency"
     LOW_EPSS = "low_epss"
     COMMUNITY_TEMPLATE = "community_template"
