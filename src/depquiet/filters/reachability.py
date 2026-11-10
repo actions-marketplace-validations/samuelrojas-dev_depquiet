@@ -141,6 +141,28 @@ _MENTION_EXCLUDED_NAMES = {
 }
 _MENTION_EXCLUDED_DIRS = {"docs", "doc", ".github", "site", "examples"}
 _MENTION_MAX_BYTES = 512 * 1024
+
+# Test code is not shipped as the application. Deliberately narrow: a
+# directory or file counts only when its name is an established test
+# convention, so ordinary application code is never mistaken for a test.
+_TEST_DIRS = {"test", "tests", "__tests__", "__mocks__", "e2e"}
+_TEST_FILE = re.compile(
+    r"""(?x)
+    \.(?:test|spec)\.[A-Za-z]+$                 # app.test.ts, api.spec.js
+    | ^test_[^/]*\.py$ | _test\.(?:py|go|rb)$     # test_x.py, x_test.go
+    | ^conftest\.py$ | _spec\.rb$
+    | ^(?:jest|vitest|playwright|cypress|karma)\.(?:config|preset|setup|conf)\.[A-Za-z]+$
+    """
+)
+
+
+def is_test_path(relative: Path) -> bool:
+    """True when a project-relative path is test code or test-runner configuration."""
+    return any(part in _TEST_DIRS for part in relative.parts[:-1]) or bool(
+        _TEST_FILE.search(relative.name)
+    )
+
+
 _WORD = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_\-]*")
 
 
@@ -187,8 +209,12 @@ def _mention_words(
     on_read_error: Callable[[str, Path, OSError], None] | None = None,
     exclude_roots: list[Path] | None = None,
     on_scope_error: _ScopeErrorHandler | None = None,
+    skip_tests: bool = False,
 ) -> set[str]:
-    """Lower-cased words in the project's code, scripts and config files."""
+    """Lower-cased words in the project's code, scripts and config files.
+
+    With ``skip_tests`` the words come only from files outside test code.
+    """
     words: set[str] = set()
     scope = _SourceScope(project, exclude_roots)
     for root, dirs, files in os.walk(project, onerror=onerror):
@@ -204,6 +230,8 @@ def _mention_words(
             if name in _MENTION_EXCLUDED_NAMES or name.startswith("requirements"):
                 continue
             path = Path(root) / name
+            if skip_tests and is_test_path(path.relative_to(project)):
+                continue
             suffix = path.suffix.lower()
             extensionless = not suffix and not name.startswith(".")
             if suffix not in _MENTION_SUFFIXES and not extensionless:
@@ -248,6 +276,9 @@ class ReachabilityDecision:
     # Direct dependencies (introduced_by) that the source code imports or the
     # project runs as a command.
     imported_ancestors: list[str] = field(default_factory=list)
+    # The package is used, but every production use found is in test code
+    # (see ``ReachabilityFilter._test_only``). Never True with ``unreachable``.
+    test_only: bool = False
 
 
 # File extensions to search for imports
@@ -1283,6 +1314,7 @@ class ReachabilityFilter:
         self._import_cache: dict[str, bool] = {}
         self._sites_cache: dict[str, list[str]] = {}
         self._words: set[str] | None = None
+        self._non_test_words: set[str] | None = None
         self._source_inventory: list[Path] | None = None
         self._included_source_paths: set[Path] = set()
         self._text_by_path: dict[Path, str] = {}
@@ -1651,6 +1683,52 @@ class ReachabilityFilter:
                 return False
         return True
 
+    def _mentioned_outside_tests(self, pkg: str) -> bool:
+        """Like :meth:`_mentioned`, reading only files that are not test code."""
+        if self._non_test_words is None:
+            self._ensure_source_inventory()
+            self._non_test_words = _mention_words(
+                self._project,
+                read_text=self._read_project_text,
+                onerror=self._enumeration_error,
+                on_read_error=self._mention_error,
+                exclude_roots=self._exclude_roots,
+                on_scope_error=self._mention_scope_error,
+                skip_tests=True,
+            )
+        names = {pkg.lower(), pkg.rsplit("/", 1)[-1].lower()}
+        names |= import_candidates(pkg, self._project)
+        names |= {n.replace("-", "_") for n in names}
+        return bool(names & self._non_test_words)
+
+    def _is_test_site(self, site: str) -> bool:
+        try:
+            return is_test_path(Path(site).relative_to(self._project))
+        except ValueError:
+            return False
+
+    def _test_only(self, package: str, used_roots: list[str], graph: DependencyGraph) -> bool:
+        """True when the only use of ``package`` that reaches production is in tests.
+
+        Checked for the package and for each used direct dependency that pulls
+        it in. Development-only roots are skipped: they never ship. Every
+        remaining name must not be run as a project command, must not be named
+        in any non-test file, and may be imported only from test files; at
+        least one such import must exist. Incomplete coverage proves nothing.
+        """
+        if not (self.analysis_coverage_complete and getattr(graph, "coverage_complete", True)):
+            return False
+        names = [package, *(r for r in used_roots if not graph.is_dev_only([r]))]
+        found = False
+        for name in dict.fromkeys(names):
+            if graph.is_executed(name) or self._mentioned_outside_tests(name):
+                return False
+            sites = self.find_imports_for(name)
+            if not all(self._is_test_site(site) for site in sites):
+                return False
+            found = found or bool(sites)
+        return found
+
     def decide(self, vuln: Vulnerability, graph: DependencyGraph) -> ReachabilityDecision:
         """Reachability verdict that accounts for transitive dependencies.
 
@@ -1675,30 +1753,40 @@ class ReachabilityFilter:
             # does running it as a command (``pm2 start`` in package.json).
             ancestors = sorted(graph.direct_ancestors(vuln.package))
             imported = [a for a in ancestors if used(a)]
-            return ReachabilityDecision(
-                unreachable=not imported
+            unreachable = (
+                not imported
                 and not graph.is_executed(vuln.package)
                 and not self._mentioned(vuln.package)
                 and self.check(vuln)
-                and getattr(graph, "coverage_complete", True),
+                and getattr(graph, "coverage_complete", True)
+            )
+            return ReachabilityDecision(
+                unreachable=unreachable,
                 dependency_type="direct",
                 introduced_by=ancestors,
                 imported_ancestors=imported,
+                test_only=not unreachable and self._test_only(vuln.package, imported, graph),
             )
 
         if kind == "transitive":
             ancestors = sorted(graph.direct_ancestors(vuln.package))
             imported = [a for a in ancestors if used(a)]
-            return ReachabilityDecision(
-                unreachable=bool(ancestors)
+            unreachable = (
+                bool(ancestors)
                 and self._has_source()
                 and not imported
                 and not used(vuln.package)
                 and self.analysis_coverage_complete
-                and getattr(graph, "coverage_complete", True),
+                and getattr(graph, "coverage_complete", True)
+            )
+            return ReachabilityDecision(
+                unreachable=unreachable,
                 dependency_type="transitive",
                 introduced_by=ancestors,
                 imported_ancestors=imported,
+                test_only=bool(ancestors)
+                and not unreachable
+                and self._test_only(vuln.package, imported, graph),
             )
 
         return ReachabilityDecision(unreachable=False, dependency_type="unknown")

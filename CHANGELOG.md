@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Test-only usage filter (`test_only`): an alert is filtered when the package, and
+  every used production dependency that pulls it in, is imported only from test
+  code or test-runner configuration, is not run as a project command and is not
+  named in any non-test file. Catches dependencies declared as production but used
+  only by tests, which `npm audit --omit=dev` keeps. Requires complete graph and
+  source coverage; otherwise the alert is retained.
+
+### Fixed
+- PEP 735 `{include-group = "..."}` entries in `[dependency-groups]` no longer mark
+  the dependency graph incomplete. An include of a group that does not exist still
+  does.
+
 ## [0.31.0] - 2026-11-10
 
 ### Added

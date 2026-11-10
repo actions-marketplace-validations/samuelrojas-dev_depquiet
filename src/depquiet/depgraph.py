@@ -683,6 +683,20 @@ def _req_name(spec: str) -> str:
     return m.group(1) if m else ""
 
 
+def _is_group_include(spec: object, groups: dict[str, object]) -> bool:
+    """A PEP 735 ``{include-group = "name"}`` entry naming a group that exists.
+
+    Every dependency group is development-only and each one is read on its
+    own, so an include adds no package that is not already recorded.
+    """
+    return (
+        isinstance(spec, dict)
+        and set(spec) == {"include-group"}
+        and isinstance(spec["include-group"], str)
+        and spec["include-group"] in groups
+    )
+
+
 def _load_pyproject(path: Path) -> DependencyGraph | None:
     """PEP 621, PEP 735 dependency groups and Poetry.
 
@@ -703,8 +717,13 @@ def _load_pyproject(path: Path) -> DependencyGraph | None:
     groups = data.get("dependency-groups") or {}
     if not isinstance(optional, dict) or not isinstance(groups, dict):
         raise ValueError("pyproject dependency groups must be tables")
-    for group in [*optional.values(), *groups.values()]:
+    for group in optional.values():
         if not isinstance(group, list) or not all(isinstance(spec, str) for spec in group):
+            raise ValueError("pyproject optional-dependencies entry is malformed")
+    for group in groups.values():
+        if not isinstance(group, list) or not all(
+            isinstance(spec, str) or _is_group_include(spec, groups) for spec in group
+        ):
             raise ValueError("pyproject dependency group is malformed or uses unsupported includes")
     entries += [(_req_name(s), False) for s in project.get("dependencies") or []]
     for group in (project.get("optional-dependencies") or {}).values():

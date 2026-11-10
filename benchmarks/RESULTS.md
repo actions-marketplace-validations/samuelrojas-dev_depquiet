@@ -9,11 +9,11 @@ Lockfile resolved and audited by the real package manager (`capture_real.py`).
 
 | Scenario | Parser | Total | Action | Review | Filtered | Filter rate | Time |
 |----------|--------|------:|-------:|-------:|---------:|------------:|-----:|
-| real-npm-express | npm | 29 | 13 | 3 | 13 | **45%** | 455ms |
+| real-npm-express | npm | 29 | 13 | 3 | 13 | **45%** | 362ms |
 
-| Scenario | Unreachable | Dev-only | Low EPSS | Template |
-|----------|------------:|---------:|---------:|---------:|
-| real-npm-express | 13 | 8 | 0 | 0 |
+| Scenario | Unreachable | Test-only | Dev-only | Low EPSS | Template |
+|----------|------------:|----------:|---------:|---------:|---------:|
+| real-npm-express | 13 | 0 | 8 | 0 | 0 |
 
 ### real-npm-express
 
@@ -59,19 +59,19 @@ projects: `pip-audit --no-deps` on every version pinned in `uv.lock`/`poetry.loc
 
 | Scenario | Parser | Total | Action | Review | Filtered | Filter rate | Time |
 |----------|--------|------:|-------:|-------:|---------:|------------:|-----:|
-| repo-hackathon-starter | npm | 2 | 0 | 0 | 2 | **100%** | 44ms |
-| repo-mealie | pip-audit | 229 | 201 | 0 | 28 | **12%** | 1204ms |
-| repo-node-express-boilerplate | npm | 163 | 140 | 5 | 18 | **11%** | 75ms |
-| repo-node-express-realworld | npm | 95 | 51 | 3 | 41 | **43%** | 48ms |
-| repo-paperless-ngx | pip-audit | 17 | 17 | 0 | 0 | **0%** | 1460ms |
+| repo-hackathon-starter | npm | 2 | 0 | 0 | 2 | **100%** | 188ms |
+| repo-mealie | pip-audit | 229 | 198 | 0 | 31 | **14%** | 2594ms |
+| repo-node-express-boilerplate | npm | 163 | 140 | 5 | 18 | **11%** | 725ms |
+| repo-node-express-realworld | npm | 95 | 18 | 3 | 74 | **78%** | 83ms |
+| repo-paperless-ngx | pip-audit | 17 | 17 | 0 | 0 | **0%** | 2576ms |
 
-| Scenario | Unreachable | Dev-only | Low EPSS | Template |
-|----------|------------:|---------:|---------:|---------:|
-| repo-hackathon-starter | 0 | 2 | 0 | 0 |
-| repo-mealie | 0 | 28 | 0 | 0 |
-| repo-node-express-boilerplate | 0 | 18 | 0 | 0 |
-| repo-node-express-realworld | 0 | 41 | 0 | 0 |
-| repo-paperless-ngx | 0 | 0 | 0 | 0 |
+| Scenario | Unreachable | Test-only | Dev-only | Low EPSS | Template |
+|----------|------------:|----------:|---------:|---------:|---------:|
+| repo-hackathon-starter | 0 | 0 | 2 | 0 | 0 |
+| repo-mealie | 0 | 0 | 31 | 0 | 0 |
+| repo-node-express-boilerplate | 0 | 0 | 18 | 0 | 0 |
+| repo-node-express-realworld | 0 | 33 | 41 | 0 | 0 |
+| repo-paperless-ngx | 0 | 0 | 0 | 0 | 0 |
 
 ### repo-hackathon-starter
 
@@ -134,7 +134,7 @@ projects: `pip-audit --no-deps` on every version pinned in `uv.lock`/`poetry.loc
 | lxml-html-clean | PYSEC-2026-2614 | moderate | transitive | extruct, recipe-scrapers | action | - |
 | mako | PYSEC-2026-2617 | moderate | transitive | alembic | action | - |
 | markdown | PYSEC-2026-89 | moderate | transitive | apprise, mkdocs-material | action | - |
-| mkdocs-material | PYSEC-2026-3864 | moderate | direct | - | action | - |
+| mkdocs-material | PYSEC-2026-3864 | moderate | direct | - | filtered | dev dependency |
 | nltk | PYSEC-2026-2085 | moderate | transitive | ingredient-parser-nlp | action | - |
 | nltk | PYSEC-2026-2235 | moderate | transitive | ingredient-parser-nlp | action | - |
 | nltk | PYSEC-2026-2236 | moderate | transitive | ingredient-parser-nlp | action | - |
@@ -263,12 +263,12 @@ projects: `pip-audit --no-deps` on every version pinned in `uv.lock`/`poetry.loc
 | pyjwt | PYSEC-2026-4149 | moderate | direct | - | action | - |
 | pyjwt | PYSEC-2026-4152 | moderate | direct | - | action | - |
 | pyjwt | PYSEC-2026-4183 | moderate | direct | - | action | - |
-| pylint | CVE-2026-114608 | moderate | direct | - | action | - |
+| pylint | CVE-2026-114608 | moderate | direct | - | filtered | dev dependency |
 | pymdown-extensions | PYSEC-2026-1825 | moderate | transitive | mkdocs-material | filtered | dev dependency |
 | pymdown-extensions | PYSEC-2026-2999 | moderate | transitive | mkdocs-material | filtered | dev dependency |
 | pymdown-extensions | PYSEC-2026-3609 | moderate | transitive | mkdocs-material | filtered | dev dependency |
 | pymdown-extensions | PYSEC-2026-3654 | moderate | transitive | mkdocs-material | filtered | dev dependency |
-| pytest | PYSEC-2026-1845 | moderate | direct | pytest-asyncio | action | - |
+| pytest | PYSEC-2026-1845 | moderate | direct | pytest-asyncio | filtered | dev dependency |
 | python-dotenv | PYSEC-2026-2270 | moderate | direct | pydantic-settings, uvicorn | action | - |
 | python-multipart | PYSEC-2026-1852 | moderate | direct | fastapi | action | - |
 | python-multipart | PYSEC-2026-3036 | moderate | direct | fastapi | action | - |
@@ -499,37 +499,37 @@ projects: `pip-audit --no-deps` on every version pinned in `uv.lock`/`poetry.loc
 | @babel/plugin-transform-modules-systemjs | GHSA-fv7c-fp4j-7gwp | high | transitive | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node | filtered | dev dependency |
 | @babel/runtime | GHSA-968p-4wvh-cqc8 | moderate | transitive | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, jest, jest-mock-extended, ts-jest | filtered | dev dependency |
 | ajv | GHSA-2g4f-4pwh-qvx6 | moderate | transitive | @nx/eslint, @nx/eslint-plugin, @nx/node, @typescript-eslint/eslint-plugin, @typescript-eslint/parser, eslint, eslint-config-prettier | filtered | dev dependency |
-| axios | GHSA-35jp-ww65-95wh | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | action | - |
-| axios | GHSA-3g43-6gmg-66jw | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | action | - |
-| axios | GHSA-3p68-rc4w-qgx5 | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | action | - |
-| axios | GHSA-3w6x-2g7m-8v23 | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | action | - |
-| axios | GHSA-42h9-826w-cgv3 | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | action | - |
-| axios | GHSA-43fc-jf86-j433 | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | action | - |
-| axios | GHSA-445q-vr5w-6q77 | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | action | - |
-| axios | GHSA-4hjh-wcwx-xvwj | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | action | - |
-| axios | GHSA-5c9x-8gcm-mpgx | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | action | - |
-| axios | GHSA-62hf-57xw-28j9 | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | action | - |
-| axios | GHSA-6chq-wfr3-2hj9 | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | action | - |
-| axios | GHSA-7q8q-rj6j-mhjq | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | action | - |
-| axios | GHSA-898c-q2cr-xwhg | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | action | - |
-| axios | GHSA-8hc4-vh64-cxmj | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | action | - |
-| axios | GHSA-9fr6-4gfg-395g | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | action | - |
-| axios | GHSA-fvcv-3m26-pcqx | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | action | - |
-| axios | GHSA-hfxv-24rg-xrqf | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | action | - |
-| axios | GHSA-j5f8-grm9-p9fc | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | action | - |
-| axios | GHSA-j8rh-479h-cp32 | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | action | - |
-| axios | GHSA-jr5f-v2jv-69x6 | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | action | - |
-| axios | GHSA-m7pr-hjqh-92cm | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | action | - |
-| axios | GHSA-mmx7-hfxf-jppx | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | action | - |
-| axios | GHSA-p92q-9vqr-4j8v | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | action | - |
-| axios | GHSA-pf86-5x62-jrwf | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | action | - |
-| axios | GHSA-pmv8-rq9r-6j72 | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | action | - |
-| axios | GHSA-pmwg-cvhr-8vh7 | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | action | - |
-| axios | GHSA-q8qp-cvcw-x6jj | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | action | - |
-| axios | GHSA-vf2m-468p-8v99 | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | action | - |
-| axios | GHSA-w9j2-pvgh-6h63 | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | action | - |
-| axios | GHSA-xhjh-pmcv-23jw | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | action | - |
-| axios | GHSA-xx6v-rp6x-q39c | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | action | - |
+| axios | GHSA-35jp-ww65-95wh | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | filtered | test only |
+| axios | GHSA-3g43-6gmg-66jw | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | filtered | test only |
+| axios | GHSA-3p68-rc4w-qgx5 | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | filtered | test only |
+| axios | GHSA-3w6x-2g7m-8v23 | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | filtered | test only |
+| axios | GHSA-42h9-826w-cgv3 | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | filtered | test only |
+| axios | GHSA-43fc-jf86-j433 | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | filtered | test only |
+| axios | GHSA-445q-vr5w-6q77 | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | filtered | test only |
+| axios | GHSA-4hjh-wcwx-xvwj | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | filtered | test only |
+| axios | GHSA-5c9x-8gcm-mpgx | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | filtered | test only |
+| axios | GHSA-62hf-57xw-28j9 | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | filtered | test only |
+| axios | GHSA-6chq-wfr3-2hj9 | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | filtered | test only |
+| axios | GHSA-7q8q-rj6j-mhjq | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | filtered | test only |
+| axios | GHSA-898c-q2cr-xwhg | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | filtered | test only |
+| axios | GHSA-8hc4-vh64-cxmj | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | filtered | test only |
+| axios | GHSA-9fr6-4gfg-395g | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | filtered | test only |
+| axios | GHSA-fvcv-3m26-pcqx | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | filtered | test only |
+| axios | GHSA-hfxv-24rg-xrqf | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | filtered | test only |
+| axios | GHSA-j5f8-grm9-p9fc | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | filtered | test only |
+| axios | GHSA-j8rh-479h-cp32 | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | filtered | test only |
+| axios | GHSA-jr5f-v2jv-69x6 | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | filtered | test only |
+| axios | GHSA-m7pr-hjqh-92cm | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | filtered | test only |
+| axios | GHSA-mmx7-hfxf-jppx | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | filtered | test only |
+| axios | GHSA-p92q-9vqr-4j8v | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | filtered | test only |
+| axios | GHSA-pf86-5x62-jrwf | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | filtered | test only |
+| axios | GHSA-pmv8-rq9r-6j72 | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | filtered | test only |
+| axios | GHSA-pmwg-cvhr-8vh7 | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | filtered | test only |
+| axios | GHSA-q8qp-cvcw-x6jj | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | filtered | test only |
+| axios | GHSA-vf2m-468p-8v99 | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | filtered | test only |
+| axios | GHSA-w9j2-pvgh-6h63 | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | filtered | test only |
+| axios | GHSA-xhjh-pmcv-23jw | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | filtered | test only |
+| axios | GHSA-xx6v-rp6x-q39c | high | direct | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, nx | filtered | test only |
 | body-parser | GHSA-27r3-jxmh-p828 | high | direct | express | action | - |
 | body-parser | GHSA-qwcr-r2fm-qrc7 | high | direct | express | action | - |
 | body-parser | GHSA-v422-hmwv-36x6 | high | direct | express | action | - |
@@ -557,8 +557,8 @@ projects: `pip-audit --no-deps` on every version pinned in `uv.lock`/`poetry.loc
 | follow-redirects | GHSA-cxjh-pqwp-8mfp | moderate | transitive | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, axios, nx | action | - |
 | follow-redirects | GHSA-jchw-25xp-jwwc | moderate | transitive | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, axios, nx | action | - |
 | follow-redirects | GHSA-r4q5-vmmm-2653 | moderate | transitive | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, axios, nx | action | - |
-| form-data | GHSA-fjxv-7rqg-78g4 | critical | transitive | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, axios, nx | action | - |
-| form-data | GHSA-hmw2-7cc7-3qxx | critical | transitive | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, axios, nx | action | - |
+| form-data | GHSA-fjxv-7rqg-78g4 | critical | transitive | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, axios, nx | filtered | test only |
+| form-data | GHSA-hmw2-7cc7-3qxx | critical | transitive | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, axios, nx | filtered | test only |
 | js-yaml | GHSA-2883-xcg3-v3hh | high | transitive | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, @typescript-eslint/eslint-plugin, @typescript-eslint/parser, eslint, eslint-config-prettier, jest, jest-mock-extended, nx, ts-jest | filtered | dev dependency |
 | js-yaml | GHSA-52cp-r559-cp3m | high | transitive | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, @typescript-eslint/eslint-plugin, @typescript-eslint/parser, eslint, eslint-config-prettier, jest, jest-mock-extended, nx, ts-jest | filtered | dev dependency |
 | js-yaml | GHSA-5p4m-2wfm-xmqj | high | transitive | @nx/esbuild, @nx/eslint, @nx/eslint-plugin, @nx/jest, @nx/js, @nx/node, @nx/workspace, @typescript-eslint/eslint-plugin, @typescript-eslint/parser, eslint, eslint-config-prettier, jest, jest-mock-extended, nx, ts-jest | filtered | dev dependency |
@@ -622,16 +622,16 @@ them on reachability. Kept as parser regression tests, not as evidence.
 
 | Scenario | Parser | Total | Action | Review | Filtered | Filter rate | Time |
 |----------|--------|------:|-------:|-------:|---------:|------------:|-----:|
-| npm-express-app | npm | 15 | 9 | 1 | 5 | **33%** | 1ms |
-| pip-django-app | pip | 9 | 6 | 0 | 3 | **33%** | 1ms |
-| trivy-node-container | trivy | 8 | 0 | 0 | 8 | **100%** | 1ms |
-| grype-python-container | grype | 6 | 3 | 0 | 3 | **50%** | 1ms |
+| npm-express-app | npm | 15 | 9 | 1 | 5 | **33%** | 2ms |
+| pip-django-app | pip | 9 | 9 | 0 | 0 | **0%** | 1ms |
+| trivy-node-container | trivy | 8 | 6 | 0 | 2 | **25%** | 1ms |
+| grype-python-container | grype | 6 | 6 | 0 | 0 | **0%** | 1ms |
 
-| Scenario | Unreachable | Dev-only | Low EPSS | Template |
-|----------|------------:|---------:|---------:|---------:|
-| npm-express-app | 5 | 4 | 0 | 0 |
-| pip-django-app | 0 | 0 | 0 | 3 |
-| trivy-node-container | 2 | 0 | 0 | 7 |
-| grype-python-container | 0 | 0 | 0 | 3 |
+| Scenario | Unreachable | Test-only | Dev-only | Low EPSS | Template |
+|----------|------------:|----------:|---------:|---------:|---------:|
+| npm-express-app | 5 | 0 | 4 | 0 | 0 |
+| pip-django-app | 0 | 0 | 0 | 0 | 0 |
+| trivy-node-container | 2 | 0 | 1 | 0 | 1 |
+| grype-python-container | 0 | 0 | 0 | 0 | 0 |
 
 *Generated by `benchmarks/run_benchmark.py`. Do not edit by hand.*

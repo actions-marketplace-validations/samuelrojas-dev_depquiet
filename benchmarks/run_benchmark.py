@@ -162,13 +162,14 @@ def _summary_table(results: list[BenchResult]) -> list[str]:
         )
     lines += [
         "",
-        "| Scenario | Unreachable | Dev-only | Low EPSS | Template |",
-        "|----------|------------:|---------:|---------:|---------:|",
+        "| Scenario | Unreachable | Test-only | Dev-only | Low EPSS | Template |",
+        "|----------|------------:|----------:|---------:|---------:|---------:|",
     ]
     for r in results:
         lines.append(
             f"| {r.name} "
             f"| {r.reasons.get('unreachable', 0)} "
+            f"| {r.reasons.get('test_only', 0)} "
             f"| {r.reasons.get('dev_dependency', 0)} "
             f"| {r.reasons.get('low_epss', 0)} "
             f"| {r.reasons.get('community_template', 0)} |"
