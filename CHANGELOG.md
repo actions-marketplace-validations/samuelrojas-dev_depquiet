@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.35.0] - 2026-11-11
+
+### Added
+- A project with JavaScript (npm or pnpm) and Python dependencies is scanned for
+  both in one run, each with its own scanner and triaged against its own graph.
+  Until now a default run scanned the first ecosystem found and only named the
+  other in a note. Each finding carries the package manager that reported it, in
+  the JSON report and in `fix`, SARIF locations and annotations; finding
+  identities match a single-ecosystem scan, so existing baselines keep working.
+  If one scanner fails, the other's findings are kept and the note names the
+  ecosystem that was not scanned. `--scanner` still limits a run to one.
+- The license report covers every ecosystem of a merged scan.
+
 ## [0.34.0] - 2026-11-11
 
 ### Added
@@ -697,7 +710,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.34.0...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.35.0...HEAD
+[0.35.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.34.0...v0.35.0
 [0.34.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.33.2...v0.34.0
 [0.33.2]: https://github.com/samuelrojas-dev/depquiet/compare/v0.33.1...v0.33.2
 [0.33.1]: https://github.com/samuelrojas-dev/depquiet/compare/v0.33.0...v0.33.1

@@ -98,7 +98,8 @@ def build_annotations(
     for tr in result.results:
         if tr.verdict == Verdict.FILTERED:
             continue
-        annotations.append(_finding_to_annotation(tr, manifest, result.project_path))
+        own = manifest_path or _MANIFEST_FILES.get(tr.vuln.package_manager, manifest)
+        annotations.append(_finding_to_annotation(tr, own, result.project_path))
 
     # Build summary text
     action_count = len(result.action)

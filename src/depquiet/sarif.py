@@ -54,7 +54,9 @@ def to_sarif(result: ScanResult) -> dict[str, Any]:
             "message": {
                 "text": _build_message(tr),
             },
-            "locations": _build_locations(tr, result.project_path, result.package_manager),
+            "locations": _build_locations(
+                tr, result.project_path, tr.vuln.package_manager or result.package_manager
+            ),
             "properties": {
                 "assessment": assess_finding(tr).to_dict(),
                 "evidence": asdict(tr.evidence),

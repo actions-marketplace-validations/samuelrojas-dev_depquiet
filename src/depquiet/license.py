@@ -413,12 +413,13 @@ def scan_licenses(project: Path, package_manager: str | None = None) -> LicenseR
         else:
             pm = "unknown"
 
-    if pm == "npm":
-        packages = scan_npm_licenses(project)
-    elif pm == "pip":
-        packages = scan_pip_licenses(project)
-    else:
-        packages = []
+    # "npm+pip" from a scan that merged ecosystems: report each one's licenses.
+    packages = []
+    for manager in pm.split("+"):
+        if manager in ("npm", "pnpm"):
+            packages += scan_npm_licenses(project)
+        elif manager == "pip":
+            packages += scan_pip_licenses(project)
 
     return LicenseReport(
         packages=packages,
