@@ -201,3 +201,13 @@ def test_explicit_uv_scanner_and_fix(tmp_path: Path, monkeypatch: pytest.MonkeyP
     assert any(
         f.message == "Would run: uv lock --upgrade-package oauthlib==4.0.1" for f in fixes.fixed
     )
+
+
+def test_header_counts_vulnerable_packages_not_audited_ones(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """saleor: uv audited 231 packages; 4 of them have alerts."""
+    from depquiet.output import print_scan_result
+
+    print_scan_result(scan(_saleor_like(tmp_path), audit_json=_report(), skip_epss=True))
+    assert "(4 vulnerable packages)" in capsys.readouterr().out
