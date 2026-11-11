@@ -110,8 +110,7 @@ def test_unrelated_npm_manifest_cannot_classify_a_pypi_name_as_dev_only(tmp_path
     _json(tmp_path / "examples/demo/package.json", {"devDependencies": {"fixture-lib": "1"}})
     [finding] = scan(tmp_path, audit_json=_pip(), skip_epss=True).results
     assert finding.verdict == Verdict.ACTION
-    assert finding.evidence.graph_coverage_complete is False
-    assert any("multiple ecosystems" in note for note in finding.evidence.observations)
+    assert finding.dependency_type == "direct"
     assert not finding.reasons
 
 

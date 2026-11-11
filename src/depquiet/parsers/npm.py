@@ -52,7 +52,11 @@ class NpmAuditParser:
     @staticmethod
     def detect(project: Path) -> bool:
         """Check if this is an npm project."""
-        return (project / "package-lock.json").exists() or (project / "yarn.lock").exists()
+        # ``npm audit`` needs npm's own lockfile. A Yarn or pnpm project is
+        # scanned from its lockfile through OSV.dev instead of failing here first.
+        return (project / "package-lock.json").exists() or (
+            project / "npm-shrinkwrap.json"
+        ).exists()
 
     @staticmethod
     def run_audit(project: Path) -> dict[str, Any]:

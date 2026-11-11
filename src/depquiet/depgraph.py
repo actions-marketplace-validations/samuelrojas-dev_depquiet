@@ -140,10 +140,12 @@ class DependencyGraph:
         self.commands |= other.commands
         self.coverage_complete = self.coverage_complete and other.coverage_complete
         self.coverage_observations.extend(other.coverage_observations)
+        # A name shared by two ecosystems (``glob`` on npm and crates.io) is one
+        # node here. Its edges, roots and production declarations are the union
+        # of both packages, so every filter that needs an absence (dev-only,
+        # unused) sees a superset of the real paths and stays conservative.
         for name, ecosystems in other._ecosystems.items():
             self._ecosystems.setdefault(name, set()).update(ecosystems)
-            if len(self._ecosystems[name]) > 1:
-                _incomplete(self, f"{name}: dependency name occurs in multiple ecosystems")
 
     # -- queries ----------------------------------------------------------
 
@@ -220,8 +222,15 @@ class DependencyGraph:
     # -- loading ----------------------------------------------------------
 
     @classmethod
-    def from_project(cls, project: Path) -> DependencyGraph:
+    def from_project(cls, project: Path, *, ecosystem: str | None = None) -> DependencyGraph:
         """Build the graph from every supported manifest/lockfile in ``project``.
+
+        ``ecosystem`` ("npm", "python", ...) keeps only that ecosystem's
+        manifests and lockfiles, for a report known to come from one package
+        manager: an npm advisory for ``glob`` is not about the crate of the
+        same name, and a Cargo.lock path to that crate is not a path to it.
+        Command files (Dockerfile, Procfile) always count. Without it every
+        ecosystem is merged by name, which only adds paths.
 
         Unreadable, malformed or ambiguous inputs leave recorded incomplete
         coverage. They cannot justify development-only or absence decisions.
@@ -244,9 +253,18 @@ class DependencyGraph:
             graph.coverage_observations.append(f".: inspect project directory: {exc}")
             return graph
         discovery = discover_workspaces(project)
-        if discovery.declared:
-            return _workspace_graph(project, discovery.members, discovery.observations)
-        graph = _load_scope(project, project, recursive=True)
+        members = {
+            member: {name for name in files if _in_ecosystem(name, ecosystem)}
+            for member, files in discovery.members.items()
+        }
+        if discovery.declared and any(members.values()):
+            return _workspace_graph(
+                project,
+                {member: files for member, files in members.items() if files or member == "."},
+                discovery.observations,
+                ecosystem,
+            )
+        graph = _load_scope(project, project, recursive=True, ecosystem=ecosystem)
         for note in discovery.observations:
             _incomplete(graph, note)
         return graph
@@ -258,6 +276,10 @@ def _incomplete(graph: DependencyGraph, note: str) -> None:
         graph.coverage_observations.append(note)
 
 
+def _in_ecosystem(filename: str, ecosystem: str | None) -> bool:
+    return ecosystem is None or _source_ecosystem(filename) in ("", ecosystem)
+
+
 def _load_scope(
     scope: Path,
     project: Path,
@@ -265,6 +287,7 @@ def _load_scope(
     recursive: bool,
     skip: set[Path] | None = None,
     locks_edges_only: bool = False,
+    ecosystem: str | None = None,
 ) -> DependencyGraph:
     graph = DependencyGraph(scope_path=scope.relative_to(project).as_posix())
     for path in _iter_files(
@@ -275,7 +298,7 @@ def _load_scope(
             f"{path.relative_to(project).as_posix()}: enumerate/inspect graph source: {error}",
         ),
     ):
-        if skip and path in skip:
+        if (skip and path in skip) or not _in_ecosystem(path.name, ecosystem):
             continue
         _merge_source(
             graph, path, project, edges_only=locks_edges_only and path.name in _WORKSPACE_LOCKS
@@ -334,11 +357,23 @@ def _merge_source(
         graph.merge(part)
 
 
-_WORKSPACE_LOCKS = {"package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "uv.lock"}
+_WORKSPACE_LOCKS = {
+    "package-lock.json",
+    "npm-shrinkwrap.json",
+    "yarn.lock",
+    "pnpm-lock.yaml",
+    "uv.lock",
+}
 
 
 def _source_ecosystem(filename: str) -> str:
-    if filename in {"package.json", "package-lock.json", "npm-shrinkwrap.json", "yarn.lock"}:
+    if filename in {
+        "package.json",
+        "package-lock.json",
+        "npm-shrinkwrap.json",
+        "yarn.lock",
+        "pnpm-lock.yaml",
+    }:
         return "npm"
     if filename in {
         "pyproject.toml",
@@ -360,44 +395,11 @@ def _source_ecosystem(filename: str) -> str:
     }.get(filename, "")
 
 
-def _lock_inventory(path: Path) -> tuple[set[str], set[str]]:
-    """Return names and collisions that a name-only graph cannot attribute."""
-    identities: dict[str, set[str]] = {}
-
-    def record(name: str, info: dict[str, Any]) -> None:
-        if name:
-            identity = json.dumps(
-                {key: info.get(key) for key in ("version", "source", "dependencies", "requires")},
-                sort_keys=True,
-            )
-            identities.setdefault(
-                _pep503(name) if path.name == "uv.lock" else _norm(name), set()
-            ).add(identity)
-
-    text = path.read_text(encoding="utf-8")
-    if path.name == "uv.lock":
-        for package in tomllib.loads(text).get("package", []):
-            record(package["name"], package)
-    elif path.name in {"package-lock.json", "npm-shrinkwrap.json"}:
-        data = json.loads(text)
-        packages = data.get("packages")
-        if isinstance(packages, dict) and packages:
-            for location, info in packages.items():
-                if location:
-                    record(info.get("name") or _npm_name_from_key(location), info)
-        else:
-
-            def walk(dependencies: dict[str, Any]) -> None:
-                for name, info in dependencies.items():
-                    record(name, info)
-                    walk(info.get("dependencies") or {})
-
-            walk(data.get("dependencies") or {})
-    return set(identities), {name for name, versions in identities.items() if len(versions) > 1}
-
-
 def _workspace_graph(
-    project: Path, members: dict[str, set[str]], observations: list[str]
+    project: Path,
+    members: dict[str, set[str]],
+    observations: list[str],
+    ecosystem: str | None = None,
 ) -> DependencyGraph:
     aggregate = DependencyGraph()
     shared = DependencyGraph()
@@ -409,26 +411,27 @@ def _workspace_graph(
         ),
     )
     shared_paths = {path for path in files if path.name in _WORKSPACE_LOCKS}
-    if any(path.name == "npm-shrinkwrap.json" for path in shared_paths):
-        selected = {path for path in shared_paths if path.name != "package-lock.json"}
+    in_scope = {path for path in shared_paths if _in_ecosystem(path.name, ecosystem)}
+    if any(path.name == "npm-shrinkwrap.json" for path in in_scope):
+        selected = {path for path in in_scope if path.name != "package-lock.json"}
     else:
-        selected = shared_paths
-    inventory: set[str] = set()
-    ambiguous: set[str] = set()
+        selected = in_scope
+    # Locks contribute edges by package name. Several locked versions of one
+    # name, and edges to optional packages that were never installed, make
+    # those edges a superset of any single installation, which cannot hide a
+    # path from a declared dependency to a reported package.
     for path in sorted(selected):
         _merge_source(shared, path, project, edges_only=True)
-        try:
-            names, collisions = _lock_inventory(path)
-            inventory |= names
-            ambiguous |= collisions
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, RecursionError) as exc:
-            _incomplete(shared, f"{path.name}: inspect lock resolution: {exc}")
     scopes: dict[str, DependencyGraph] = {}
-    owners: dict[str, str] = {}
     for member in sorted(members):
         scope = project / member
         local = _load_scope(
-            scope, project, recursive=False, skip=shared_paths, locks_edges_only=True
+            scope,
+            project,
+            recursive=False,
+            skip=shared_paths,
+            locks_edges_only=True,
+            ecosystem=ecosystem,
         )
         for note in observations:
             _incomplete(local, note)
@@ -445,10 +448,9 @@ def _workspace_graph(
                 )
                 if isinstance(name, str) and name:
                     key = _norm(name) if filename == "package.json" else _pep503(name)
-                    if key in owners and owners[key] != member:
-                        _incomplete(shared, f"{key}: duplicate workspace package names")
-                    owners[key] = member
-                    inventory.add(key)
+                    # Two members with one name (often the root and a package)
+                    # share a node: a reference to it reaches the production
+                    # dependencies of both, which only adds paths.
                     # A member's development tools are not its exported
                     # production dependencies when another member uses it.
                     for child in local.prod_direct:
@@ -465,25 +467,6 @@ def _workspace_graph(
                 if child not in closure:
                     closure.add(child)
                     pending.append(child)
-        conflicts = closure & ambiguous
-        if conflicts:
-            _incomplete(
-                local,
-                "shared lock has ambiguous dependency versions/resolution: "
-                + ", ".join(sorted(conflicts)),
-            )
-        if inventory:
-            unresolved = {
-                child
-                for parent in closure
-                for child in local.edges.get(parent, set())
-                if child not in inventory and child not in local.direct
-            }
-            if unresolved:
-                _incomplete(
-                    local,
-                    "shared lock has unresolved dependency edges: " + ", ".join(sorted(unresolved)),
-                )
         local.edges = {
             parent: children & closure
             for parent, children in local.edges.items()
@@ -498,6 +481,29 @@ def _workspace_graph(
         aggregate.merge(local)
     aggregate.workspace_graphs = scopes
     return aggregate
+
+
+def _is_graph_source_name(name: str) -> bool:
+    return (
+        name in _LOADERS
+        or (name.startswith("requirements") and name.endswith(".txt"))
+        or name.startswith("Dockerfile.")
+    )
+
+
+def _may_hide_graph_source(entry: Path, depth: int, max_depth: int) -> bool:
+    if _is_graph_source_name(entry.name):
+        return True
+    try:
+        is_dir = entry.is_dir()
+    except OSError:
+        return True
+    return (
+        is_dir
+        and depth < max_depth
+        and entry.name not in _SKIP_DIRS
+        and not entry.name.startswith(".")
+    )
 
 
 def _iter_files(
@@ -519,7 +525,10 @@ def _iter_files(
         for e in entries:
             try:
                 if e.is_symlink() or not e.resolve().is_relative_to(project.resolve()):
-                    if on_error:
+                    # Never followed. Only a link that could stand in for a
+                    # manifest, a lockfile or a directory holding one leaves
+                    # the graph incomplete; a linked README or data file cannot.
+                    if on_error and _may_hide_graph_source(e, depth, max_depth):
                         on_error(e, OSError("symlink or graph source escapes project"))
                     continue
                 if e.is_dir():
@@ -609,6 +618,15 @@ def _load_package_lock(path: Path) -> DependencyGraph:
             for key in _NPM_DEP_KEYS:
                 for name in root.get(key) or {}:
                     g.add_direct(name, dev=key == "devDependencies")
+        # ``"string-width-cjs": "npm:string-width@^4"`` installs string-width
+        # under another folder name. Dependents and manifests list the alias,
+        # advisories name the real package, so the alias points at the real name.
+        aliases: dict[str, set[str]] = {}
+        for key, info in packages.items():
+            if key and isinstance(info, dict) and isinstance(info.get("name"), str):
+                installed_as = _npm_name_from_key(key)
+                if "node_modules/" in key and installed_as != info["name"]:
+                    aliases.setdefault(installed_as, set()).add(info["name"])
         for key, info in packages.items():
             if not isinstance(info, dict):
                 raise ValueError("npm lock package entries must be objects")
@@ -628,6 +646,9 @@ def _load_package_lock(path: Path) -> DependencyGraph:
                     raise ValueError(f"npm lock {dep_key} must be an object")
                 for child in dependencies:
                     g.add_edge(parent, child)
+        for alias, targets in aliases.items():
+            for real in targets:
+                g.add_edge(alias, real)
         return g
 
     # lockfileVersion 1: nested "dependencies" with "requires"
@@ -647,12 +668,13 @@ def _load_package_lock(path: Path) -> DependencyGraph:
 
 _YARN_DEP_SECTIONS = ("dependencies", "optionalDependencies", "peerDependencies")
 _YARN_HEADER = re.compile(r'^"?(@?[^@"\s,]+)@')
+_YARN_ALIAS = re.compile(r"@npm:((?:@[^/@\s]+/)?[^/@\s:]+)@")
 
 
 def _load_yarn_lock(path: Path) -> DependencyGraph:
     """yarn.lock v1 and berry: headers at column 0, deps indented under ``dependencies:``."""
     g = DependencyGraph()
-    current: str | None = None
+    current: list[str] = []
     in_deps = False
     for raw in path.read_text(encoding="utf-8").splitlines():
         if not raw.strip() or raw.lstrip().startswith("#"):
@@ -661,13 +683,42 @@ def _load_yarn_lock(path: Path) -> DependencyGraph:
         line = raw.strip()
         if indent == 0:
             m = _YARN_HEADER.match(line)
-            current = m.group(1) if m else None
+            current = [m.group(1)] if m else []
+            # ``"x-cjs@npm:x@^4"`` installs x under the name x-cjs: its
+            # dependencies belong to both names, and the alias leads to x.
+            real = _YARN_ALIAS.search(line)
+            if current and real and real.group(1) != current[0]:
+                g.add_edge(current[0], real.group(1))
+                current.append(real.group(1))
             in_deps = False
         elif indent == 2:
             in_deps = line.rstrip(":") in _YARN_DEP_SECTIONS
         elif indent >= 4 and in_deps and current:
             name = line.split(":", 1)[0] if ":" in line.split(" ", 1)[0] else line.split(" ", 1)[0]
-            g.add_edge(current, name.strip('"'))
+            for parent in current:
+                g.add_edge(parent, name.strip('"'))
+    return g
+
+
+def _load_pnpm_lock(path: Path) -> DependencyGraph:
+    """pnpm-lock.yaml: direct dependencies of every importer, and package edges.
+
+    pnpm declares its workspaces in ``pnpm-workspace.yaml``, not in
+    ``package.json``, and the lockfile lists each one as an importer with its
+    own dependencies. They are merged into one project here: a package is
+    development-only when no importer lists it, or a parent of it, for
+    production.
+    """
+    from depquiet.pnpm_lock import parse_pnpm_lock
+
+    lock = parse_pnpm_lock(path)
+    g = DependencyGraph()
+    for importer in lock.importers.values():
+        for name, dev in importer.items():
+            g.add_direct(name, dev=dev)
+    for parent, children in lock.edges.items():
+        for child in children:
+            g.add_edge(parent, child)
     return g
 
 
@@ -735,7 +786,11 @@ def _load_pyproject(path: Path) -> DependencyGraph | None:
     entries += [(n, True) for n in poetry.get("dev-dependencies") or {}]
     for grp in (poetry.get("group") or {}).values():
         entries += [(n, True) for n in (grp or {}).get("dependencies") or {}]
-    entries = [(n, dev) for n, dev in entries if n and n.lower() != "python"]
+    # ``all = ["myproject[a,b]"]`` names the project itself to combine extras.
+    # The project is not one of its own dependencies: as a root it would be
+    # "imported" by every file in the repository and vouch for everything.
+    own = _pep503(str(project.get("name") or poetry.get("name") or ""))
+    entries = [(n, dev) for n, dev in entries if n and n.lower() != "python" and _pep503(n) != own]
     if not entries:
         return DependencyGraph(has_manifest=True) if project else None
     g = DependencyGraph(has_manifest=True)
@@ -832,7 +887,16 @@ def _load_uv_lock(path: Path) -> DependencyGraph:
     """
     data = tomllib.loads(path.read_text(encoding="utf-8"))
     g = DependencyGraph()
-    for pkg in data.get("package") or []:
+    packages = data.get("package") or []
+    # The project and its workspace members. They are where dependencies come
+    # from, never dependencies themselves, even when an extra refers back to
+    # the project (``all = ["myproject[a,b]"]``).
+    own = {
+        _pep503(pkg.get("name", ""))
+        for pkg in packages
+        if "virtual" in (pkg.get("source") or {}) or "editable" in (pkg.get("source") or {})
+    }
+    for pkg in packages:
         name = pkg.get("name", "")
         source = pkg.get("source") or {}
         prod = _uv_names(pkg.get("dependencies"))
@@ -844,9 +908,11 @@ def _load_uv_lock(path: Path) -> DependencyGraph:
         if "virtual" in source or "editable" in source:
             g.has_manifest = True
             for d in prod:
-                g.add_direct(d, python=True)
+                if _pep503(d) not in own:
+                    g.add_direct(d, python=True)
             for d in dev:
-                g.add_direct(d, python=True, dev=True)
+                if _pep503(d) not in own:
+                    g.add_direct(d, python=True, dev=True)
         for d in prod + dev:
             g.add_edge(_pep503(name), _pep503(d))
     return g
@@ -1013,6 +1079,7 @@ _LOADERS: dict[str, Any] = {
     "package-lock.json": _load_package_lock,
     "npm-shrinkwrap.json": _load_package_lock,
     "yarn.lock": _load_yarn_lock,
+    "pnpm-lock.yaml": _load_pnpm_lock,
     "pyproject.toml": _load_pyproject,
     "Pipfile": _load_pipfile,
     "requirements.in": _load_requirements_in,

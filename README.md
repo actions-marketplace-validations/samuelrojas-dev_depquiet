@@ -54,7 +54,7 @@ npm audit --json | depquiet --stdin        # or triage any scanner's output
 depquiet explain GHSA-9wv6-86v2-598j       # why did this alert get its verdict?
 ```
 
-Works on npm, yarn, Python (uv, Poetry, pip-tools, Pipfile), Rust, Ruby, PHP, .NET, Dart, Go
+Works on npm, pnpm, Yarn, Python (uv, Poetry, pip-tools, Pipfile), Rust, Ruby, PHP, .NET, Dart, Go
 and Maven projects. In CI, use the [GitHub Action](#github-actions-marketplace).
 
 ## The problem
@@ -76,7 +76,7 @@ depquiet applies five deterministic filters to separate signal from noise:
 |---|---|
 | **Reachability** | No source file imports the package, and (for a transitive package) no source file imports any direct dependency that pulls it in |
 | **Test-only use** | The package is imported, but only from test files (`tests/`, `e2e/`, `*.test.*`, `*.spec.*`, test-runner configs), it is not run as a project command, and no application file names it |
-| **Dev dependencies** | Every known dependency path is for development, with no production parent |
+| **Dev dependencies** | Every known dependency path is for development, with no production parent. For npm, also when every locked copy inside the advisory's range is one the lockfile marks as development-only |
 | **EPSS scoring** | The CVE's probability of exploitation is below the threshold (default 10%) |
 | **Community templates** | A matching template's dismissal conditions can be verified against the project |
 
@@ -108,6 +108,7 @@ depquiet accepts output from any vulnerability scanner — natively or via SARIF
 |---|---|---|
 | **None (standalone)** | **Lockfiles** | **`depquiet` (auto-detects lockfiles, queries OSV.dev)** |
 | npm audit | JSON | `npm audit --json \| depquiet --stdin` |
+| pnpm audit | JSON | `depquiet` in a project with `pnpm-lock.yaml`, or `pnpm audit --json \| depquiet --stdin` |
 | pip-audit | JSON | `pip-audit --format json \| depquiet --stdin` |
 | Trivy | JSON or SARIF | `trivy fs --format json . \| depquiet --stdin` |
 | Grype | JSON | `grype dir:. -o json \| depquiet --stdin` |
@@ -140,8 +141,8 @@ When no scanner output is piped in and no native package manager is detected, de
 
 | Lockfile | Ecosystem |
 |---|---|
-| `package-lock.json` / `yarn.lock` | npm |
-| `requirements.txt` / `Pipfile.lock` | PyPI |
+| `package-lock.json` / `yarn.lock` (Yarn 1 and Berry) / `pnpm-lock.yaml` (v5 to v9) | npm |
+| `uv.lock` / `poetry.lock` / `requirements.txt` / `Pipfile.lock` | PyPI |
 | `go.sum` | Go |
 | `Cargo.lock` | crates.io |
 | `pubspec.lock` | Pub (Dart/Flutter) |
@@ -152,7 +153,12 @@ When no scanner output is piped in and no native package manager is detected, de
 Multiple lockfiles in the same project are merged and deduplicated. OSV.dev queries
 are batched in groups of up to 1000 packages, then each distinct advisory is fetched
 for its severity, CVE aliases and fixed versions. All pages and advisory lookups must
-succeed before the scan is considered complete. Use `--offline` to skip OSV.dev queries.
+succeed before the scan is considered complete, and a lockfile that cannot be parsed stops
+the scan instead of being left out of it. Use `--offline` to skip OSV.dev queries.
+
+A project with `pnpm-lock.yaml` is audited with `pnpm audit` when pnpm is installed, and
+through OSV.dev otherwise. A Yarn project is scanned from `yarn.lock` through OSV.dev:
+`npm audit` cannot read that file.
 
 ### SBOM generation (CycloneDX + SPDX)
 
@@ -203,9 +209,15 @@ discovered beyond the legacy depth limit. A package used by a production member
 cannot be classified as dev-only solely from the root's declaration.
 
 Scan JSON and saved `explain` output retain per-workspace usage, dependency roots
-and coverage. Unreadable/malformed manifests, ambiguous shared-lock versions or
+and coverage. Unreadable/malformed manifests, links that could hide a manifest or
 recognized loaders with nonliteral targets block automatic absence-based
-decisions. Positive imports remain visible alongside uncertainty.
+decisions. Several locked versions of one package, duplicate member names and
+names shared between ecosystems do not: their edges are merged, which can only
+add dependency paths. Positive imports remain visible alongside uncertainty.
+
+One run audits one package manager. In a project with both npm and Python
+dependencies the report says which one was left out, and `--scanner npm` or
+`--scanner pip` chooses.
 
 The analysis is bounded: initial workspace support covers npm and uv declarations,
 and finding-to-workspace associations use conservative dependency names rather
@@ -314,7 +326,7 @@ depquiet builds a dependency graph from the project before filtering:
 
 | Ecosystem | Direct dependencies from | Dependency paths from |
 |---|---|---|
-| npm | `package.json`, `package-lock.json` | `package-lock.json` (v1-v3), `yarn.lock` (v1, berry) |
+| npm | `package.json`, `package-lock.json`, `pnpm-lock.yaml` importers | `package-lock.json` (v1-v3), `yarn.lock` (v1, berry), `pnpm-lock.yaml` (v5-v9) |
 | Python | `uv.lock`, `pyproject.toml` (PEP 621, PEP 735, Poetry), `Pipfile`, `requirements.in`, hand-written `requirements.txt` | `uv.lock`, `poetry.lock`, pip-compile `# via` comments |
 | Rust | `Cargo.lock` workspace crates | `Cargo.lock` |
 | Ruby | `Gemfile.lock` | `Gemfile.lock` |
@@ -334,8 +346,13 @@ Rules, in order:
 A direct dependency is **used** when any of these holds:
 
 - a source file imports it. Python distribution names are mapped to module names
-  (`PyYAML` → `yaml`, `llama-index-core` → `llama_index`) from installed metadata in the
-  project's virtualenv, a table of known mismatches, and naming rules;
+  (`PyYAML` → `yaml`, `llama-index-core` → `llama_index`). When the package is installed, in
+  the project's virtualenv or in the environment depquiet runs in, its recorded modules are
+  used. Otherwise depquiet tries a table of known mismatches and every name the distribution
+  name allows, including a bare prefix: `django-auth-ldap` is matched by `import django`.
+  Such a match keeps the alert, and the report says it rests on a name guess instead of
+  listing those files as usage. Run depquiet where the dependencies are installed to get
+  exact answers;
 - the project runs one of its executables: `pm2 start` in a `package.json` script, a
   `Procfile` entry, or a Dockerfile command;
 - it is named in the project's code, scripts or config (`INSTALLED_APPS = ["allauth"]`,
@@ -383,6 +400,10 @@ checkmarx-cli scan --output-format sarif | depquiet --stdin
 
 # Fully offline (skip EPSS API)
 depquiet --offline
+
+# A repo with both package-lock.json and uv.lock: one run per ecosystem
+depquiet --scanner npm
+depquiet --scanner pip
 
 # SARIF output for GitHub Code Scanning
 depquiet --sarif results.sarif
@@ -1077,14 +1098,14 @@ app pinned to 2022 versions. npm projects are audited with `npm audit`, Python p
 | Project | Scanner | Alerts | Filtered by 0.27 | Filtered now | Filtered by 0.27, kept now |
 |---|---|---:|---:|---:|---:|
 | [mealie-recipes/mealie](https://github.com/mealie-recipes/mealie) | pip-audit | 229 | 200 | 31 | 170 |
-| [hagopj13/node-express-boilerplate](https://github.com/hagopj13/node-express-boilerplate) | npm audit | 163 | 115 | 18 | 97 |
+| [hagopj13/node-express-boilerplate](https://github.com/hagopj13/node-express-boilerplate) | npm audit | 163 | 115 | 29 | 86 |
 | [gothinkster/node-express-realworld-example-app](https://github.com/gothinkster/node-express-realworld-example-app) | npm audit | 95 | 59 | 74 | 16 |
 | Express app, 2022 versions | npm audit | 29 | 26 | 13 | 13 |
 | [paperless-ngx/paperless-ngx](https://github.com/paperless-ngx/paperless-ngx) | pip-audit | 17 | 17 | 0 | 17 |
 | [sahat/hackathon-starter](https://github.com/sahat/hackathon-starter) | npm audit | 2 | 2 | 2 | 0 |
-| **Total** | | **535** | **419 (78%)** | **138 (26%)** | **313** |
+| **Total** | | **535** | **419 (78%)** | **149 (28%)** | **302** |
 
-0.27 dismissed 313 alerts without evidence. It counted any package the app didn't import
+0.27 dismissed 302 alerts without evidence. It counted any package the app didn't import
 itself as unreachable, which is true of nearly every transitive package, and it compared
 Python distribution names literally, so `Django`, `PyYAML` or `llama-index-core` never matched
 `import django`, `import yaml` or `import llama_index`.
@@ -1096,6 +1117,14 @@ What depquiet filters now is almost entirely packages that only development tool
 alerts that `--omit=dev` keeps are filtered as test-only. On these projects nearly every
 other production dependency is in use, so the useful output is less the filtering than the trace: each kept
 alert names the direct dependency it comes through and where the app uses it.
+
+The same comparison on five larger projects at their head on 2026-11-10 (Kong/insomnia
+`8891ce2`, open-webui `b0e6098`, saleor `ea4a69f`, uptime-kuma `fb8ef0f`, wekan `77239ee`;
+188 npm alerts) gives the same picture: depquiet
+filters the 85 alerts `npm audit --omit=dev` drops, row for row, and nothing else. On npm,
+expect depquiet to match `--omit=dev` and explain the rest, not to beat it. Python is
+different, because `pip-audit` has no equivalent switch: on saleor's `uv.lock`, 14 of 16
+alerts come from packages only its development groups install.
 
 Run them yourself: `python -I benchmarks/run_benchmark.py`. The first run clones the pinned
 commits into `benchmarks/.cache/`; `benchmarks/capture_real.py` re-captures the audits. The

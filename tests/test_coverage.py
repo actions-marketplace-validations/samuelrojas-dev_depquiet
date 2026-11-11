@@ -129,18 +129,29 @@ class TestPipAuditParser:
             vulns = PipAuditParser.parse(audit_json, Path(tmp))
         assert all(v.is_direct is True for v in vulns)
 
-    def test_run_audit_not_installed(self):
+    def test_run_audit_not_installed(self, monkeypatch):
         """pip-audit not installed → returns empty dict."""
+        self._without_pip_audit(monkeypatch)
         with tempfile.TemporaryDirectory() as tmp:
             result = PipAuditParser.run_audit(Path(tmp))
         assert result == {}
 
-    def test_scan_integration(self):
+    def test_scan_integration(self, monkeypatch):
         """scan() calls run_audit + parse."""
+        self._without_pip_audit(monkeypatch)
         with tempfile.TemporaryDirectory() as tmp:
-            # pip-audit is not installed, so scan returns []
             vulns = PipAuditParser.scan(Path(tmp))
         assert vulns == []
+
+    @staticmethod
+    def _without_pip_audit(monkeypatch):
+        # Never run the developer's real pip-audit (and its network lookups).
+        import depquiet.parsers.pip as pip_parser
+
+        def missing(*args, **kwargs):
+            raise FileNotFoundError("pip-audit")
+
+        monkeypatch.setattr(pip_parser.subprocess, "run", missing)
 
 
 # ── EPSS filter ────────────────────────────────────────────────────────
@@ -789,10 +800,13 @@ class TestNpmEdgeCases:
         assert len(vulns) == 1
         assert vulns[0].cve == "GHSA-42"
 
-    def test_detect_yarn_lock(self):
+    def test_yarn_lock_alone_is_not_an_npm_audit_project(self):
+        """``npm audit`` cannot read yarn.lock; the lockfile scanner handles it."""
         with tempfile.TemporaryDirectory() as tmp:
             p = Path(tmp)
             (p / "yarn.lock").write_text("")
+            assert NpmAuditParser.detect(p) is False
+            (p / "npm-shrinkwrap.json").write_text("{}")
             assert NpmAuditParser.detect(p) is True
 
     def test_run_audit_not_installed(self):

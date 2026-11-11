@@ -22,6 +22,26 @@ Each candidate contains `ecosystem`, `package`, `version`, `location`, `lockfile
 `lockfile_sha256`, `instance_id`, `range_match`, and `reason`. Range status is
 `matched`, `not_matched` or `unknown`. It concerns version constraints only;
 none of these states establishes product impact or vulnerable-function execution.
+New reports also carry `lock_scope`: `development` when the lockfile entry has
+`"dev": true`, otherwise `production`. Reports saved before 0.33 have no such
+field and are read as unknown.
+
+## Development-only copies
+
+One package name is often installed several times: `uuid` 11 for the
+application and `uuid` 8 nested under a test runner. An advisory that covers
+only the old range concerns only the nested copy. When every reported location
+resolves (`component_resolution_complete`) and every copy whose `range_match` is
+not `not_matched` has `lock_scope: development`, the alert is filtered as a
+development dependency. This is the per-copy decision `npm audit --omit=dev`
+makes, read from the same flag, and it does not depend on the name-level graph.
+
+`devOptional` and `optional` copies are installed for production unless optional
+dependencies are omitted, so they count as production. A copy with an unknown
+range match counts as affected. A missing or unresolved location keeps the alert.
+The usual limit of a development label applies: a bundler can ship a
+`devDependencies` package inside a production artifact, and neither npm nor
+depquiet sees that.
 
 The instance ID hashes canonical ecosystem/name/version/location/relative-lockfile
 fields. Different locations remain separate even for the same version. Advisory

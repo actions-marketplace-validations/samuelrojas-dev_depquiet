@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-11-10
+
+### Added
+- pnpm projects. `pnpm-lock.yaml` (lockfile v5 to v9, including the two-document
+  layout of pnpm 10+) is read for the package list and the dependency graph, with
+  each importer's `dependencies` and `devDependencies`. A project with that
+  lockfile is audited with `pnpm audit` when pnpm is installed and through OSV.dev
+  otherwise, and `pnpm audit --json | depquiet --stdin` is accepted. pnpm's
+  per-finding `dev` flag filters an alert as development-only when every affected
+  installed version carries it. `--scanner pnpm` selects it explicitly.
+- Python usage evidence no longer lists files that only import a module sharing a
+  name prefix with the package (`import django` for `django-auth-ldap`). The alert
+  is still kept, and the report says the match is a name guess.
+- npm alerts are filtered as development-only when every locked copy inside the
+  advisory's range is marked `dev` in the lockfile, even if another copy of the
+  same package is a production dependency at an unaffected version. Components
+  carry the new `lock_scope` field.
+- `--scanner npm|pip` chooses the scanner in a project with both ecosystems. The
+  report now says which ecosystem a run did not scan instead of staying silent.
+
+### Changed
+- A report from `npm audit` or `pip-audit` is traced through that ecosystem's
+  manifests and lockfiles only. A crate or Python package with the same name as
+  an npm package no longer adds dependency paths to it.
+- In workspaces, a member that uses a package without declaring it no longer
+  blocks a development-only classification made by the members that declare it.
+
+### Fixed
+- Yarn Berry lockfiles (`version: 1.2.3`) yielded no packages, so a Yarn 2+
+  project could not be scanned at all. Aliased entries are reported under the
+  package they install, and workspace placeholders are skipped.
+- A Yarn-only project no longer runs `npm audit` first just to fail on the
+  missing `package-lock.json`.
+- A lockfile that could not be parsed was skipped silently while the others were
+  scanned. The scan now stops and names the file.
+- A Python project that refers to itself in an extra (`all = ["myproject[a,b]"]`)
+  was treated as one of its own dependencies. Every file imports the project, so
+  every transitive package looked in use, and the project was shown as the path.
+- When a Python package is installed where depquiet runs, its recorded module
+  names are used on their own, without the name-based guesses.
+- The dependency graph was marked incomplete, disabling every graph-based filter,
+  by layouts that cannot hide a dependency path: several locked versions of one
+  package in a shared lock, edges to uninstalled optional packages, two workspace
+  members with the same name, a package name present in two ecosystems, and
+  symbolic links to files that are not manifests or lockfiles. On Kong/insomnia,
+  saleor and open-webui this kept every alert, including the ones
+  `npm audit --omit=dev` drops. Links that stand in for a manifest, a lockfile or
+  a directory still leave the graph incomplete.
+- npm aliases (`"x-cjs": "npm:x@^4"`) are linked to the package they install, so
+  an advisory for the real package is traced through dependents that list the alias.
+
 ## [0.32.0] - 2026-11-10
 
 ### Added
@@ -593,7 +644,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.32.0...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.33.0...HEAD
+[0.33.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.32.0...v0.33.0
 [0.31.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.30.1...v0.31.0
 [0.21.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.20.0...v0.21.0
 [0.32.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.31.0...v0.32.0

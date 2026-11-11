@@ -49,7 +49,7 @@ from depquiet.filters.dynamic_imports import (
     python_dynamic_imports,
 )
 from depquiet.models import FilterReason, Vulnerability
-from depquiet.pynames import import_candidates
+from depquiet.pynames import guessed_candidates, import_candidates
 
 _TEXT_CACHE: dict[tuple[str, int, int], str] = {}
 _TextReader = Callable[[Path], str]
@@ -395,6 +395,46 @@ def _ast_imports(source: str) -> set[str] | None:
         if observation.target is not None
     )
     return names
+
+
+def _dotted_spellings(dist: str) -> set[str]:
+    """``google-cloud-pubsub`` -> ``google.cloud.pubsub``, ``google_cloud.pubsub``, ...
+
+    Every way of joining the name's parts with ``.`` or ``_`` that has at
+    least one dot: the module paths a namespace package of that name uses.
+    """
+    parts = [p for p in re.split(r"[-_.]+", dist.lower()) if p]
+    if not 2 <= len(parts) <= 6:
+        return set()
+    out: set[str] = set()
+    for mask in range(1, 2 ** (len(parts) - 1)):
+        name = parts[0]
+        for i, part in enumerate(parts[1:]):
+            name += ("." if mask >> i & 1 else "_") + part
+        out.add(name)
+    return out
+
+
+def _py_imports_under(text: str, dotted: set[str]) -> bool:
+    """True when the file imports a module path that starts with one of ``dotted``.
+
+    ``from google.cloud import pubsub_v1`` is ``google.cloud.pubsub_v1``, which
+    starts with ``google.cloud.pubsub``. Used to recognise a namespace
+    package's own imports; it never decides a verdict.
+    """
+    try:
+        tree = ast.parse(text)
+    except (SyntaxError, ValueError, RecursionError):
+        return False
+    paths: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            paths.update(alias.name.lower() for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module and not node.level:
+            module = node.module.lower()
+            paths.add(module)
+            paths.update(f"{module}.{alias.name.lower()}" for alias in node.names)
+    return any(path.startswith(prefix) for path in paths for prefix in dotted)
 
 
 def _py_imports_package(
@@ -1803,6 +1843,34 @@ class ReachabilityFilter:
         if pkg not in self._sites_cache:
             self._sites_cache[pkg] = self._find_imports_uncached(pkg)
         return list(self._sites_cache[pkg])
+
+    def named_imports_for(self, pkg: str) -> list[str]:
+        """The subset of :meth:`find_imports_for` that names this package.
+
+        A Python distribution that is not installed is matched against every
+        module name it could plausibly provide, including a bare prefix
+        (``django`` for ``django-auth-ldap``). Those matches keep the alert;
+        they are left out here so a file that imports Django is not shown as
+        the place an LDAP plugin is used.
+        """
+        sites = self.find_imports_for(pkg)
+        guessed = guessed_candidates(pkg, self._project)
+        if not guessed:
+            return sites
+        named = import_candidates(pkg, self._project) - guessed
+        dotted = _dotted_spellings(pkg)
+        py_files = {str(f): f for f in self.py_files}
+
+        def names_it(site: str) -> bool:
+            source = py_files[site]
+            if _py_text_imports(source, named, read_text=self._read_project_text):
+                return True
+            try:
+                return _py_imports_under(self._read_project_text(source), dotted)
+            except OSError:
+                return False
+
+        return [site for site in sites if site not in py_files or names_it(site)]
 
     def _find_imports_uncached(self, pkg: str) -> list[str]:
         results: list[str] = []

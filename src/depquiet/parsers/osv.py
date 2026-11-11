@@ -100,36 +100,38 @@ def _parse_package_lock(path: Path) -> list[PackageInfo]:
     return results
 
 
+_YARN_REAL_NAME = re.compile(r"^((?:@[^/@\s]+/)?[^/@\s]+)@npm:")
+
+
 def _parse_yarn_lock(path: Path) -> list[PackageInfo]:
-    """Parse yarn.lock (v1 format)."""
+    """Parse yarn.lock: Yarn 1 (``version "1.2.3"``) and Berry (``version: 1.2.3``)."""
     results: list[PackageInfo] = []
     seen: set[str] = set()
-    text = path.read_text()
+    name = version = ""
 
-    # yarn.lock v1: "name@version:" followed by "  version "x.y.z""
-    current_name = ""
-    for line in text.splitlines():
-        if line and not line.startswith(" ") and not line.startswith("#"):
-            # Package header: "lodash@^4.17.20:" or '"@scope/pkg@^1.0.0":'
-            header = line.rstrip(":")
-            # Remove quotes first
-            header = header.strip('"').strip("'")
-            # Extract package name (everything before the last @version)
-            if header.startswith("@"):
-                # Scoped package: find the second @
-                at_idx = header.index("@", 1)
-                current_name = header[:at_idx]
-            else:
-                at_idx = header.index("@") if "@" in header else len(header)
-                current_name = header[:at_idx]
-        elif line.startswith("  version ") and current_name:
+    def flush() -> None:
+        # Berry lists the project's own workspaces with a placeholder version.
+        local = name == "__metadata" or version == "0.0.0-use.local"
+        if name and version and not local and f"{name}@{version}" not in seen:
+            seen.add(f"{name}@{version}")
+            results.append((name, version, _ECOSYSTEM_NPM))
+
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line and not line.startswith((" ", "#")):
+            flush()
+            # Header: ``lodash@^4.17.20:`` or ``"@scope/pkg@npm:^1.0.0, @scope/pkg@npm:^1.1.0":``
+            header = line.rstrip(":").strip("\"'")
+            at = header.find("@", 1)
+            name, version = (header[:at] if at > 0 else header), ""
+        elif line.startswith(("  version ", "  version:")) and name:
             version = line.split('"')[1] if '"' in line else line.split()[-1]
-            k = f"{current_name}@{version}"
-            if k not in seen:
-                seen.add(k)
-                results.append((current_name, version, _ECOSYSTEM_NPM))
-            current_name = ""
-
+        elif line.startswith("  resolution:") and name:
+            # Berry names the installed package here. Under an alias
+            # (``"x-cjs@npm:x@^4"``) the header carries only the alias.
+            real = _YARN_REAL_NAME.match(line.split(":", 1)[1].strip().strip("\"'"))
+            if real:
+                name = real.group(1)
+    flush()
     return results
 
 
@@ -319,6 +321,13 @@ def _parse_packages_lock_json(path: Path) -> list[PackageInfo]:
 
 
 # Lockfile → parser mapping
+def _parse_pnpm_lock(path: Path) -> list[PackageInfo]:
+    """Parse pnpm-lock.yaml (lockfile v5 to v9)."""
+    from depquiet.pnpm_lock import parse_pnpm_lock
+
+    return [(name, version, _ECOSYSTEM_NPM) for name, version in parse_pnpm_lock(path).packages]
+
+
 def _parse_python_lock(path: Path) -> list[PackageInfo]:
     """Parse uv.lock / poetry.lock (every registry package they pin)."""
     from depquiet.scanners import lock_pins
@@ -336,6 +345,7 @@ _LOCKFILE_PARSERS: list[tuple[str, Any]] = [
     ("poetry.lock", _parse_python_lock),
     ("package-lock.json", _parse_package_lock),
     ("yarn.lock", _parse_yarn_lock),
+    ("pnpm-lock.yaml", _parse_pnpm_lock),
     ("Pipfile.lock", _parse_pipfile_lock),
     ("requirements.txt", _parse_requirements_txt),
     ("go.sum", _parse_go_sum),
@@ -360,8 +370,12 @@ def detect_lockfiles(project: Path) -> list[tuple[Path, str]]:
     return found
 
 
-def parse_lockfiles(project: Path) -> list[PackageInfo]:
-    """Parse all lockfiles in a project, returning deduplicated packages."""
+def parse_lockfiles(project: Path, unreadable: list[str] | None = None) -> list[PackageInfo]:
+    """Parse all lockfiles in a project, returning deduplicated packages.
+
+    A lockfile that cannot be parsed is skipped; its name is appended to
+    ``unreadable`` so the caller can refuse to present the rest as a full scan.
+    """
     all_packages: list[PackageInfo] = []
     seen: set[str] = set()
 
@@ -370,13 +384,15 @@ def parse_lockfiles(project: Path) -> list[PackageInfo]:
         if path.exists():
             try:
                 packages = parser_func(path)
-                for pkg in packages:
-                    key = f"{pkg[2]}:{pkg[0]}@{pkg[1]}"
-                    if key not in seen:
-                        seen.add(key)
-                        all_packages.append(pkg)
-            except (json.JSONDecodeError, KeyError, IndexError, OSError):
+            except (ValueError, KeyError, IndexError, TypeError, AttributeError, OSError) as e:
+                if unreadable is not None:
+                    unreadable.append(f"{lockfile_name} ({e})")
                 continue
+            for pkg in packages:
+                key = f"{pkg[2]}:{pkg[0]}@{pkg[1]}"
+                if key not in seen:
+                    seen.add(key)
+                    all_packages.append(pkg)
 
     return all_packages
 
@@ -633,7 +649,11 @@ class OsvScanner:
 
         A partial or failed lookup must not read as "no vulnerabilities".
         """
-        packages = parse_lockfiles(project)
+        unreadable: list[str] = []
+        packages = parse_lockfiles(project, unreadable)
+        if unreadable:
+            # Scanning the lockfiles that did parse would look like a full report.
+            raise ScanError("could not read " + "; ".join(unreadable) + ".")
         if not packages:
             raise ScanError("found lockfiles but could not read any packages from them.")
         all_vulns: list[Vulnerability] = []

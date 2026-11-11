@@ -209,7 +209,20 @@ def explain_triage(tr: TriageResult) -> Explanation:
     if tr.vuln.is_dev or FilterReason.DEV_DEPENDENCY in tr.reasons:
         effect = "filtered" if FilterReason.DEV_DEPENDENCY in tr.reasons else "neutral"
         detail = "Development dependency metadata; deployment contents were not verified"
-        if not tr.vuln.is_dev and tr.introduced_by:
+        affected = [c for c in tr.vuln.components if c.range_match != "not_matched"]
+        if (
+            tr.vuln.component_resolution_complete
+            and affected
+            and all(c.lock_scope == "development" for c in affected)
+        ):
+            # Named roots can include production dependencies that install a
+            # different, unaffected copy, so cite the copies themselves.
+            copies = ", ".join(f"{c.version} at {c.location}" for c in affected)
+            detail = (
+                "The lockfile marks every locked copy in the advisory range as "
+                f"development-only ({copies}); deployment contents were not verified"
+            )
+        elif not tr.vuln.is_dev and tr.introduced_by:
             detail = f"Only pulled in by devDependencies ({', '.join(tr.introduced_by)})"
         signals.append(
             Signal(

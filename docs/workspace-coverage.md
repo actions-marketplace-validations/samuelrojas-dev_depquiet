@@ -49,10 +49,31 @@ local direct roots; foreign lockfile roots never become local direct roots.
 A reference to another workspace package contributes that member's production
 dependencies as edges, without exporting its development tools as runtime roots.
 
-These graphs are keyed by dependency names, not exact lock nodes. Multiple
-reachable locked identities, unresolved edges, duplicate member names or a name
-shared by different ecosystems leave the graph incomplete. Observations are
-retained; the graph cannot justify a development-only or absence decision.
+These graphs are keyed by dependency names, not exact lock nodes. Where one name
+stands for several things, its node carries the union of their edges and
+declarations:
+
+- several locked versions of a package contribute the dependencies of each;
+- two members with the same package name contribute the production
+  dependencies of both;
+- an edge to an optional or peer package that was never installed leads nowhere;
+- an npm alias (`"x-cjs": "npm:x@^4"`) is linked to the package it installs.
+
+A union can only add paths from a declared dependency to a reported package, so
+development-only and absence decisions, which need every path to agree, stay
+conservative and the graph remains complete. Until 0.33 each of these marked the
+graph incomplete, which disabled every graph-based filter on most large
+monorepos. What still leaves it incomplete is input that could hide a path:
+unreadable or malformed manifests and lockfiles, unsupported workspace patterns,
+missing members, and symbolic links that stand in for a manifest, a lockfile or a
+directory that may hold one. A linked file that cannot be a graph source (a
+README, a translation file) is skipped without consequence.
+
+A report from a native scanner covers one ecosystem, and the graph is then built
+from that ecosystem's manifests and lockfiles only: an npm advisory for `glob`
+is not traced through a `Cargo.lock` path to the crate of the same name.
+Multi-ecosystem inputs (SBOM, Trivy, Grype, OSV) keep the merged graph, in which
+a production declaration in any ecosystem wins.
 Preferred shrinkwrap takes precedence over package-lock for shared npm graphs.
 Mixed/unsupported layouts and other lockfile semantics can still remain unknown.
 
@@ -91,9 +112,19 @@ depquiet therefore considers each local name relationship, positive usage and
 uncertain scope without assigning a candidate to one workspace by guesswork.
 Per-workspace graph and source checks run independently. A positive or uncertain
 relevant context keeps an aggregate absence claim from winning. Development-only
-classification requires every relevant context to support it and graph coverage
-to be complete. Workspace mode does not use scanner dev metadata as a substitute
-for missing local declarations.
+classification requires graph coverage to be complete and every member that
+declares the package, directly or through a dependency, to reach it only from
+development dependencies. A member that uses a package without declaring it
+(a test importing the root's `vitest`) does not turn it into a production
+dependency: it gets the package from the declaring member's install, which a
+production install omits. Workspace mode does not use scanner dev metadata as a
+substitute for missing local declarations.
+
+For npm audit input there is a second, independent source: the lockfile marks
+each installed copy that exists only for `devDependencies`. When every reported
+copy inside the advisory's range carries that mark, the alert is development-only
+regardless of the name-level graph. See
+[npm component evidence](npm-component-evidence.md#development-only-copies).
 
 Source uncertainty blocks source-absence decisions; valid development-only graph
 metadata remains an independent priority signal. Graph uncertainty blocks that
