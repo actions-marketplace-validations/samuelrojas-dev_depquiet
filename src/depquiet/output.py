@@ -48,7 +48,7 @@ def print_scan_result(result: ScanResult) -> None:
     print()
     print(
         f"{_c(_BOLD, 'depquiet')} scan — {result.package_manager} "
-        f"({result.total_dependencies} packages)"
+        f"({result.total_dependencies} vulnerable packages)"
     )
     print()
 
