@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.33.1] - 2026-11-11
+
+### Fixed
+- **False dismissal in uv workspaces (introduced in 0.33.0).** A member whose
+  `pyproject.toml` declares `dynamic = ["dependencies"]` had an empty dependency
+  list, so a package the root lists in a development group and a member ships as
+  an extra was filtered as development-only (seen on pydantic-ai with `fastmcp`).
+  Member dependencies are now read from `uv.lock`, the hatch
+  `uv-dynamic-versioning` table or setuptools requirement files; without any of
+  them the graph is incomplete and nothing is filtered.
+- **Python scans were slow to unusable on large repositories (regression in
+  0.33.0).** Every file was parsed again for every package and alert: more than
+  eight minutes of triage on PrefectHQ/prefect for two alerts, now under ten
+  seconds. Imports are indexed once per scan, for Python and for JavaScript,
+  where a bounded cache had the same effect past 8,192 files.
+- The scanned project's own `SyntaxWarning`s (invalid escape sequences) were
+  printed on depquiet's stderr.
+- Development groups were followed as dependencies of the project, so a plugin
+  depending on the project appeared to pull in its linters and test tools, and
+  those alerts were kept (12 of 17 on mlflow).
+- `members = ["."]` and `./`-prefixed patterns in a workspace declaration marked
+  the graph incomplete (langflow).
+
 ## [0.33.0] - 2026-11-10
 
 ### Added
@@ -644,7 +667,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.33.0...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.33.1...HEAD
+[0.33.1]: https://github.com/samuelrojas-dev/depquiet/compare/v0.33.0...v0.33.1
 [0.33.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.32.0...v0.33.0
 [0.31.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.30.1...v0.31.0
 [0.21.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.20.0...v0.21.0

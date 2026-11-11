@@ -28,6 +28,13 @@ def _patterns(raw: Any, label: str, result: WorkspaceDiscovery) -> list[str]:
         return []
     valid: list[str] = []
     for pattern in raw:
+        if isinstance(pattern, str):
+            # ``./packages/*`` is ``packages/*``, and ``.`` names the root
+            # project, which is always a scope of its own.
+            while pattern.startswith("./"):
+                pattern = pattern[2:]
+            if pattern == ".":
+                continue
         if (
             not isinstance(pattern, str)
             or not pattern

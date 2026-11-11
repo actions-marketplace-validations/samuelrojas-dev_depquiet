@@ -109,6 +109,12 @@ class DependencyGraph:
     coverage_observations: list[str] = field(default_factory=list)
     scope_path: str = "."
     workspace_graphs: dict[str, DependencyGraph] = field(default_factory=dict)
+    # Python projects whose pyproject.toml leaves ``dependencies`` to the build
+    # backend (``dynamic``) and gives no static source for them here.
+    dynamic_projects: set[str] = field(default_factory=set)
+    # uv.lock's record of each project/workspace member: name -> (production
+    # dependency names, development dependency names).
+    lock_members: dict[str, tuple[list[str], list[str]]] = field(default_factory=dict)
     _ecosystems: dict[str, set[str]] = field(default_factory=dict, repr=False)
 
     # -- construction -----------------------------------------------------
@@ -140,6 +146,8 @@ class DependencyGraph:
         self.commands |= other.commands
         self.coverage_complete = self.coverage_complete and other.coverage_complete
         self.coverage_observations.extend(other.coverage_observations)
+        self.dynamic_projects |= other.dynamic_projects
+        self.lock_members.update(other.lock_members)
         # A name shared by two ecosystems (``glob`` on npm and crates.io) is one
         # node here. Its edges, roots and production declarations are the union
         # of both packages, so every filter that needs an absence (dev-only,
@@ -267,7 +275,21 @@ class DependencyGraph:
         graph = _load_scope(project, project, recursive=True, ecosystem=ecosystem)
         for note in discovery.observations:
             _incomplete(graph, note)
+        _flag_unlisted_dynamic(graph, graph)
         return graph
+
+
+def _flag_unlisted_dynamic(graph: DependencyGraph, locks: DependencyGraph) -> None:
+    """A project with build-time dependencies that no lockfile spells out.
+
+    Its manifest lists nothing, so "no production path" would only mean
+    "no path this tool was shown".
+    """
+    for name in sorted(graph.dynamic_projects - set(locks.lock_members)):
+        _incomplete(
+            graph,
+            f"{name}: pyproject.toml declares dynamic dependencies and no uv.lock lists them",
+        )
 
 
 def _incomplete(graph: DependencyGraph, note: str) -> None:
@@ -448,6 +470,16 @@ def _workspace_graph(
                 )
                 if isinstance(name, str) and name:
                     key = _norm(name) if filename == "package.json" else _pep503(name)
+                    if filename != "package.json" and key in shared.lock_members:
+                        # uv.lock records what this member depends on, including
+                        # dependencies its pyproject.toml leaves to the build
+                        # backend (``dynamic``) and so does not list.
+                        prod, dev = shared.lock_members[key]
+                        for dep in prod:
+                            local.add_direct(dep, python=True)
+                        for dep in dev:
+                            local.add_direct(dep, python=True, dev=True)
+                        local.has_manifest = True
                     # Two members with one name (often the root and a package)
                     # share a node: a reference to it reaches the production
                     # dependencies of both, which only adds paths.
@@ -457,6 +489,7 @@ def _workspace_graph(
                         shared.add_edge(key, child)
             except (OSError, ValueError, TypeError, AttributeError) as exc:
                 _incomplete(local, f"{member}/{filename}: read workspace manifest: {exc}")
+        _flag_unlisted_dynamic(local, shared)
         scopes[member] = local
     for local in scopes.values():
         local.merge(shared)
@@ -779,6 +812,16 @@ def _load_pyproject(path: Path) -> DependencyGraph | None:
     entries += [(_req_name(s), False) for s in project.get("dependencies") or []]
     for group in (project.get("optional-dependencies") or {}).values():
         entries += [(_req_name(s), False) for s in group]
+    dynamic_fields = project.get("dynamic") or []
+    unlisted = isinstance(dynamic_fields, list) and bool(
+        {"dependencies", "optional-dependencies"}
+        & {f for f in dynamic_fields if isinstance(f, str)}
+    )
+    if unlisted:
+        static = _static_dynamic_dependencies(data, path.parent)
+        if static is not None:
+            entries += [(_req_name(s), False) for s in static]
+            unlisted = False
     for group in (data.get("dependency-groups") or {}).values():
         entries += [(_req_name(s), True) for s in group if isinstance(s, str)]
     poetry = (data.get("tool") or {}).get("poetry") or {}
@@ -791,12 +834,71 @@ def _load_pyproject(path: Path) -> DependencyGraph | None:
     # "imported" by every file in the repository and vouch for everything.
     own = _pep503(str(project.get("name") or poetry.get("name") or ""))
     entries = [(n, dev) for n, dev in entries if n and n.lower() != "python" and _pep503(n) != own]
-    if not entries:
+    if not entries and not unlisted:
         return DependencyGraph(has_manifest=True) if project else None
     g = DependencyGraph(has_manifest=True)
     for n, dev in entries:
         g.add_direct(n, python=True, dev=dev)
+    if unlisted:
+        g.dynamic_projects.add(own or path.parent.name)
     return g
+
+
+def _static_dynamic_dependencies(data: dict[str, Any], base: Path) -> list[str] | None:
+    """Dependencies declared ``dynamic`` but written out elsewhere in the file.
+
+    Returns the requirement strings when a known backend table holds them:
+    the hatch ``uv-dynamic-versioning`` metadata hook, or setuptools reading
+    plain requirement files next to the manifest. ``None`` means they are only
+    known at build time, or the files could not be read in full.
+    """
+    tool = data.get("tool") or {}
+    if not isinstance(tool, dict):
+        return None
+    hook = tool.get("hatch") or {}
+    for key in ("metadata", "hooks", "uv-dynamic-versioning"):
+        hook = hook.get(key) if isinstance(hook, dict) else None
+    if isinstance(hook, dict) and ("dependencies" in hook or "optional-dependencies" in hook):
+        specs = [s for s in hook.get("dependencies") or [] if isinstance(s, str)]
+        extras = hook.get("optional-dependencies") or {}
+        if isinstance(extras, dict):
+            for group in extras.values():
+                specs += [s for s in group or [] if isinstance(s, str)]
+        return specs
+    setuptools = tool.get("setuptools")
+    dynamic = setuptools.get("dynamic") if isinstance(setuptools, dict) else None
+    if not isinstance(dynamic, dict):
+        return None
+    extras = dynamic.get("optional-dependencies")
+    tables = [dynamic.get("dependencies"), *(extras.values() if isinstance(extras, dict) else [])]
+    files: list[str] = []
+    for table in tables:
+        if table is None:
+            continue
+        listed = table.get("file") if isinstance(table, dict) else None
+        listed = [listed] if isinstance(listed, str) else listed
+        if not isinstance(listed, list) or not all(isinstance(f, str) for f in listed):
+            return None
+        files += listed
+    requirements: list[str] = []
+    for name in files:
+        target = base / name
+        try:
+            inside = target.resolve().is_relative_to(base.resolve())
+            lines = target.read_text(encoding="utf-8").splitlines() if inside else None
+        except OSError:
+            lines = None
+        if lines is None:
+            return None
+        for raw in lines:
+            line = raw.split(" #", 1)[0].strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.startswith("-"):
+                # ``-r other.txt``, ``-c``, ``-e``: more than this file says.
+                return None
+            requirements.append(line)
+    return requirements if files else None
 
 
 def _load_pipfile(path: Path) -> DependencyGraph:
@@ -907,13 +1009,17 @@ def _load_uv_lock(path: Path) -> DependencyGraph:
             dev += _uv_names(group)
         if "virtual" in source or "editable" in source:
             g.has_manifest = True
+            g.lock_members[_pep503(name)] = (list(prod), list(dev))
             for d in prod:
                 if _pep503(d) not in own:
                     g.add_direct(d, python=True)
             for d in dev:
                 if _pep503(d) not in own:
                     g.add_direct(d, python=True, dev=True)
-        for d in prod + dev:
+        # Development groups belong to whoever works on the project. A package
+        # that depends on the project (a plugin, another workspace member) does
+        # not install them, so they are roots of their own, not edges from it.
+        for d in prod:
             g.add_edge(_pep503(name), _pep503(d))
     return g
 

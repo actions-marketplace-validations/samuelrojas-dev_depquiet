@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import ast
 import re
+import warnings
 from bisect import bisect_right
 from dataclasses import dataclass
 from functools import lru_cache
@@ -214,8 +215,16 @@ class _PythonLoaders(ast.NodeVisitor):
 @lru_cache(maxsize=8192)
 def python_dynamic_imports(source: str) -> tuple[DynamicImport, ...]:
     """Observe literal and unresolved calls through recognized Python aliases."""
+    # Every recognized loader is reached through one of these two names, in the
+    # call itself or in the import that binds an alias. Most files have neither
+    # and need no second parse.
+    if "__import__" not in source and "import_module" not in source:
+        return ()
     try:
-        tree = ast.parse(source)
+        with warnings.catch_warnings():
+            # The scanned project's invalid escapes are not this tool's output.
+            warnings.simplefilter("ignore")
+            tree = ast.parse(source)
     except SyntaxError:
         # Existing import extraction retains its regex fallback. This helper
         # makes no new claim about a Python file it could not parse.

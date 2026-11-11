@@ -37,6 +37,7 @@ from __future__ import annotations
 import ast
 import os
 import re
+import warnings
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from functools import lru_cache, partial
@@ -376,7 +377,7 @@ def _ast_imports(source: str) -> set[str] | None:
     but no imports are found (meaning the file genuinely has no imports).
     """
     try:
-        tree = ast.parse(source)
+        tree = _parse_python(source)
     except SyntaxError:
         return None
 
@@ -415,26 +416,50 @@ def _dotted_spellings(dist: str) -> set[str]:
     return out
 
 
-def _py_imports_under(text: str, dotted: set[str]) -> bool:
-    """True when the file imports a module path that starts with one of ``dotted``.
+def _parse_python(source: str) -> ast.AST:
+    """``ast.parse`` without the target project's own SyntaxWarnings.
 
-    ``from google.cloud import pubsub_v1`` is ``google.cloud.pubsub_v1``, which
-    starts with ``google.cloud.pubsub``. Used to recognise a namespace
-    package's own imports; it never decides a verdict.
+    Parsing someone's file reports its invalid escape sequences as warnings on
+    depquiet's stderr; they are that project's lint, not scan output.
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return ast.parse(source)
+
+
+def _py_import_facts(text: str) -> tuple[frozenset[str] | None, frozenset[str]]:
+    """One parse of a Python file: (top-level modules, dotted module paths).
+
+    The first is what :func:`_ast_imports` returns, lower-cased, or ``None``
+    when the file does not parse. The second keeps the full path, so that
+    ``from google.cloud import pubsub_v1`` is ``google.cloud`` and
+    ``google.cloud.pubsub_v1``; it is used to recognise a namespace package's
+    own imports and never decides a verdict.
     """
     try:
-        tree = ast.parse(text)
+        tree = _parse_python(text)
     except (SyntaxError, ValueError, RecursionError):
-        return False
+        # Not parsed: the caller falls back to the regex check for this file.
+        return None, frozenset()
+    names: set[str] = set()
     paths: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
-            paths.update(alias.name.lower() for alias in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.module and not node.level:
+            for alias in node.names:
+                names.add(alias.name.split(".")[0].lower())
+                paths.add(alias.name.lower())
+        elif isinstance(node, ast.ImportFrom) and node.module:
             module = node.module.lower()
-            paths.add(module)
-            paths.update(f"{module}.{alias.name.lower()}" for alias in node.names)
-    return any(path.startswith(prefix) for path in paths for prefix in dotted)
+            names.add(module.split(".")[0])
+            if not node.level:
+                paths.add(module)
+                paths.update(f"{module}.{alias.name.lower()}" for alias in node.names)
+    names.update(
+        observation.target.split(".")[0].lower()
+        for observation in python_dynamic_imports(text)
+        if observation.target is not None
+    )
+    return frozenset(names), frozenset(paths)
 
 
 def _py_imports_package(
@@ -1353,6 +1378,14 @@ class ReachabilityFilter:
         self._dart_files: list[Path] | None = None
         self._import_cache: dict[str, bool] = {}
         self._sites_cache: dict[str, list[str]] = {}
+        self._named_sites_cache: dict[str, list[str]] = {}
+        # Per Python file: imported top-level modules (None when the file does
+        # not parse) and imported dotted paths. Every package asks every file,
+        # so each file is parsed once per scan, not once per question.
+        self._py_names: dict[Path, frozenset[str] | None] = {}
+        # Imported package name -> JS/TS files importing it, in scan order.
+        self._js_importers: dict[str, list[Path]] | None = None
+        self._py_paths: dict[Path, frozenset[str]] = {}
         self._words: set[str] | None = None
         self._non_test_words: set[str] | None = None
         self._source_inventory: list[Path] | None = None
@@ -1647,15 +1680,55 @@ class ReachabilityFilter:
             self._import_cache[pkg] = self._imports_package_uncached(pkg)
         return self._import_cache[pkg]
 
+    def _py_file_imports(self, source: Path, candidates: set[str]) -> bool:
+        """Whether one Python file imports any of ``candidates`` (lower-cased)."""
+        if source not in self._py_names:
+            try:
+                names, paths = _py_import_facts(self._read_project_text(source))
+            except OSError:
+                names, paths = frozenset(), frozenset()
+            self._py_names[source] = names
+            self._py_paths[source] = paths
+        found = self._py_names[source]
+        if found is None:
+            # Unparsable file: the regex fallback, as conservative as before.
+            return _py_text_imports(source, candidates, read_text=self._read_project_text)
+        return not found.isdisjoint(candidates)
+
+    def _py_imports(self, pkg: str) -> list[Path]:
+        candidates = import_candidates(pkg, self._project)
+        return [f for f in self.py_files if self._py_file_imports(f, candidates)]
+
+    def _js_imports(self, pkg: str) -> list[Path]:
+        """JS/TS files that import ``pkg``, from an index built once per scan.
+
+        Extracting a file's imports is the expensive step. A monorepo has more
+        files than any bounded cache holds, so asking file by file for each
+        package re-extracted every file for every package.
+        """
+        if self._js_importers is None:
+            index: dict[str, list[Path]] = {}
+            for source in self.js_files:
+                try:
+                    names = _js_extract_imports(self._read_project_text(source))
+                except OSError:
+                    continue
+                for name in names:
+                    index.setdefault(name, []).append(source)
+            self._js_importers = index
+        return self._js_importers.get(pkg, [])
+
+    def _js_any_imports(self, files: list[Path], pkg: str) -> bool:
+        return bool(self._js_imports(pkg))
+
+    def _py_any_imports(self, files: list[Path], pkg: str) -> bool:
+        candidates = import_candidates(pkg, self._project)
+        return any(self._py_file_imports(f, candidates) for f in files)
+
     def _imports_package_uncached(self, pkg: str) -> bool:
         checks = (
-            (self.js_files, partial(_js_imports_package, read_text=self._read_project_text)),
-            (
-                self.py_files,
-                partial(
-                    _py_imports_package, project=self._project, read_text=self._read_project_text
-                ),
-            ),
+            (self.js_files, self._js_any_imports),
+            (self.py_files, self._py_any_imports),
             (self.go_files, partial(_go_imports_package, read_text=self._read_project_text)),
             (self.rs_files, partial(_rs_imports_package, read_text=self._read_project_text)),
             (self.java_files, partial(_java_imports_package, read_text=self._read_project_text)),
@@ -1853,35 +1926,33 @@ class ReachabilityFilter:
         they are left out here so a file that imports Django is not shown as
         the place an LDAP plugin is used.
         """
+        if pkg not in self._named_sites_cache:
+            self._named_sites_cache[pkg] = self._named_imports_uncached(pkg)
+        return list(self._named_sites_cache[pkg])
+
+    def _named_imports_uncached(self, pkg: str) -> list[str]:
         sites = self.find_imports_for(pkg)
         guessed = guessed_candidates(pkg, self._project)
         if not guessed:
             return sites
         named = import_candidates(pkg, self._project) - guessed
-        dotted = _dotted_spellings(pkg)
+        dotted = tuple(_dotted_spellings(pkg))
         py_files = {str(f): f for f in self.py_files}
 
         def names_it(site: str) -> bool:
             source = py_files[site]
-            if _py_text_imports(source, named, read_text=self._read_project_text):
+            if self._py_file_imports(source, named):
                 return True
-            try:
-                return _py_imports_under(self._read_project_text(source), dotted)
-            except OSError:
-                return False
+            return any(path.startswith(dotted) for path in self._py_paths[source])
 
         return [site for site in sites if site not in py_files or names_it(site)]
 
     def _find_imports_uncached(self, pkg: str) -> list[str]:
         results: list[str] = []
         # Check JS/TS files by import/require detection
-        for f in self.js_files:
-            if _js_file_imports_package(f, pkg, read_text=self._read_project_text):
-                results.append(str(f))
+        results.extend(str(f) for f in self._js_imports(pkg))
         # Check Python files by AST-based import detection
-        for f in self.py_files:
-            if _py_file_imports_package(f, pkg, self._project, read_text=self._read_project_text):
-                results.append(str(f))
+        results.extend(str(f) for f in self._py_imports(pkg))
         # Check Go files by import detection
         for f in self.go_files:
             if _go_file_imports_package(f, pkg, read_text=self._read_project_text):
