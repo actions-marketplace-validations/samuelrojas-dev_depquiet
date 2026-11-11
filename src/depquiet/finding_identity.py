@@ -166,6 +166,11 @@ def finding_contexts(
     validate_finding(row)
     scope = validate_project_id(project_id)
     advisory, package = row["cve"], row["package"]
+    # A report that merges several ecosystems names each finding's own manager,
+    # so its identity matches a scan of that ecosystem alone.
+    row_manager = row.get("package_manager")
+    if row_manager is not None:
+        package_manager = _text(row_manager, "finding.package_manager")
     version = row.get("version", "")
     kind = row.get("version_kind", "reported")
     if kind not in ("reported", "advisory_range"):
@@ -306,6 +311,11 @@ def report_for_scan(result: ScanResult) -> dict[str, Any]:
                 "components": [component.to_dict() for component in finding.vuln.components],
                 "component_notes": list(finding.vuln.component_notes),
                 "component_resolution_complete": finding.vuln.component_resolution_complete,
+                **(
+                    {"package_manager": finding.vuln.package_manager}
+                    if finding.vuln.package_manager
+                    else {}
+                ),
             }
             for finding in result.results
         ],

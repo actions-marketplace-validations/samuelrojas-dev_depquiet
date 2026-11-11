@@ -224,9 +224,12 @@ decisions. Several locked versions of one package, duplicate member names and
 names shared between ecosystems do not: their edges are merged, which can only
 add dependency paths. Positive imports remain visible alongside uncertainty.
 
-One run audits one package manager. In a project with both npm and Python
-dependencies the report says which one was left out, and `--scanner npm` or
-`--scanner pip` chooses.
+A project with both JavaScript (npm or pnpm) and Python dependencies is scanned for both in
+one run. Each ecosystem is audited by its own scanner and triaged against its own dependency
+graph, and every finding records which one reported it (`"package_manager"` in the JSON).
+If one scanner fails, the other's findings are still reported and the note says which
+ecosystem was not scanned. `--scanner npm`, `--scanner pnpm` or `--scanner pip` limits a run
+to one.
 
 The analysis is bounded: initial workspace support covers npm and uv declarations,
 and finding-to-workspace associations use conservative dependency names rather
@@ -410,8 +413,8 @@ checkmarx-cli scan --output-format sarif | depquiet --stdin
 # Fully offline (skip EPSS API)
 depquiet --offline
 
-# A repo with both package-lock.json and uv.lock: one run per ecosystem
-depquiet --scanner npm
+# A repo with both package-lock.json and uv.lock: both are scanned by default.
+# To scan only one:
 depquiet --scanner pip
 
 # SARIF output for GitHub Code Scanning

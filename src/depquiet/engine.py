@@ -13,6 +13,7 @@ but not for correctness — a vulnerability is filtered if ANY filter matches.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
@@ -126,6 +127,59 @@ def _unscanned_note(project: Path, pm: str | None) -> str:
     )
 
 
+def _native_scanners(project: Path) -> list[str]:
+    """One native scanner per ecosystem the project declares, in detection order."""
+    chosen: dict[str, str] = {}
+    for name, parser in _NATIVE_SCANNERS.items():
+        ecosystem = _SCANNER_ECOSYSTEM[name]
+        if ecosystem not in chosen and parser.detect(project):
+            chosen[ecosystem] = name
+    # npm and pnpm share an ecosystem: a pnpm lockfile without an npm one is pnpm.
+    if chosen.get("npm") == "npm" and not NpmAuditParser.detect(project):
+        chosen["npm"] = "pnpm"
+    return list(chosen.values())
+
+
+_LABELS = {"npm": "npm", "pnpm": "pnpm", "pip": "Python"}
+
+
+def _scan_each(project: Path, scanners: list[str], **options: Any) -> ScanResult:
+    """Scan each ecosystem on its own and merge the reports.
+
+    Every finding keeps the package manager that reported it, so fixes,
+    manifests and finding identities stay per ecosystem. An ecosystem that
+    could not be scanned is named in the note; the merged report counts as
+    scanned only when at least one ecosystem was, and never hides the other.
+    """
+    parts = [(name, scan(project, scanner=name, **options)) for name in scanners]
+    results: list[TriageResult] = []
+    notes: list[str] = []
+    failed: list[str] = []
+    for name, part in parts:
+        for finding in part.results:
+            finding.vuln.package_manager = name
+            results.append(finding)
+        own = _strip_unscanned_note(part.note)
+        if not part.scanned:
+            failed.append(f"{_LABELS[name]} dependencies were not scanned: {own}")
+        elif own:
+            notes.append(f"{_LABELS[name]}: {own}")
+    scanned = [name for name, part in parts if part.scanned]
+    return ScanResult(
+        project_path=str(project),
+        package_manager="+".join(scanned or scanners),
+        total_dependencies=sum(part.total_dependencies for _, part in parts),
+        results=results,
+        scanned=bool(scanned),
+        note=" ".join(failed + notes),
+    )
+
+
+def _strip_unscanned_note(note: str) -> str:
+    """Drop "Only X was scanned ... --scanner" sentences: the merged run did scan it."""
+    return re.sub(r"\s*Only \S+ dependencies were scanned\..*?--scanner [^.]*\.", "", note).strip()
+
+
 def detect_package_manager(project: Path) -> str | None:
     """Auto-detect the project's package manager."""
     for parser in _PARSERS:
@@ -159,6 +213,21 @@ def scan(
     Returns:
         ScanResult with all vulnerabilities and their triage verdicts.
     """
+    # A project with npm and Python dependencies gets one run per ecosystem,
+    # each triaged against its own graph, merged into one report.
+    if scanner is None and audit_json is None:
+        found = _native_scanners(project)
+        if len(found) > 1:
+            return _scan_each(
+                project,
+                found,
+                epss_threshold=epss_threshold,
+                skip_epss=skip_epss,
+                template_dirs=template_dirs,
+                always_flag=always_flag,
+                policy=policy,
+            )
+
     # Step 1: Detect and parse
     pm = scanner or detect_package_manager(project)
     unscanned = "" if audit_json is not None else _unscanned_note(project, pm)

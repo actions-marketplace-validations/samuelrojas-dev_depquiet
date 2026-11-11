@@ -460,7 +460,7 @@ def main(argv: list[str] | None = None) -> int:
         "--scanner",
         choices=["npm", "pnpm", "pip"],
         help="Scanner to run when the project has both npm and Python dependencies "
-        "(default: the first one detected; the other is reported as not scanned)",
+        "(default: every ecosystem the project declares, one run each, merged into one report)",
     )
     parser.add_argument(
         "--sarif",
@@ -861,6 +861,8 @@ def _print_json(result: ScanResult, *, license_report: LicenseReport | None = No
     }
     for tr in result.results:
         entry: dict[str, Any] = {
+            # Only in a report that merges ecosystems ("npm+pip"): who reported it.
+            **({"package_manager": tr.vuln.package_manager} if tr.vuln.package_manager else {}),
             "cve": tr.vuln.cve,
             "package": tr.vuln.package,
             "version": tr.vuln.version,

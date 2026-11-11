@@ -154,6 +154,9 @@ class Vulnerability:
     components: list[ComponentEvidence] = field(default_factory=list)
     component_notes: list[str] = field(default_factory=list)
     component_resolution_complete: bool = False
+    # Package manager whose scanner reported this finding ("npm", "pip"...),
+    # set when one scan covers several ecosystems; "" means the scan's own.
+    package_manager: str = ""
     # The scanner itself states that every installed version it reports is
     # reached only from development dependencies (pnpm's per-finding ``dev``).
     scanner_dev_only: bool = False

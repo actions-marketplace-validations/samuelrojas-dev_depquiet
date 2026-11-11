@@ -91,8 +91,9 @@ def apply_fixes(
         from_ver = tr.vuln.version
         cve = tr.vuln.cve
 
+        manager = tr.vuln.package_manager or pm
         if dry_run:
-            cmd_str = _build_command_str(pm, pkg, fix_ver)
+            cmd_str = _build_command_str(manager, pkg, fix_ver)
             report.fixed.append(
                 FixResult(
                     package=pkg,
@@ -105,7 +106,7 @@ def apply_fixes(
             )
             continue
 
-        result = _run_fix(pm, pkg, fix_ver, project)
+        result = _run_fix(manager, pkg, fix_ver, project)
         if result.success:
             report.fixed.append(
                 FixResult(
