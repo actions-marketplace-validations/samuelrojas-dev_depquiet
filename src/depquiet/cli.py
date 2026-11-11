@@ -457,6 +457,12 @@ def main(argv: list[str] | None = None) -> int:
         help="Skip EPSS API lookup (fully offline mode)",
     )
     parser.add_argument(
+        "--scanner",
+        choices=["npm", "pip"],
+        help="Scanner to run when the project has both npm and Python dependencies "
+        "(default: the first one detected; the other is reported as not scanned)",
+    )
+    parser.add_argument(
         "--sarif",
         type=Path,
         metavar="FILE",
@@ -690,6 +696,7 @@ def main(argv: list[str] | None = None) -> int:
         audit_json=audit_json,
         always_flag=merged.always_flag or None,
         policy=policy,
+        scanner=args.scanner,
     )
     result.project_id = merged.project_id
     if not result.scanned:

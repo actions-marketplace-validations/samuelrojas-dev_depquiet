@@ -157,7 +157,7 @@ def test_member_development_tools_are_not_exported_to_consumers(tmp_path: Path) 
     assert graph.workspace_graphs["packages/b"].is_dev_only(["dev-tool"])
 
 
-def test_duplicate_workspace_names_leave_scope_ambiguous(tmp_path: Path) -> None:
+def test_duplicate_workspace_names_reach_both_members_dependencies(tmp_path: Path) -> None:
     _npm(tmp_path)
     for member in ("a", "b"):
         _json(
@@ -167,9 +167,13 @@ def test_duplicate_workspace_names_leave_scope_ambiguous(tmp_path: Path) -> None
                 "dependencies": {f"leaf-{member}": "1"},
             },
         )
+    _json(tmp_path / "packages/user/package.json", {"name": "user", "dependencies": {"same": "1"}})
     graph = DependencyGraph.from_project(tmp_path)
-    assert not graph.coverage_complete
-    assert any("duplicate workspace" in note for note in graph.coverage_observations)
+    assert graph.coverage_complete
+    user = graph.workspace_graphs["packages/user"]
+    # The shared name is one node carrying both members' production edges.
+    assert user.direct_ancestors("leaf-a") == {"same"}
+    assert user.direct_ancestors("leaf-b") == {"same"}
 
 
 def test_shared_lock_edges_and_bins_are_pruned_to_own_closure(tmp_path: Path) -> None:
@@ -198,7 +202,7 @@ def test_shared_lock_edges_and_bins_are_pruned_to_own_closure(tmp_path: Path) ->
     assert a.coverage_complete
 
 
-def test_multiple_lock_versions_abstain_only_for_reachable_collision(tmp_path: Path) -> None:
+def test_multiple_lock_versions_union_their_edges(tmp_path: Path) -> None:
     _npm(tmp_path)
     _json(tmp_path / "packages/a/package.json", {"dependencies": {"shared": "1"}})
     _json(tmp_path / "packages/b/package.json", {"dependencies": {"other": "1"}})
@@ -206,19 +210,25 @@ def test_multiple_lock_versions_abstain_only_for_reachable_collision(tmp_path: P
         tmp_path / "package-lock.json",
         {
             "packages": {
-                "node_modules/shared": {"version": "1.0.0"},
-                "node_modules/other/node_modules/shared": {"version": "2.0.0"},
-                "node_modules/other": {"version": "1.0.0"},
+                "node_modules/shared": {"version": "1.0.0", "dependencies": {"old-leaf": "1"}},
+                "node_modules/other/node_modules/shared": {
+                    "version": "2.0.0",
+                    "dependencies": {"new-leaf": "1"},
+                },
+                "node_modules/other": {"version": "1.0.0", "dependencies": {"shared": "2"}},
+                "node_modules/old-leaf": {"version": "1.0.0"},
+                "node_modules/new-leaf": {"version": "1.0.0"},
             }
         },
     )
     graph = DependencyGraph.from_project(tmp_path)
-    assert not graph.workspace_graphs["packages/a"].coverage_complete
-    assert any(
-        "ambiguous" in note for note in graph.workspace_graphs["packages/a"].coverage_observations
-    )
-    assert graph.workspace_graphs["packages/b"].coverage_complete
-    assert not graph.coverage_complete
+    assert graph.coverage_complete
+    # Which copy a member installs is not modelled: each sees both versions'
+    # dependencies, a superset that cannot hide a path.
+    for member, root in (("packages/a", "shared"), ("packages/b", "other")):
+        local = graph.workspace_graphs[member]
+        assert local.direct_ancestors("old-leaf") == {root}
+        assert local.direct_ancestors("new-leaf") == {root}
 
 
 @pytest.mark.parametrize(
@@ -342,9 +352,14 @@ def test_legacy_cross_ecosystem_name_collision_is_uncertain(tmp_path: Path) -> N
     _text(tmp_path / "pyproject.toml", '[project]\nname="service"\ndependencies=["fixture-lib"]\n')
     _json(tmp_path / "examples/demo/package.json", {"devDependencies": {"fixture_lib": "1"}})
     graph = DependencyGraph.from_project(tmp_path)
-    assert not graph.coverage_complete
-    assert any("multiple ecosystems" in note for note in graph.coverage_observations)
+    assert graph.coverage_complete
+    # One node for both packages: the production declaration wins.
     assert not graph.is_dev_only(["fixture_lib"])
+    # A report known to be npm-only reads npm manifests alone.
+    assert DependencyGraph.from_project(tmp_path, ecosystem="npm").is_dev_only(["fixture_lib"])
+    assert not DependencyGraph.from_project(tmp_path, ecosystem="python").is_dev_only(
+        ["fixture-lib"]
+    )
 
 
 def test_no_workspace_keeps_legacy_nested_manifest_loading(tmp_path: Path) -> None:

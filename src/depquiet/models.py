@@ -58,6 +58,9 @@ class ComponentEvidence:
     lockfile_sha256: str
     range_match: str = "unknown"
     reason: str = ""
+    # "development" when the lockfile marks this copy as installed only for
+    # devDependencies (npm's ``dev`` flag), "production" otherwise, "" unknown.
+    lock_scope: str = ""
 
     @property
     def instance_id(self) -> str:
@@ -72,7 +75,7 @@ class ComponentEvidence:
         return "component-sha256:" + hashlib.sha256(raw).hexdigest()
 
     def to_dict(self) -> dict[str, str]:
-        return {
+        data = {
             "instance_id": self.instance_id,
             "ecosystem": self.ecosystem,
             "package": self.package,
@@ -83,6 +86,9 @@ class ComponentEvidence:
             "range_match": self.range_match,
             "reason": self.reason,
         }
+        if self.lock_scope:
+            data["lock_scope"] = self.lock_scope
+        return data
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> ComponentEvidence:
@@ -99,6 +105,9 @@ class ComponentEvidence:
         reason = raw.get("reason", "")
         if not isinstance(reason, str):
             raise ValueError("Invalid component evidence: reason must be a string")
+        lock_scope = raw.get("lock_scope", "")
+        if lock_scope not in {"", "development", "production"}:
+            raise ValueError("Invalid component evidence: unknown lock scope")
         component = cls(
             ecosystem=raw["ecosystem"],
             package=raw["package"],
@@ -108,6 +117,7 @@ class ComponentEvidence:
             lockfile_sha256=raw["lockfile_sha256"],
             range_match=match,
             reason=reason,
+            lock_scope=lock_scope,
         )
         if "instance_id" in raw and raw["instance_id"] != component.instance_id:
             raise ValueError("Invalid component evidence: instance ID conflicts with its fields")

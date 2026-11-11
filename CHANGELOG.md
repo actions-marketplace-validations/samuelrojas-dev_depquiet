@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- npm alerts are filtered as development-only when every locked copy inside the
+  advisory's range is marked `dev` in the lockfile, even if another copy of the
+  same package is a production dependency at an unaffected version. Components
+  carry the new `lock_scope` field.
+- `--scanner npm|pip` chooses the scanner in a project with both ecosystems. The
+  report now says which ecosystem a run did not scan instead of staying silent.
+
+### Changed
+- A report from `npm audit` or `pip-audit` is traced through that ecosystem's
+  manifests and lockfiles only. A crate or Python package with the same name as
+  an npm package no longer adds dependency paths to it.
+- In workspaces, a member that uses a package without declaring it no longer
+  blocks a development-only classification made by the members that declare it.
+
+### Fixed
+- The dependency graph was marked incomplete, disabling every graph-based filter,
+  by layouts that cannot hide a dependency path: several locked versions of one
+  package in a shared lock, edges to uninstalled optional packages, two workspace
+  members with the same name, a package name present in two ecosystems, and
+  symbolic links to files that are not manifests or lockfiles. On Kong/insomnia,
+  saleor and open-webui this kept every alert, including the ones
+  `npm audit --omit=dev` drops. Links that stand in for a manifest, a lockfile or
+  a directory still leave the graph incomplete.
+- npm aliases (`"x-cjs": "npm:x@^4"`) are linked to the package they install, so
+  an advisory for the real package is traced through dependents that list the alias.
+
 ## [0.32.0] - 2026-11-10
 
 ### Added

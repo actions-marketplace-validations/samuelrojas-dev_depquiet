@@ -237,6 +237,10 @@ def _resolve_locations(
                 lockfile_sha256=digest,
                 range_match=state,
                 reason=reason,
+                # ``devOptional`` copies are also installed for production
+                # unless optional dependencies are omitted, so only ``dev``
+                # counts. This is the flag ``npm audit --omit=dev`` reads.
+                lock_scope="development" if info.get("dev") is True else "production",
             )
         )
         if state == "unknown":

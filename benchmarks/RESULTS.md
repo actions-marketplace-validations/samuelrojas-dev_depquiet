@@ -9,7 +9,7 @@ Lockfile resolved and audited by the real package manager (`capture_real.py`).
 
 | Scenario | Parser | Total | Action | Review | Filtered | Filter rate | Time |
 |----------|--------|------:|-------:|-------:|---------:|------------:|-----:|
-| real-npm-express | npm | 29 | 13 | 3 | 13 | **45%** | 362ms |
+| real-npm-express | npm | 29 | 13 | 3 | 13 | **45%** | 594ms |
 
 | Scenario | Unreachable | Test-only | Dev-only | Low EPSS | Template |
 |----------|------------:|----------:|---------:|---------:|---------:|
@@ -59,17 +59,17 @@ projects: `pip-audit --no-deps` on every version pinned in `uv.lock`/`poetry.loc
 
 | Scenario | Parser | Total | Action | Review | Filtered | Filter rate | Time |
 |----------|--------|------:|-------:|-------:|---------:|------------:|-----:|
-| repo-hackathon-starter | npm | 2 | 0 | 0 | 2 | **100%** | 188ms |
-| repo-mealie | pip-audit | 229 | 198 | 0 | 31 | **14%** | 2594ms |
-| repo-node-express-boilerplate | npm | 163 | 140 | 5 | 18 | **11%** | 725ms |
-| repo-node-express-realworld | npm | 95 | 18 | 3 | 74 | **78%** | 83ms |
-| repo-paperless-ngx | pip-audit | 17 | 17 | 0 | 0 | **0%** | 2576ms |
+| repo-hackathon-starter | npm | 2 | 0 | 0 | 2 | **100%** | 237ms |
+| repo-mealie | pip-audit | 229 | 198 | 0 | 31 | **14%** | 2974ms |
+| repo-node-express-boilerplate | npm | 163 | 129 | 5 | 29 | **18%** | 856ms |
+| repo-node-express-realworld | npm | 95 | 18 | 3 | 74 | **78%** | 104ms |
+| repo-paperless-ngx | pip-audit | 17 | 17 | 0 | 0 | **0%** | 3432ms |
 
 | Scenario | Unreachable | Test-only | Dev-only | Low EPSS | Template |
 |----------|------------:|----------:|---------:|---------:|---------:|
 | repo-hackathon-starter | 0 | 0 | 2 | 0 | 0 |
 | repo-mealie | 0 | 0 | 31 | 0 | 0 |
-| repo-node-express-boilerplate | 0 | 0 | 18 | 0 | 0 |
+| repo-node-express-boilerplate | 0 | 0 | 29 | 0 | 0 |
 | repo-node-express-realworld | 0 | 33 | 41 | 0 | 0 |
 | repo-paperless-ngx | 0 | 0 | 0 | 0 | 0 |
 
@@ -372,10 +372,10 @@ projects: `pip-audit --no-deps` on every version pinned in `uv.lock`/`poetry.loc
 | compression | GHSA-vc2v-76pw-4v95 | high | direct | - | action | - |
 | cookie | GHSA-pxg6-pf52-xh8x | low | transitive | express, swagger-ui-express | review | - |
 | cookiejar | GHSA-h452-7996-h45h | moderate | transitive | supertest | filtered | dev dependency |
-| cross-spawn | GHSA-3xgq-45jj-v275 | high | transitive | cross-env, eslint, eslint-config-airbnb-base, eslint-config-prettier, eslint-plugin-import, eslint-plugin-jest, eslint-plugin-prettier, jest, lint-staged | action | - |
-| decode-uri-component | GHSA-qr28-fpjm-wq7f | high | transitive | eslint-plugin-jest, jest, lint-staged, nodemon, pm2 | action | - |
-| decode-uri-component | GHSA-vcc3-ghjq-m6fr | high | transitive | eslint-plugin-jest, jest, lint-staged, nodemon, pm2 | action | - |
-| decode-uri-component | GHSA-w573-4hg7-7wgq | high | transitive | eslint-plugin-jest, jest, lint-staged, nodemon, pm2 | action | - |
+| cross-spawn | GHSA-3xgq-45jj-v275 | high | transitive | cross-env, eslint, eslint-config-airbnb-base, eslint-config-prettier, eslint-plugin-import, eslint-plugin-jest, eslint-plugin-prettier, jest, lint-staged | filtered | dev dependency |
+| decode-uri-component | GHSA-qr28-fpjm-wq7f | high | transitive | eslint-plugin-jest, jest, lint-staged, nodemon, pm2 | filtered | dev dependency |
+| decode-uri-component | GHSA-vcc3-ghjq-m6fr | high | transitive | eslint-plugin-jest, jest, lint-staged, nodemon, pm2 | filtered | dev dependency |
+| decode-uri-component | GHSA-w573-4hg7-7wgq | high | transitive | eslint-plugin-jest, jest, lint-staged, nodemon, pm2 | filtered | dev dependency |
 | deepmerge | GHSA-gcqx-w48m-w2h4 | low | transitive | jest | filtered | dev dependency |
 | degenerator | GHSA-9j49-mfvp-vmhm | high | transitive | pm2 | action | - |
 | express | GHSA-qw6h-vgh9-j6wx | high | direct | swagger-ui-express | action | - |
@@ -396,11 +396,11 @@ projects: `pip-audit --no-deps` on every version pinned in `uv.lock`/`poetry.loc
 | joi | GHSA-gg4h-3hg2-grpc | high | direct | - | action | - |
 | joi | GHSA-q7cg-457f-vx79 | high | direct | - | action | - |
 | joi | GHSA-wr44-6hxh-3jwq | high | direct | - | action | - |
-| js-yaml | GHSA-2883-xcg3-v3hh | high | transitive | coveralls, eslint, eslint-config-airbnb-base, eslint-config-prettier, eslint-plugin-import, eslint-plugin-jest, eslint-plugin-prettier, jest, swagger-jsdoc | action | - |
+| js-yaml | GHSA-2883-xcg3-v3hh | high | transitive | coveralls, eslint, eslint-config-airbnb-base, eslint-config-prettier, eslint-plugin-import, eslint-plugin-jest, eslint-plugin-prettier, jest, swagger-jsdoc | filtered | dev dependency |
 | js-yaml | GHSA-52cp-r559-cp3m | high | transitive | coveralls, eslint, eslint-config-airbnb-base, eslint-config-prettier, eslint-plugin-import, eslint-plugin-jest, eslint-plugin-prettier, jest, swagger-jsdoc | action | - |
-| js-yaml | GHSA-5p4m-2wfm-xmqj | high | transitive | coveralls, eslint, eslint-config-airbnb-base, eslint-config-prettier, eslint-plugin-import, eslint-plugin-jest, eslint-plugin-prettier, jest, swagger-jsdoc | action | - |
-| js-yaml | GHSA-h67p-54hq-rp68 | high | transitive | coveralls, eslint, eslint-config-airbnb-base, eslint-config-prettier, eslint-plugin-import, eslint-plugin-jest, eslint-plugin-prettier, jest, swagger-jsdoc | action | - |
-| js-yaml | GHSA-mh29-5h37-fv8m | high | transitive | coveralls, eslint, eslint-config-airbnb-base, eslint-config-prettier, eslint-plugin-import, eslint-plugin-jest, eslint-plugin-prettier, jest, swagger-jsdoc | action | - |
+| js-yaml | GHSA-5p4m-2wfm-xmqj | high | transitive | coveralls, eslint, eslint-config-airbnb-base, eslint-config-prettier, eslint-plugin-import, eslint-plugin-jest, eslint-plugin-prettier, jest, swagger-jsdoc | filtered | dev dependency |
+| js-yaml | GHSA-h67p-54hq-rp68 | high | transitive | coveralls, eslint, eslint-config-airbnb-base, eslint-config-prettier, eslint-plugin-import, eslint-plugin-jest, eslint-plugin-prettier, jest, swagger-jsdoc | filtered | dev dependency |
+| js-yaml | GHSA-mh29-5h37-fv8m | high | transitive | coveralls, eslint, eslint-config-airbnb-base, eslint-config-prettier, eslint-plugin-import, eslint-plugin-jest, eslint-plugin-prettier, jest, swagger-jsdoc | filtered | dev dependency |
 | json-schema | GHSA-896r-f27r-55mw | critical | transitive | coveralls | filtered | dev dependency |
 | json5 | GHSA-9c47-m6qq-7p4h | high | transitive | eslint-config-airbnb-base, eslint-plugin-import, jest | filtered | dev dependency |
 | jsonwebtoken | GHSA-8cf7-32gw-wr33 | high | direct | passport-jwt | action | - |
@@ -409,7 +409,7 @@ projects: `pip-audit --no-deps` on every version pinned in `uv.lock`/`poetry.loc
 | jws | GHSA-869p-cjfg-cm3x | high | transitive | jsonwebtoken, passport-jwt | action | - |
 | lodash | GHSA-r5fr-rjxr-66jc | high | transitive | jest, pm2, winston | action | - |
 | lodash | GHSA-xxjr-mmjv-4gpg | high | transitive | jest, pm2, winston | action | - |
-| micromatch | GHSA-952p-6rrq-rcjv | high | transitive | eslint-plugin-jest, jest, lint-staged, nodemon, pm2 | action | - |
+| micromatch | GHSA-952p-6rrq-rcjv | high | transitive | eslint-plugin-jest, jest, lint-staged, nodemon, pm2 | filtered | dev dependency |
 | minimatch | GHSA-23c5-xmqv-rm74 | high | transitive | eslint, eslint-config-airbnb-base, eslint-config-prettier, eslint-plugin-import, eslint-plugin-jest, eslint-plugin-prettier, jest, nodemon, pm2, swagger-jsdoc | action | - |
 | minimatch | GHSA-3ppc-4f35-3m26 | high | transitive | eslint, eslint-config-airbnb-base, eslint-config-prettier, eslint-plugin-import, eslint-plugin-jest, eslint-plugin-prettier, jest, nodemon, pm2, swagger-jsdoc | action | - |
 | minimatch | GHSA-7r86-cg39-jmmj | high | transitive | eslint, eslint-config-airbnb-base, eslint-config-prettier, eslint-plugin-import, eslint-plugin-jest, eslint-plugin-prettier, jest, nodemon, pm2, swagger-jsdoc | action | - |
@@ -460,7 +460,7 @@ projects: `pip-audit --no-deps` on every version pinned in `uv.lock`/`poetry.loc
 | qs | GHSA-4mjr-xmp4-gh2g | high | transitive | coveralls, express, supertest, swagger-ui-express | action | - |
 | qs | GHSA-6pq8-jhm2-2vcw | high | transitive | coveralls, express, supertest, swagger-ui-express | action | - |
 | qs | GHSA-6rw7-vpxm-498p | high | transitive | coveralls, express, supertest, swagger-ui-express | action | - |
-| qs | GHSA-hrpp-h998-j3pp | high | transitive | coveralls, express, supertest, swagger-ui-express | action | - |
+| qs | GHSA-hrpp-h998-j3pp | high | transitive | coveralls, express, supertest, swagger-ui-express | filtered | dev dependency |
 | qs | GHSA-w7fw-mjwx-w883 | high | transitive | coveralls, express, supertest, swagger-ui-express | action | - |
 | request | GHSA-p8p7-x288-28g6 | critical | transitive | coveralls | filtered | dev dependency |
 | semver | GHSA-c2qf-rxjj-qqgw | high | transitive | cross-env, eslint, eslint-config-airbnb-base, eslint-config-prettier, eslint-plugin-import, eslint-plugin-jest, eslint-plugin-prettier, jest, jsonwebtoken, lint-staged, nodemon, passport-jwt, pm2, supertest | action | - |
@@ -486,7 +486,7 @@ projects: `pip-audit --no-deps` on every version pinned in `uv.lock`/`poetry.loc
 | validator | GHSA-xx4c-jj58-r7x6 | high | direct | swagger-jsdoc | action | - |
 | ws | GHSA-3h5v-q93c-6h6q | high | transitive | jest, pm2 | action | - |
 | ws | GHSA-96hv-2xvq-fx4p | high | transitive | jest, pm2 | action | - |
-| yaml | GHSA-48c2-rrv3-qjmp | moderate | transitive | lint-staged, swagger-jsdoc | action | - |
+| yaml | GHSA-48c2-rrv3-qjmp | moderate | transitive | lint-staged, swagger-jsdoc | filtered | dev dependency |
 
 ### repo-node-express-realworld
 
@@ -622,10 +622,10 @@ them on reachability. Kept as parser regression tests, not as evidence.
 
 | Scenario | Parser | Total | Action | Review | Filtered | Filter rate | Time |
 |----------|--------|------:|-------:|-------:|---------:|------------:|-----:|
-| npm-express-app | npm | 15 | 9 | 1 | 5 | **33%** | 2ms |
-| pip-django-app | pip | 9 | 9 | 0 | 0 | **0%** | 1ms |
-| trivy-node-container | trivy | 8 | 6 | 0 | 2 | **25%** | 1ms |
-| grype-python-container | grype | 6 | 6 | 0 | 0 | **0%** | 1ms |
+| npm-express-app | npm | 15 | 9 | 1 | 5 | **33%** | 4ms |
+| pip-django-app | pip | 9 | 9 | 0 | 0 | **0%** | 2ms |
+| trivy-node-container | trivy | 8 | 6 | 0 | 2 | **25%** | 2ms |
+| grype-python-container | grype | 6 | 6 | 0 | 0 | **0%** | 2ms |
 
 | Scenario | Unreachable | Test-only | Dev-only | Low EPSS | Template |
 |----------|------------:|----------:|---------:|---------:|---------:|

@@ -88,6 +88,36 @@ _PARSERS: list[type[_Parser]] = [
 ]
 
 
+_SCANNER_ECOSYSTEM = {"npm": "npm", "pip": "python"}
+
+
+_NATIVE_SCANNERS: dict[str, type[_Parser]] = {"npm": NpmAuditParser, "pip": PipAuditParser}
+
+
+def _unscanned_note(project: Path, pm: str | None) -> str:
+    """Say which other ecosystem this run leaves out, never silently.
+
+    One run audits one package manager. A repository with a web client and a
+    Python service has two dependency sets, and a clean npm report says
+    nothing about the other.
+    """
+    if pm not in _NATIVE_SCANNERS:
+        return ""
+    others = [
+        name for name, parser in _NATIVE_SCANNERS.items() if name != pm and parser.detect(project)
+    ]
+    if not others:
+        return ""
+    labels = {"npm": "npm", "pip": "Python"}
+    return (
+        f"Only {labels[pm]} dependencies were scanned. This project also declares "
+        + " and ".join(labels[name] for name in others)
+        + " dependencies; scan them with "
+        + " / ".join(f"--scanner {name}" for name in others)
+        + "."
+    )
+
+
 def detect_package_manager(project: Path) -> str | None:
     """Auto-detect the project's package manager."""
     for parser in _PARSERS:
@@ -105,6 +135,7 @@ def scan(
     audit_json: dict[str, Any] | None = None,
     always_flag: list[str] | None = None,
     policy: Policy | None = None,
+    scanner: str | None = None,
 ) -> ScanResult:
     """Run a full triage scan on a project.
 
@@ -114,12 +145,15 @@ def scan(
         skip_epss: Don't query the EPSS API (fully offline mode).
         template_dirs: Extra directories to load community templates from.
         audit_json: Pre-parsed audit JSON (for testing / piped input).
+        scanner: Native scanner to run ("npm" or "pip") instead of the first
+            one detected, for projects with more than one ecosystem.
 
     Returns:
         ScanResult with all vulnerabilities and their triage verdicts.
     """
     # Step 1: Detect and parse
-    pm = detect_package_manager(project)
+    pm = scanner or detect_package_manager(project)
+    unscanned = "" if audit_json is not None else _unscanned_note(project, pm)
     if pm is None and audit_json is None:
         # No native scanner detected — try OSV.dev lockfile scanning
         if not skip_epss and OsvScanner.detect(project):
@@ -208,6 +242,7 @@ def scan(
                 note=str(e),
             )
 
+    scan_note = " ".join(part for part in (scan_note, unscanned) if part)
     if not vulns:
         return ScanResult(
             project_path=str(project),
@@ -218,7 +253,10 @@ def scan(
         )
 
     # Step 2: Initialize filters
-    graph = DependencyGraph.from_project(project)
+    # A native scanner reports one ecosystem; paths through another ecosystem's
+    # lockfile say nothing about its packages. Multi-ecosystem inputs (SBOM,
+    # Trivy, OSV) keep the merged graph.
+    graph = DependencyGraph.from_project(project, ecosystem=_SCANNER_ECOSYSTEM.get(pm or ""))
     contexts = _project_contexts(project, graph)
     epss_filter = EpssFilter(threshold=epss_threshold)
     template_filter = TemplateFilter(template_dirs=template_dirs)
@@ -275,6 +313,14 @@ def scan(
         # dependency. Every known root must be dev-only before suppressing it.
         if evaluation.dev_only:
             reasons.append(FilterReason.DEV_DEPENDENCY)
+        elif _locked_for_development_only(vuln):
+            reasons.append(FilterReason.DEV_DEPENDENCY)
+            note = (
+                "The lockfile marks every locked copy in the advisory range as "
+                "development-only; a production install omits them."
+            )
+            if note not in evidence.observations:
+                evidence.observations.insert(0, note)
 
         if decision.unreachable:
             reasons.append(FilterReason.UNREACHABLE)
@@ -405,6 +451,19 @@ def _run_scanner(
     if pm == "osv":
         return OsvScanner.scan_checked(project), "osv", ""
     raise ScanError(f"no scanner available for {pm or 'this project'}.")
+
+
+def _locked_for_development_only(vuln: Vulnerability) -> bool:
+    """Every reported copy the advisory can apply to is a dev-only install.
+
+    Decided per locked copy, from the package manager's own resolution, so it
+    holds when a production copy of the same name exists at an unaffected
+    version, and does not depend on the name-level graph being complete.
+    """
+    if not vuln.component_resolution_complete:
+        return False
+    affected = [c for c in vuln.components if c.range_match != "not_matched"]
+    return bool(affected) and all(c.lock_scope == "development" for c in affected)
 
 
 def _import_sites(
@@ -610,7 +669,12 @@ def _evaluate_dependency(
             for item in evaluated
         ],
     )
-    dev_only = bool(selected) and graph_complete and all(item.dev_only for item in selected)
+    # Development-only is a property of declarations, as in ``npm --omit=dev``:
+    # a member that uses a package it does not declare gets it from another
+    # member's install. Every member that does declare it, directly or through
+    # a dependency, must reach it only from development dependencies.
+    declared = [item for item in selected if item.relevance == "dependency"]
+    dev_only = bool(declared) and graph_complete and all(item.dev_only for item in declared)
     return _DependencyEvaluation(decision, evidence, dev_only, evaluated)
 
 
