@@ -160,6 +160,15 @@ A project with `pnpm-lock.yaml` is audited with `pnpm audit` when pnpm is instal
 through OSV.dev otherwise. A Yarn project is scanned from `yarn.lock` through OSV.dev:
 `npm audit` cannot read that file.
 
+A Python project without `uv.lock` or `poetry.lock` is audited from its requirement files:
+`requirements*.txt` at the root and `requirements/*.txt`. Files named for tooling
+(`requirements-dev.txt`, `requirements/test.txt`, `docs.txt`) are left out unless they are
+the only ones. A compiled file (`pip-compile`, `uv pip compile`, hashes) is audited as
+written, with no resolver run. Any other `requirements.txt` is resolved by pip, so the
+packages it pulls in are audited too; when pip cannot resolve it, the exact versions it
+lists are audited instead, and the report names the lines that have no exact version.
+Every file left out, and every partial audit, is stated in the report.
+
 ### SBOM generation (CycloneDX + SPDX)
 
 depquiet generates both major SBOM standards required by US Executive Order 14028:

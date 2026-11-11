@@ -774,6 +774,7 @@ def _req_name(spec: str) -> str:
 _DEV_GROUP_WORDS = frozenset(
     [
         "dev",
+        "precommit",
         "develop",
         "development",
         "test",
@@ -814,7 +815,8 @@ def _is_dev_group(name: object) -> bool:
     """``dev``, ``test``, ``docs-build``, ``db-test``: yes. ``prod``, ``release``: no."""
     if not isinstance(name, str):
         return False
-    return any(word in _DEV_GROUP_WORDS for word in re.split(r"[^a-z0-9]+", name.lower()))
+    lowered = name.lower().replace("pre-commit", "precommit").replace("pre_commit", "precommit")
+    return any(word in _DEV_GROUP_WORDS for word in re.split(r"[^a-z0-9]+", lowered))
 
 
 def _is_group_include(spec: object, groups: dict[str, object]) -> bool:

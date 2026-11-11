@@ -451,7 +451,10 @@ def _run_scanner(
     if pm in runners:
         run, parse, label = runners[pm]
         try:
-            return parse(run(project), project), str(pm), ""
+            report = run(project)
+            extra = report.get("depquiet_notes") if isinstance(report, dict) else None
+            note = " ".join(n for n in extra if isinstance(n, str)) if extra else ""
+            return parse(report, project), str(pm), note
         except ScanError as e:
             first = f"{label}: {e}"
         if offline or not OsvScanner.detect(project):
