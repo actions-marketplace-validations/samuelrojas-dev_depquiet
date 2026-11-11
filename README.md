@@ -931,7 +931,7 @@ depquiet --fail-on none --summary $GITHUB_STEP_SUMMARY
     sbom: sbom.cdx.json
 ```
 
-The action installs depquiet, runs it, uploads SARIF to GitHub Code Scanning, uploads the SBOM as a build artifact, and fails the build if ACTION items are found.
+The action installs the depquiet version of the tag you reference, plus pip-audit for Python projects (`install-pip-audit: false` to skip), runs it, uploads SARIF to GitHub Code Scanning, uploads the SBOM as a build artifact, and fails the build if ACTION items are found. A repository with npm and Python dependencies is scanned for both; `scanner: uv` (or `npm`, `pnpm`, `pip`) limits it to one.
 
 The action automatically writes a **Job Summary** to the PR checks page with severity badges, EPSS scores, fix versions, and a filtered breakdown.
 

@@ -118,10 +118,48 @@ jobs:
             depquiet/configuration-evaluation.json
           if-no-files-found: ignore
 
+  action:
+    name: Action smoke test
+    runs-on: ubuntu-latest
+    needs: lint
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: npm project
+        id: npm
+        uses: ./
+        with:
+          path: benchmarks/fixtures/real-npm-express/project
+          offline: "true"
+          fail-on-action: "false"
+      - name: Python project (pip-audit on uv.lock)
+        id: python
+        uses: ./
+        with:
+          path: tests/fixtures/action-python
+          offline: "true"
+          fail-on-action: "false"
+      - name: Check outputs
+        env:
+          NPM_TOTAL: ${{ steps.npm.outputs.total }}
+          NPM_FILTERED: ${{ steps.npm.outputs.filtered }}
+          PY_TOTAL: ${{ steps.python.outputs.total }}
+          PY_FILTERED: ${{ steps.python.outputs.filtered }}
+          PY_ACTION: ${{ steps.python.outputs.action }}
+        run: |
+          echo "npm: total=$NPM_TOTAL filtered=$NPM_FILTERED"
+          echo "python: total=$PY_TOTAL filtered=$PY_FILTERED action=$PY_ACTION"
+          # Advisories change; assert the shape, not exact counts.
+          test "$NPM_TOTAL" -gt 0 && test "$NPM_FILTERED" -gt 0
+          # black (dev group only) is filtered, requests (production) is not.
+          test "$PY_TOTAL" -gt 1 && test "$PY_FILTERED" -gt 0 && test "$PY_ACTION" -gt 0
+
   build:
     name: Build Package
     runs-on: ubuntu-latest
-    needs: [test, reviewed-reference]
+    needs: [test, reviewed-reference, action]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
