@@ -267,11 +267,12 @@ def test_engine_scan_with_fixture():
     assert result.package_manager == "npm"
     assert len(result.results) > 0
 
-    # lodash should be filtered (unreachable)
+    # lodash is declared but never imported: kept for review, not dismissed,
+    # because another package could load it at runtime.
     lodash_results = [r for r in result.results if r.vuln.package == "lodash"]
     if lodash_results:
-        assert lodash_results[0].verdict == Verdict.FILTERED
-        assert FilterReason.UNREACHABLE in lodash_results[0].reasons
+        assert lodash_results[0].verdict == Verdict.REVIEW
+        assert FilterReason.UNREACHABLE not in lodash_results[0].reasons
 
     # braces should NOT be filtered (it's imported)
     braces_results = [r for r in result.results if r.vuln.package == "braces"]

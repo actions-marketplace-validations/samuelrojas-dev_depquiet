@@ -418,10 +418,29 @@ def scan(
             if note not in evidence.observations:
                 evidence.observations.insert(0, note)
 
-        if decision.unreachable:
+        # A production dependency the project declares but never imports is
+        # not proof of anything: frameworks and libraries load packages they
+        # do not declare (Django database drivers, transformers' accelerate,
+        # an ORM's dialect package). Without an edge in the lockfile that is
+        # invisible, so it is shown for review, never dismissed.
+        declared_unused = (
+            decision.unreachable
+            and decision.dependency_type == "direct"
+            and FilterReason.DEV_DEPENDENCY not in reasons
+        )
+        if decision.unreachable and not declared_unused:
             reasons.append(FilterReason.UNREACHABLE)
         elif decision.test_only:
             reasons.append(FilterReason.TEST_ONLY)
+        if declared_unused:
+            note = (
+                "Declared as a production dependency but never imported by the project. "
+                "Another library may load it at runtime (database drivers, optional "
+                "accelerators, plugins named in settings), which no lockfile records, "
+                "so it is kept for review."
+            )
+            if note not in evidence.observations:
+                evidence.observations.insert(0, note)
 
         # Filter 3: Low EPSS score
         epss_data = epss_filter.get_score(vuln.cve)
@@ -440,6 +459,8 @@ def scan(
         # Determine verdict
         if reasons:
             verdict = Verdict.FILTERED
+        elif declared_unused:
+            verdict = Verdict.REVIEW
         elif epss_score is not None and epss_score < 0.3:
             # Has EPSS but above threshold — worth reviewing
             verdict = Verdict.REVIEW

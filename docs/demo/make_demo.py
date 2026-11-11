@@ -207,7 +207,7 @@ def storyboard(cap: dict[str, str]) -> list[Frame]:
     s.buf.append("")
     s.type("npm audit --json | depquiet --stdin --offline")
     s.print(dq[: ROWS - 3], per_frame=2, ms=70)
-    s.caption = "Filtered: dev tooling, or declared but never imported"
+    s.caption = "Filtered: dev tooling. Declared but never imported: review"
     s.show(3200)
     s.print(dq[ROWS - 3 : ptr_end], per_frame=2, ms=90)
     s.caption = "Kept: body-parser and path-to-regexp, reached through express"
