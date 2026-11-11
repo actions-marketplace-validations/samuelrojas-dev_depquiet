@@ -307,7 +307,7 @@ def _plan_requirements(project: Path) -> _RequirementPlan:
             left_out.append(path)
 
     def names(paths: list[Path]) -> str:
-        return ", ".join(str(p.relative_to(project)) for p in paths)
+        return ", ".join(p.relative_to(project).as_posix() for p in paths)
 
     if skipped:
         plan.notes.append(f"Development requirement files were not audited: {names(skipped)}.")
