@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.33.2] - 2026-11-11
+
+### Fixed
+- **False dismissal: every dependency group was treated as development-only.**
+  PEP 735 and Poetry groups are named lists with no fixed meaning. zulip keeps
+  its production dependencies in a group called `prod`, and all 43 of its
+  `pip-audit` alerts were filtered, 17 of them for packages its servers run
+  (`social-auth-core`, `pyasn1`, `tornado`...). On PostHog, 23 alerts for
+  `transformers` and `torch` in a feature group were filtered the same way. A
+  group is now development-only when its name says so (`dev`, `test`, `docs`,
+  `lint`, `typing`, `ci`, `benchmark`...) and production otherwise, in
+  `pyproject.toml`, in `uv.lock` and in Poetry groups. This affects every
+  release that reads dependency groups, not only 0.33.
+
 ## [0.33.1] - 2026-11-11
 
 ### Fixed
@@ -667,7 +681,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.33.1...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.33.2...HEAD
+[0.33.2]: https://github.com/samuelrojas-dev/depquiet/compare/v0.33.1...v0.33.2
 [0.33.1]: https://github.com/samuelrojas-dev/depquiet/compare/v0.33.0...v0.33.1
 [0.33.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.32.0...v0.33.0
 [0.31.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.30.1...v0.31.0

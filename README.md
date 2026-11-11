@@ -1124,25 +1124,33 @@ The same comparison on five larger projects at their head on 2026-11-10 (Kong/in
 filters the 85 alerts `npm audit --omit=dev` drops, row for row, and nothing else. On npm,
 expect depquiet to match `--omit=dev` and explain the rest, not to beat it. Python is
 different, because `pip-audit` has no equivalent switch. On 17 projects with a `uv.lock`,
-at their head on 2026-11-11, `pip-audit` reported 1,004 alerts and depquiet filtered 114 as
+at their head on 2026-11-11, `pip-audit` reported 1,004 alerts and depquiet filtered 72 as
 development-only:
 
 | Project | pip-audit alerts | Development-only, filtered |
 |---|---:|---:|
-| zulip | 43 | 43 |
-| PostHog | 255 | 31 |
+| zulip | 43 | 26 |
 | saleor | 16 | 14 |
-| mlflow | 17 | 12 |
 | langflow | 70 | 11 |
+| mlflow | 17 | 10 |
+| PostHog | 255 | 8 |
 | llama_index, open-webui, pydantic-ai | 188 | 3 |
 | nine others (Chainlit, crewAI, litellm, ...) | 415 | 0 |
 
-Each verdict was checked against a separate walk of the project's `uv.lock`: none of the
-114 packages is reachable from a production dependency or an extra. The same walk finds 20
-more development-only alerts that depquiet keeps, most of them in llama_index, whose
-integration packages each declare their own dependencies. Nothing else was filtered: every
-one of these projects has a dynamic import somewhere, which keeps the unused-dependency
-filter off.
+Each verdict was checked against a separate walk of the project's `uv.lock`, with the
+dependency groups of every project read by hand to decide which are tooling: none of the 72
+packages is reachable from a production dependency, an extra or a non-tooling group. The
+same walk finds 21 more development-only alerts that depquiet keeps, most of them in
+llama_index, whose integration packages each declare their own dependencies.
+
+That hand reading matters. A dependency group is only a named list: zulip keeps everything
+its servers run in a group called `prod`, and PostHog keeps optional features in groups
+such as `sentiment`. depquiet treats a group as development-only when its name says so
+(`dev`, `test`, `docs`, `lint`...) and as production otherwise; up to 0.33.1 it treated
+every group as development-only and filtered all 43 zulip alerts, 17 of them wrongly.
+
+Nothing else was filtered: every one of these projects has a dynamic import somewhere,
+which keeps the unused-dependency filter off.
 
 Run them yourself: `python -I benchmarks/run_benchmark.py`. The first run clones the pinned
 commits into `benchmarks/.cache/`; `benchmarks/capture_real.py` re-captures the audits. The

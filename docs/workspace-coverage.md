@@ -75,7 +75,9 @@ empty list is not evidence that nothing is used. depquiet takes that project's
 dependencies from `uv.lock`, which records them for the project and for every
 workspace member, from the hatch `uv-dynamic-versioning` hook table, or from the
 requirement files setuptools is told to read. With none of those, the graph is
-incomplete. Development groups are roots of their own: a package that depends on
+incomplete. A dependency group (PEP 735, Poetry) is development-only when its name
+says so (`dev`, `test`, `docs`, `lint`, `typing`, `ci`...); a group with any other
+name, such as `prod` or a feature name, is production. Development groups are roots of their own: a package that depends on
 the project does not install them, so they are not edges from it.
 
 A report from a native scanner covers one ecosystem, and the graph is then built
