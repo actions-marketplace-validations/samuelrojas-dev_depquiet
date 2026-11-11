@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import tempfile
 import tomllib
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -127,6 +128,200 @@ def lock_pins(lockfile: Path) -> tuple[list[str], list[str]]:
     return [f"{n}=={v}" for n, v in sorted(pins.items())], variants
 
 
+_PIN_LINE = re.compile(
+    r"^([A-Za-z0-9][A-Za-z0-9._-]*)\s*(?:\[[^\]]*\])?\s*==\s*([A-Za-z0-9][A-Za-z0-9.!+_-]*)\s*(?:;.*)?$"
+)
+# Options that neither add a requirement nor change which version is installed.
+_NEUTRAL_OPTIONS = (
+    "-c", "--constraint", "-i", "--index-url", "--extra-index-url", "-f", "--find-links",
+    "--no-binary", "--only-binary", "--prefer-binary", "--trusted-host", "--pre",
+    "--require-hashes", "--use-feature", "--no-index",
+)  # fmt: skip
+_TOOLING_WORDS = frozenset(
+    [
+        "dev",
+        "develop",
+        "development",
+        "test",
+        "tests",
+        "testing",
+        "lint",
+        "docs",
+        "doc",
+        "typing",
+        "ci",
+        "bench",
+        "benchmark",
+        "coverage",
+        "qa",
+        "debug",
+        "precommit",
+    ]
+)
+
+
+def _requirement_lines(path: Path) -> list[str]:
+    """Logical lines of a requirements file: continuations joined, comments dropped."""
+    lines: list[str] = []
+    pending = ""
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = pending + raw.strip()
+        if line.endswith("\\"):
+            pending = line[:-1].rstrip() + " "
+            continue
+        pending = ""
+        line = re.split(r"(?:^|\s)#", line, maxsplit=1)[0].strip()
+        if line:
+            lines.append(line)
+    return lines
+
+
+def pinned_requirements(
+    path: Path, unpinned: list[str] | None = None
+) -> tuple[list[str], list[Path]] | None:
+    """Exact pins of a requirements file, when exact pins are all it holds.
+
+    Returns ``(pins, included files)`` for a file made of ``name==version``
+    lines, the output of ``pip-compile``, ``uv pip compile`` or ``pip freeze``.
+    Such a file can be audited as written, with no resolver run. Returns
+    ``None`` when any requirement is a range, a bare name or a wildcard:
+    what gets installed then depends on resolution. Editable, URL and path
+    entries have no registry version to look up and are left out.
+
+    With ``unpinned`` given, a requirement that is not an exact pin is
+    appended to it instead of failing the file, and the exact pins are still
+    returned: a partial list, for when pip cannot resolve the file at all.
+    """
+    pins: list[str] = []
+    includes: list[Path] = []
+    for line in _requirement_lines(path):
+        line = re.sub(r"\s+--hash[= ]\S+", "", line).strip()
+        if line.startswith(("-r", "--requirement")):
+            target = line.split(None, 1)[1] if " " in line else line[2:]
+            includes.append((path.parent / target.strip()).resolve())
+        elif (
+            line.startswith(("-e", "--editable"))
+            or "://" in line
+            or " @ " in line
+            or line.startswith(("./", "../", "/"))
+        ):
+            continue
+        elif line.startswith("-"):
+            if not line.startswith(_NEUTRAL_OPTIONS):
+                return None
+        else:
+            match = _PIN_LINE.match(line)
+            if match is None and unpinned is not None:
+                unpinned.append(re.split(r"[\s<>=!~;\[]", line, maxsplit=1)[0])
+                continue
+            if match is None:
+                return None
+            name = re.sub(r"[-_.]+", "-", match.group(1)).lower()
+            pins.append(f"{name}=={match.group(2)}")
+    return pins, includes
+
+
+def is_tooling_requirements(path: Path) -> bool:
+    """``requirements-dev.txt``, ``requirements/test.txt``, ``docs.txt``: yes."""
+    stem = path.stem.lower().replace("pre-commit", "precommit").replace("pre_commit", "precommit")
+    return any(word in _TOOLING_WORDS for word in re.split(r"[^a-z0-9]+", stem))
+
+
+def requirement_files(project: Path) -> list[Path]:
+    """Requirement files of a project that keeps no lockfile, root file first.
+
+    ``requirements.txt`` and ``requirements*.txt`` at the root, and the
+    ``requirements/*.txt`` layout (``base.txt``, ``production.txt``, ...).
+    """
+    found = sorted(p for p in project.glob("requirements*.txt") if p.is_file())
+    folder = project / "requirements"
+    if folder.is_dir():
+        found += sorted(p for p in folder.glob("*.txt") if p.is_file())
+    root = project / "requirements.txt"
+    return ([root] if root in found else []) + [p for p in found if p != root]
+
+
+@dataclass
+class _RequirementPlan:
+    """How the requirement files of a project are audited."""
+
+    # Exact pins from compiled files: the whole closure, audited as written.
+    pins: list[str] = field(default_factory=list)
+    # Files pip has to resolve, each with the pins to fall back on (if any).
+    resolve: list[tuple[Path, list[str]]] = field(default_factory=list)
+    # Requirements in a resolved file that are not exact pins, by file.
+    unpinned: dict[Path, list[str]] = field(default_factory=dict)
+    notes: list[str] = field(default_factory=list)
+
+
+def is_compiled_requirements(path: Path) -> bool:
+    """Whether the file is a resolver's output, listing transitive packages too.
+
+    ``pip-compile`` and ``uv pip compile`` annotate each pin with ``# via`` and
+    sign the header; hash-checking files cannot omit a package. A hand-kept
+    ``django==4.2`` file has none of these and may list top-level packages only.
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return False
+    return "# via" in text or "--hash=" in text or "autogenerated by" in text[:400].lower()
+
+
+def _plan_requirements(project: Path) -> _RequirementPlan:
+    plan = _RequirementPlan()
+    files = requirement_files(project)
+    audited = [f for f in files if not is_tooling_requirements(f)] or files
+    skipped = [f for f in files if f not in audited]
+    root = project / "requirements.txt"
+    left_out: list[Path] = []
+    partial: list[Path] = []
+    queue, seen = list(audited), set()
+    while queue:
+        path = queue.pop(0)
+        if path in seen or not path.is_file():
+            continue
+        seen.add(path)
+        try:
+            parsed = pinned_requirements(path)
+        except (OSError, UnicodeDecodeError):
+            parsed = None
+        if parsed is not None:
+            queue += [p for p in parsed[1] if p.is_relative_to(project)]
+        if parsed is not None and is_compiled_requirements(path):
+            plan.pins += parsed[0]
+        elif path == root or (root not in audited and parsed is None):
+            # pip resolves it, so transitive packages are audited too. If
+            # resolution fails, the pins it lists are still worth auditing.
+            loose: list[str] = []
+            try:
+                lenient = pinned_requirements(path, loose)
+            except (OSError, UnicodeDecodeError):
+                lenient = None
+            plan.resolve.append((path, lenient[0] if lenient else []))
+            plan.unpinned[path] = loose
+        elif parsed is not None:
+            plan.pins += parsed[0]
+            partial.append(path)
+        else:
+            left_out.append(path)
+
+    def names(paths: list[Path]) -> str:
+        return ", ".join(str(p.relative_to(project)) for p in paths)
+
+    if skipped:
+        plan.notes.append(f"Development requirement files were not audited: {names(skipped)}.")
+    if partial:
+        plan.notes.append(
+            f"Audited the pinned versions listed in {names(partial)}; packages they pull "
+            "in without listing were not resolved."
+        )
+    if left_out:
+        plan.notes.append(f"Not audited, because not fully pinned: {names(left_out)}.")
+    plan.pins = list(dict.fromkeys(plan.pins))
+    return plan
+
+
 def _pin_batches(pins: list[str]) -> list[list[str]]:
     """Keep each locked version, with at most one version per name per audit."""
     batches: list[list[str]] = []
@@ -148,7 +343,8 @@ def run_pip_audit(project: Path) -> dict[str, Any]:
     """Audit the *project's* dependencies, never the environment depquiet runs in.
 
     uv.lock / poetry.lock: every pinned version, without resolving or installing
-    (``--no-deps --disable-pip``). requirements.txt: pip-audit resolves it.
+    (``--no-deps --disable-pip``). Requirement files: the same when they are
+    fully pinned, otherwise pip-audit resolves ``requirements.txt``.
     pyproject.toml only: pip-audit resolves the local project.
     """
     project = project.resolve()
@@ -156,7 +352,22 @@ def run_pip_audit(project: Path) -> dict[str, Any]:
     if executable is None:
         raise ScanError("pip-audit is not installed (pip install pip-audit).")
     with tempfile.TemporaryDirectory() as tmp:
-        targets: list[list[str]] = []
+        # (pip-audit arguments, pins to audit instead if those arguments fail)
+        targets: list[tuple[list[str], list[str]]] = []
+        notes: list[str] = []
+        loose_by_file: dict[str, list[str]] = {}
+        counter = 0
+
+        def pin_targets(pins: list[str]) -> list[list[str]]:
+            nonlocal counter
+            written = []
+            for batch in _pin_batches(pins):
+                req = Path(tmp) / f"requirements-{counter}.txt"
+                counter += 1
+                req.write_text("\n".join(batch) + "\n", encoding="utf-8")
+                written.append(["-r", str(req), "--no-deps", "--disable-pip"])
+            return written
+
         lock = next(
             (project / n for n in ("uv.lock", "poetry.lock") if (project / n).exists()), None
         )
@@ -165,23 +376,29 @@ def run_pip_audit(project: Path) -> dict[str, Any]:
                 pins, variants = lock_pins(lock)
             except (ValueError, KeyError, OSError) as e:
                 raise ScanError(f"could not read {lock.name}: {e}") from e
-            batches = _pin_batches(pins + variants)
-            if not batches:
+            targets = [(args, []) for args in pin_targets(pins + variants)]
+            if not targets:
                 raise ScanError(f"found no registry packages to audit in {lock.name}.")
-            for i, batch in enumerate(batches):
-                req = Path(tmp) / f"requirements-{i}.txt"
-                req.write_text("\n".join(batch) + "\n", encoding="utf-8")
-                targets.append(["-r", str(req), "--no-deps", "--disable-pip"])
-        elif (project / "requirements.txt").exists():
-            targets.append(["-r", str(project / "requirements.txt")])
+        elif requirement_files(project):
+            plan = _plan_requirements(project)
+            notes = plan.notes
+            targets = [(args, []) for args in pin_targets(plan.pins)]
+            targets += [(["-r", str(path)], fallback) for path, fallback in plan.resolve]
+            loose_by_file = {str(path): names for path, names in plan.unpinned.items()}
+            if not targets:
+                raise ScanError("the requirement files list no registry packages to audit.")
         elif (project / "pyproject.toml").exists():
-            targets.append([str(project)])
+            targets.append(([str(project)], []))
         else:
-            raise ScanError("no uv.lock, poetry.lock, requirements.txt or pyproject.toml to audit.")
-        report: dict[str, Any] = {"dependencies": []}
-        for i, target in enumerate(targets):
-            out = Path(tmp) / f"audit-{i}.json"
-            cmd = [executable, *target, "-f", "json", "--progress-spinner", "off", "-o", str(out)]
+            raise ScanError(
+                "no uv.lock, poetry.lock, requirements file or pyproject.toml to audit."
+            )
+
+        def audit(args: list[str]) -> dict[str, Any]:
+            nonlocal counter
+            out = Path(tmp) / f"audit-{counter}.json"
+            counter += 1
+            cmd = [executable, *args, "-f", "json", "--progress-spinner", "off", "-o", str(out)]
             try:
                 r = subprocess.run(
                     cmd,
@@ -206,8 +423,37 @@ def run_pip_audit(project: Path) -> dict[str, Any]:
                 or not isinstance(data.get("dependencies"), list)
             ):
                 raise ScanError(f"pip-audit failed: {_tail(r.stderr)}")
-            if i == 0:
-                report = data
-            else:
-                report["dependencies"].extend(data["dependencies"])
+            return data
+
+        report: dict[str, Any] | None = None
+        for args, fallback in targets:
+            try:
+                parts = [audit(args)]
+            except ScanError:
+                if not fallback:
+                    raise
+                # pip could not resolve the file (a build dependency, a
+                # conflict, a private index). Its exact pins can still be
+                # looked up; what they pull in without listing cannot.
+                parts = [audit(pinned) for pinned in pin_targets(fallback)]
+                loose = loose_by_file.get(args[1], [])
+                notes.append(
+                    f"pip could not resolve {Path(args[1]).name}; audited the "
+                    f"{len(fallback)} pinned versions it lists, without the packages "
+                    "they pull in."
+                    + (
+                        f" Not audited, having no exact version: {', '.join(loose)}."
+                        if loose
+                        else ""
+                    )
+                )
+            for data in parts:
+                if report is None:
+                    report = data
+                else:
+                    report["dependencies"].extend(data["dependencies"])
+        if report is None:
+            report = {"dependencies": []}
+        if notes:
+            report["depquiet_notes"] = notes
         return report

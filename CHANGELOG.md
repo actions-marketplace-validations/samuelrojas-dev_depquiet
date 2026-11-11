@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-11-11
+
+### Added
+- Python projects that keep requirement files instead of a lockfile.
+  `requirements*.txt` and the `requirements/*.txt` layout are audited (ansible/awx
+  and apache/superset have nothing at the root and could not be scanned). Files
+  named for tooling are left out unless they are the only ones. Compiled files
+  are audited as written, with `--no-deps`, so no resolver runs and nothing can
+  fail to install. The report names every file left out.
+- When pip cannot resolve `requirements.txt` (home-assistant/core in a clean
+  environment), the exact versions it lists are audited instead of the scan
+  failing, and the report names the lines without an exact version.
+
+### Fixed
+- A dependency group named `pre-commit` was counted as production.
+
 ## [0.33.2] - 2026-11-11
 
 ### Fixed
@@ -681,7 +697,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.33.2...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.34.0...HEAD
+[0.34.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.33.2...v0.34.0
 [0.33.2]: https://github.com/samuelrojas-dev/depquiet/compare/v0.33.1...v0.33.2
 [0.33.1]: https://github.com/samuelrojas-dev/depquiet/compare/v0.33.0...v0.33.1
 [0.33.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.32.0...v0.33.0

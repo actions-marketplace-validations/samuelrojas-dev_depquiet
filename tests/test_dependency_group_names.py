@@ -36,7 +36,19 @@ def _pip(name: str) -> dict[str, Any]:
 
 
 @pytest.mark.parametrize(
-    "name", ["dev", "test", "tests", "docs", "lint", "typing", "db-test", "docs_build", "Dev"]
+    "name",
+    [
+        "dev",
+        "test",
+        "tests",
+        "docs",
+        "lint",
+        "typing",
+        "db-test",
+        "docs_build",
+        "Dev",
+        "pre-commit",
+    ],
 )
 def test_tooling_group_names(name: str) -> None:
     assert _is_dev_group(name)

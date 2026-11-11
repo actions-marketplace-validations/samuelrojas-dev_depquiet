@@ -32,8 +32,12 @@ class PipAuditParser:
     @staticmethod
     def detect(project: Path) -> bool:
         """Check if this is a Python project."""
+        requirements_dir = project / "requirements"
         return (
             (project / "requirements.txt").exists()
+            or any(project.glob("requirements*.txt"))
+            or (requirements_dir.is_dir() and any(requirements_dir.glob("*.txt")))
+            or (project / "uv.lock").exists()
             or (project / "pyproject.toml").exists()
             or (project / "Pipfile.lock").exists()
             or (project / "poetry.lock").exists()
