@@ -158,8 +158,9 @@ def test_complete_source_still_reports_not_observed(tmp_path: Path) -> None:
     _project(tmp_path)
     (tmp_path / "public.js").write_text("console.log('hello');\n")
     [finding] = scan(tmp_path, audit_json=_audit(), skip_epss=True).results
-    assert finding.verdict == Verdict.FILTERED
-    assert finding.reasons == [FilterReason.UNREACHABLE]
+    # A declared production dependency nobody imports is reviewed, not dismissed.
+    assert finding.verdict == Verdict.REVIEW
+    assert finding.reasons == []
     assert finding.evidence.usage == "not_observed"
 
 
@@ -295,6 +296,6 @@ def test_mention_metadata_errors_outside_included_sources_preserve_scope(
     config.write_text("value = unimportant\n")
     _deny_stat_during_mentions(monkeypatch, config)
     [finding] = scan(tmp_path, audit_json=_audit(), skip_epss=True).results
-    assert finding.reasons == [FilterReason.UNREACHABLE]
+    assert finding.verdict == Verdict.REVIEW
     assert finding.evidence.usage == "not_observed"
     assert not any("optional.ini" in item for item in finding.evidence.observations)

@@ -43,7 +43,7 @@ class Signal:
 
     name: str
     value: str
-    effect: str  # "filtered", "escalated", "neutral", "not_applicable"
+    effect: str  # "filtered", "escalated", "review", "neutral", "not_applicable"
     detail: str = ""
 
 
@@ -169,6 +169,22 @@ def explain_triage(tr: TriageResult) -> Explanation:
                 detail=(
                     "Imported only from test code or test-runner configuration: "
                     + ", ".join(tr.reachable_imports[:5])
+                ),
+            )
+        )
+    elif tr.dependency_type == "direct" and any(
+        o.startswith("Declared as a production dependency but never imported")
+        for o in tr.evidence.observations
+    ):
+        signals.append(
+            Signal(
+                name="Reachability",
+                value="declared_unused",
+                effect="review",
+                detail=(
+                    "Declared but never imported by the project. Another library may load "
+                    "it at runtime, so it is kept for review: confirm it is unused, then "
+                    "remove it or suppress the alert"
                 ),
             )
         )
@@ -443,6 +459,7 @@ def find_cve_in_json(data: dict[str, Any], cve_id: str) -> TriageResult | None:
 _EFFECT_ICONS = {
     "filtered": "  ↓ ",
     "escalated": "  ↑ ",
+    "review": "  ? ",
     "neutral": "  · ",
     "not_applicable": "  - ",
 }

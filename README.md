@@ -80,7 +80,7 @@ depquiet applies five deterministic filters to separate signal from noise:
 
 | Filter | Filters an alert when |
 |---|---|
-| **Reachability** | No source file imports the package, and (for a transitive package) no source file imports any direct dependency that pulls it in |
+| **Reachability** | A transitive package that no source file imports, pulled in only by direct dependencies that no source file imports either. A *production* dependency you declare but never import is shown for review, not filtered: another library may load it at runtime |
 | **Test-only use** | The package is imported, but only from test files (`tests/`, `e2e/`, `*.test.*`, `*.spec.*`, test-runner configs), it is not run as a project command, and no application file names it |
 | **Dev dependencies** | Every known dependency path is for development, with no production parent. For npm, also when every locked copy inside the advisory's range is one the lockfile marks as development-only |
 | **EPSS scoring** | The CVE's probability of exploitation is below the threshold (default 10%) |
@@ -98,6 +98,10 @@ depquiet would rather let a false positive through than dismiss a real vulnerabi
   of them. See [Direct vs. transitive](#direct-vs-transitive-dependencies).
 - **Unknown means not filtered.** If no manifest or lockfile says whether a package is direct
   or transitive, or a file fails to parse, the alert is not filtered on reachability.
+- **Declared but never imported is not proof.** Frameworks load packages your code never
+  imports: Django its database driver, `transformers` the `accelerate` you declared,
+  Sequelize the `pg` named by its dialect. No lockfile records those edges, so a production
+  dependency your code does not import goes to review instead of being dismissed.
 - **Production paths override development labels.** A package listed in `devDependencies`
   is still kept when a production dependency also pulls it in. A transitive package
   imported by the application is kept even when its declared parent is unused.

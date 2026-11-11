@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.37.0] - 2026-11-11
+
+### Changed
+- **A production dependency that the project declares but never imports is
+  shown for review instead of being filtered as unreachable.** Measuring the
+  filter on Python projects found it dismissing packages that are in use:
+  pretix declares `oauthlib` and uses it through `oauth2_provider`, which
+  imports it; open-webui declares `accelerate`, which `transformers` loads at
+  runtime. A lockfile does not record either edge, and without one (pretix has
+  none) no edge is known at all. The same applies to npm (an ORM loading its
+  database driver by dialect name). Development dependencies and transitive
+  packages are filtered as before. On the demo Express app 5 `lodash` alerts
+  move from filtered to review; the five real projects in the benchmark are
+  unchanged.
+
+### Fixed
+- Module names for `django-oauth-toolkit` (`oauth2_provider`), `django-allauth`,
+  `django-storages`, `django-debug-toolbar`, `django-extensions`,
+  `django-celery-beat`, `social-auth-app-django`, `social-auth-core` and
+  `opentelemetry-api`, so their imports are recognised when the package is not
+  installed where depquiet runs.
+
 ## [0.36.1] - 2026-11-11
 
 ### Fixed
@@ -734,7 +756,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.36.1...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.37.0...HEAD
+[0.37.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.36.1...v0.37.0
 [0.36.1]: https://github.com/samuelrojas-dev/depquiet/compare/v0.36.0...v0.36.1
 [0.36.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.35.0...v0.36.0
 [0.35.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.34.0...v0.35.0
