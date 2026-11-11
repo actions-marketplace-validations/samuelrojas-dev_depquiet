@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-11-10
+
 ### Added
 - pnpm projects. `pnpm-lock.yaml` (lockfile v5 to v9, including the two-document
   layout of pnpm 10+) is read for the package list and the dependency graph, with
@@ -642,7 +644,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.32.0...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.33.0...HEAD
+[0.33.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.32.0...v0.33.0
 [0.31.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.30.1...v0.31.0
 [0.21.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.20.0...v0.21.0
 [0.32.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.31.0...v0.32.0
