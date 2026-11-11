@@ -6,56 +6,62 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/samuelrojas-dev/depquiet/blob/main/LICENSE)
 [![codecov](https://codecov.io/gh/samuelrojas-dev/depquiet/graph/badge.svg)](https://codecov.io/gh/samuelrojas-dev/depquiet)
 
-**Cut through vulnerability alert noise. Surface the signal.**
+**Tells you which dependency alerts never reach production, and shows the proof.**
 
-`depquiet` triages your `npm audit` / `pip-audit` / `trivy` / `grype` / Dependabot / Snyk alerts and tells you which CVEs actually matter — in seconds, not hours. It can also **scan lockfiles directly** using the [OSV.dev](https://osv.dev) API — no external scanner required.
+`pip-audit`, `uv audit`, `npm audit` and Dependabot report every advisory that matches a
+version range. depquiet reads your lockfile and dependency groups, drops the alerts that
+only your development tools install, and keeps everything else: an alert is only dismissed
+when the lockfile proves it.
 
-![depquiet on a real Express app: npm audit, then depquiet, then depquiet explain](https://raw.githubusercontent.com/samuelrojas-dev/depquiet/main/docs/demo/demo.gif)
+### On real projects
 
-Every line in the recording is real command output ([how it's made](https://github.com/samuelrojas-dev/depquiet/blob/main/docs/demo/make_demo.py)).
-The same run as text ([reproduce it](https://github.com/samuelrojas-dev/depquiet/blob/main/benchmarks/RESULTS.md#real-npm-express)):
+`pip-audit` on popular Python projects, at their head on 2026-11-11:
 
-```
-$ npm audit --json | depquiet --stdin
+| Project | pip-audit alerts | Only reach dev tooling | Left to look at |
+|:--|--:|--:|--:|
+| [saleor](https://github.com/saleor/saleor) | 16 | 14 | 2 |
+| [zulip](https://github.com/zulip/zulip) | 43 | 26 | 17 |
+| [mlflow](https://github.com/mlflow/mlflow) | 17 | 10 | 7 |
+| [langflow](https://github.com/langflow-ai/langflow) | 70 | 11 | 59 |
+| [PostHog](https://github.com/PostHog/posthog) | 255 | 8 | 247 |
 
-depquiet scan — npm (14 packages)
+Every dismissed alert was checked against a separate walk of each `uv.lock`, with each
+project's dependency groups read by hand. Most are `virtualenv` and `filelock` pulled in
+by `pre-commit`. Details and the other 12 projects: [benchmarks](#benchmarks).
 
-✅ FILTERED: 13 alerts (45%)
-   ├─ 13 unreachable — not imported, directly or via a parent
-   └─ 8 devDependency only — never reaches production
-   (an alert can match more than one reason)
+On npm, `npm audit --omit=dev` already does this: depquiet matches it row for row on the
+projects measured, and adds which direct dependency brings each kept alert in.
 
-⚠️  REVIEW: 3 alerts
-   GHSA-pxg6-pf52-xh8x  cookie                    low        no EPSS
-   ...
-
-🔴 ACTION REQUIRED: 13 alerts
-   • GHSA-9wv6-86v2-598j  path-to-regexp  FIX: update express to 4.22.3
-     via express
-     → app.js
-     path-to-regexp outputs backtracking regular expressions
-   ...
-
-Total: 29 alerts — 13 actionable | 3 review | 13 filtered
-```
-
-`path-to-regexp` is never imported by the app, but Express calls it on every request, so
-depquiet keeps it. The 13 filtered alerts are in packages that only build tools pull in
-(eslint, nodemon, webpack-dev-middleware) or that the app declares but never imports.
-
-## Quick start
+### Quick start
 
 ```bash
-pip install depquiet pip-audit             # pip-audit is optional; without it Python
-                                           # projects are scanned through OSV.dev
+pip install depquiet pip-audit
 cd your-project
-depquiet                                   # runs npm audit / pip-audit, or scans lockfiles via OSV.dev
-npm audit --json | depquiet --stdin        # or triage any scanner's output
-depquiet explain GHSA-9wv6-86v2-598j       # why did this alert get its verdict?
+depquiet                                 # npm, pnpm and Python in one run
+depquiet explain GHSA-3jp2-3mrg-2vxc     # why this alert got its verdict
 ```
 
-Works on npm, pnpm, Yarn, Python (uv, Poetry, pip-tools, Pipfile), Rust, Ruby, PHP, .NET, Dart, Go
-and Maven projects. In CI, use the [GitHub Action](#github-actions-marketplace).
+```yaml
+# GitHub Actions
+- uses: samuelrojas-dev/depquiet@v0
+```
+
+Reads `uv.lock`, `poetry.lock`, requirement files, `package-lock.json`, `pnpm-lock.yaml` and
+`yarn.lock`, or the output of `uv audit`, Trivy, Grype, Snyk, Dependabot and SARIF tools.
+Runs locally, no account, MIT.
+
+### What it is not
+
+depquiet works at the level of packages, not functions. It cannot tell you that an imported
+package's vulnerable function is never called; Snyk, Endor Labs and, for Go,
+`govulncheck` go further there. If your project is on uv, `uv audit --no-dev` gives you the
+plain dev/production split natively; depquiet adds every group judged by name, the
+dependency path, EPSS and mixed npm/Python repositories.
+
+![depquiet on a small Express app: npm audit, then depquiet, then depquiet explain](https://raw.githubusercontent.com/samuelrojas-dev/depquiet/main/docs/demo/demo.gif)
+
+The recording is a small Express app, where most of the noise is packages the app never
+imports. Every line is real command output ([how it's made](https://github.com/samuelrojas-dev/depquiet/blob/main/docs/demo/make_demo.py)).
 
 ## The problem
 
