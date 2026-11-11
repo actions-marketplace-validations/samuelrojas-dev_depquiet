@@ -767,11 +767,62 @@ def _req_name(spec: str) -> str:
     return m.group(1) if m else ""
 
 
+# Words that mark a dependency group as tooling for people working on the
+# project. A group is a named list and nothing more: zulip keeps what its
+# servers run in a group called ``prod``. Only a recognisable name makes a
+# group development-only; any other group counts as production.
+_DEV_GROUP_WORDS = frozenset(
+    [
+        "dev",
+        "develop",
+        "development",
+        "test",
+        "tests",
+        "testing",
+        "pytest",
+        "tox",
+        "nox",
+        "e2e",
+        "lint",
+        "linting",
+        "docs",
+        "doc",
+        "documentation",
+        "typing",
+        "types",
+        "typecheck",
+        "mypy",
+        "format",
+        "formatting",
+        "style",
+        "ci",
+        "bench",
+        "benchmark",
+        "benchmarks",
+        "coverage",
+        "qa",
+        "debug",
+        "profiling",
+        "notebook",
+        "notebooks",
+        "stubs",
+    ]
+)
+
+
+def _is_dev_group(name: object) -> bool:
+    """``dev``, ``test``, ``docs-build``, ``db-test``: yes. ``prod``, ``release``: no."""
+    if not isinstance(name, str):
+        return False
+    return any(word in _DEV_GROUP_WORDS for word in re.split(r"[^a-z0-9]+", name.lower()))
+
+
 def _is_group_include(spec: object, groups: dict[str, object]) -> bool:
     """A PEP 735 ``{include-group = "name"}`` entry naming a group that exists.
 
-    Every dependency group is development-only and each one is read on its
-    own, so an include adds no package that is not already recorded.
+    Each group is read on its own and classified by its own name, and a
+    production listing anywhere wins, so an include adds nothing: ``dev``
+    including ``prod`` leaves those packages production dependencies.
     """
     return (
         isinstance(spec, dict)
@@ -785,7 +836,8 @@ def _load_pyproject(path: Path) -> DependencyGraph | None:
     """PEP 621, PEP 735 dependency groups and Poetry.
 
     Extras (optional-dependencies) ship to users, so they count as production.
-    PEP 735 groups and Poetry dev/group dependencies are development-only.
+    PEP 735 and Poetry groups are development-only when their name says so
+    (``dev``, ``test``, ``docs``...); any other group is production.
     """
     data = tomllib.loads(path.read_text(encoding="utf-8"))
     entries: list[tuple[str, bool]] = []  # (name, dev)
@@ -822,13 +874,15 @@ def _load_pyproject(path: Path) -> DependencyGraph | None:
         if static is not None:
             entries += [(_req_name(s), False) for s in static]
             unlisted = False
-    for group in (data.get("dependency-groups") or {}).values():
-        entries += [(_req_name(s), True) for s in group if isinstance(s, str)]
+    for group_name, group in (data.get("dependency-groups") or {}).items():
+        dev = _is_dev_group(group_name)
+        entries += [(_req_name(s), dev) for s in group if isinstance(s, str)]
     poetry = (data.get("tool") or {}).get("poetry") or {}
     entries += [(n, False) for n in poetry.get("dependencies") or {}]
     entries += [(n, True) for n in poetry.get("dev-dependencies") or {}]
-    for grp in (poetry.get("group") or {}).values():
-        entries += [(n, True) for n in (grp or {}).get("dependencies") or {}]
+    for group_name, grp in (poetry.get("group") or {}).items():
+        dev = _is_dev_group(group_name)
+        entries += [(n, dev) for n in (grp or {}).get("dependencies") or {}]
     # ``all = ["myproject[a,b]"]`` names the project itself to combine extras.
     # The project is not one of its own dependencies: as a root it would be
     # "imported" by every file in the repository and vouch for everything.
@@ -985,7 +1039,7 @@ def _load_uv_lock(path: Path) -> DependencyGraph:
     Roots are the packages whose ``source`` is the project itself
     (``virtual`` or ``editable``). Their ``dependencies`` and
     ``optional-dependencies`` (extras) ship to users; ``dev-dependencies``
-    (PEP 735 groups) are development-only.
+    holds the PEP 735 groups, development-only when named like tooling.
     """
     data = tomllib.loads(path.read_text(encoding="utf-8"))
     g = DependencyGraph()
@@ -1005,8 +1059,13 @@ def _load_uv_lock(path: Path) -> DependencyGraph:
         for extra in (pkg.get("optional-dependencies") or {}).values():
             prod += _uv_names(extra)
         dev: list[str] = []
-        for group in (pkg.get("dev-dependencies") or {}).values():
-            dev += _uv_names(group)
+        for group_name, group in (pkg.get("dev-dependencies") or {}).items():
+            # uv files every PEP 735 group under ``dev-dependencies``, whatever
+            # it is for. A group not named like tooling is production.
+            if _is_dev_group(group_name):
+                dev += _uv_names(group)
+            else:
+                prod += _uv_names(group)
         if "virtual" in source or "editable" in source:
             g.has_manifest = True
             g.lock_members[_pep503(name)] = (list(prod), list(dev))
