@@ -121,13 +121,20 @@ def pep503(name: str) -> str:
     return re.sub(r"[-_.]+", "-", name).lower()
 
 
-def _rule_candidates(dist: str) -> set[str]:
+def _own_name_candidates(dist: str) -> set[str]:
+    """Module names derived from the whole distribution name."""
     norm = pep503(dist)
     out = {norm.replace("-", "_"), dist.replace("-", "_").replace(".", "_")}
     if norm.startswith("python-"):
         out.add(norm[len("python-") :].replace("-", "_"))
     if norm.startswith("py") and len(norm) > 4 and "-" not in norm:
         out.add(norm[2:])  # pyyaml -> yaml, pyjwt -> jwt (harmless extra guess)
+    return {c.lower() for c in out if c}
+
+
+def _rule_candidates(dist: str) -> set[str]:
+    norm = pep503(dist)
+    out = _own_name_candidates(dist)
     if "." in dist:
         out.add(dist.split(".", 1)[0])  # zope.interface -> zope
     parts = norm.split("-")
@@ -163,7 +170,9 @@ def _dist_info_modules(dist_info: Path) -> set[str]:
                     or first in ("..", "__pycache__")
                 ):
                     continue
-                mods.add(first[:-3] if first.endswith(".py") else first)
+                # ``mod.py``, ``_speedups.cpython-313-x86_64-linux-gnu.so``, ``x.pyd``
+                is_file = "/" not in line.split(",", 1)[0]
+                mods.add(first.split(".", 1)[0] if is_file else first)
         except OSError:
             pass
     return mods
@@ -224,15 +233,46 @@ def _running_environment() -> dict[str, frozenset[str]]:
     return {k: frozenset(v) for k, v in merged.items()}
 
 
-def import_candidates(dist: str, project: Path | None = None) -> set[str]:
-    """Lower-cased module names that ``dist`` may be imported as."""
+def _installed_modules(dist: str, project: Path | None) -> frozenset[str]:
+    """Top-level modules of ``dist`` as actually installed, when it can be found."""
     norm = pep503(dist)
-    out = _rule_candidates(dist)
-    out |= {m.lower() for m in KNOWN.get(norm, ())}
-    out |= _running_environment().get(norm, frozenset())
+    found = _running_environment().get(norm, frozenset())
     if project is not None:
-        out |= _project_environment(str(project.resolve())).get(norm, frozenset())
-    return out
+        found |= _project_environment(str(project.resolve())).get(norm, frozenset())
+    return found
+
+
+def import_candidates(dist: str, project: Path | None = None) -> set[str]:
+    """Lower-cased module names that ``dist`` may be imported as.
+
+    When the distribution is installed (in the project's virtualenv, or next
+    to depquiet), its recorded top-level modules are the answer. Otherwise the
+    name is all there is, and every plausible module name is a candidate:
+    guessing too many keeps an alert, guessing too few would dismiss one.
+    """
+    known = {m.lower() for m in KNOWN.get(pep503(dist), ())}
+    installed = _installed_modules(dist, project)
+    if installed:
+        return set(installed) | known | _own_name_candidates(dist)
+    return _rule_candidates(dist) | known
+
+
+def guessed_candidates(dist: str, project: Path | None = None) -> set[str]:
+    """Candidates that are only a shared prefix of the name, not the name itself.
+
+    ``django-auth-ldap`` may be imported as ``django``: true of a namespace
+    package (``google-cloud-storage`` -> ``google``), false of a plugin. An
+    import matching only such a guess keeps the alert, but it is not evidence
+    of where this package is used.
+    """
+    if _installed_modules(dist, project):
+        return set()
+    norm = pep503(dist)
+    confirmed = _own_name_candidates(dist) | {m.lower() for m in KNOWN.get(norm, ())}
+    for prefix in ("django-", "flask-", "sphinx-", "celery-"):
+        if norm.startswith(prefix):
+            confirmed.add(norm[len(prefix) :].replace("-", "_"))
+    return _rule_candidates(dist) - confirmed
 
 
 # Libraries that import another distribution themselves, without the app ever

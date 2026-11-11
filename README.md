@@ -54,7 +54,7 @@ npm audit --json | depquiet --stdin        # or triage any scanner's output
 depquiet explain GHSA-9wv6-86v2-598j       # why did this alert get its verdict?
 ```
 
-Works on npm, yarn, Python (uv, Poetry, pip-tools, Pipfile), Rust, Ruby, PHP, .NET, Dart, Go
+Works on npm, pnpm, Yarn, Python (uv, Poetry, pip-tools, Pipfile), Rust, Ruby, PHP, .NET, Dart, Go
 and Maven projects. In CI, use the [GitHub Action](#github-actions-marketplace).
 
 ## The problem
@@ -108,6 +108,7 @@ depquiet accepts output from any vulnerability scanner — natively or via SARIF
 |---|---|---|
 | **None (standalone)** | **Lockfiles** | **`depquiet` (auto-detects lockfiles, queries OSV.dev)** |
 | npm audit | JSON | `npm audit --json \| depquiet --stdin` |
+| pnpm audit | JSON | `depquiet` in a project with `pnpm-lock.yaml`, or `pnpm audit --json \| depquiet --stdin` |
 | pip-audit | JSON | `pip-audit --format json \| depquiet --stdin` |
 | Trivy | JSON or SARIF | `trivy fs --format json . \| depquiet --stdin` |
 | Grype | JSON | `grype dir:. -o json \| depquiet --stdin` |
@@ -140,8 +141,8 @@ When no scanner output is piped in and no native package manager is detected, de
 
 | Lockfile | Ecosystem |
 |---|---|
-| `package-lock.json` / `yarn.lock` | npm |
-| `requirements.txt` / `Pipfile.lock` | PyPI |
+| `package-lock.json` / `yarn.lock` (Yarn 1 and Berry) / `pnpm-lock.yaml` (v5 to v9) | npm |
+| `uv.lock` / `poetry.lock` / `requirements.txt` / `Pipfile.lock` | PyPI |
 | `go.sum` | Go |
 | `Cargo.lock` | crates.io |
 | `pubspec.lock` | Pub (Dart/Flutter) |
@@ -152,7 +153,12 @@ When no scanner output is piped in and no native package manager is detected, de
 Multiple lockfiles in the same project are merged and deduplicated. OSV.dev queries
 are batched in groups of up to 1000 packages, then each distinct advisory is fetched
 for its severity, CVE aliases and fixed versions. All pages and advisory lookups must
-succeed before the scan is considered complete. Use `--offline` to skip OSV.dev queries.
+succeed before the scan is considered complete, and a lockfile that cannot be parsed stops
+the scan instead of being left out of it. Use `--offline` to skip OSV.dev queries.
+
+A project with `pnpm-lock.yaml` is audited with `pnpm audit` when pnpm is installed, and
+through OSV.dev otherwise. A Yarn project is scanned from `yarn.lock` through OSV.dev:
+`npm audit` cannot read that file.
 
 ### SBOM generation (CycloneDX + SPDX)
 
@@ -320,7 +326,7 @@ depquiet builds a dependency graph from the project before filtering:
 
 | Ecosystem | Direct dependencies from | Dependency paths from |
 |---|---|---|
-| npm | `package.json`, `package-lock.json` | `package-lock.json` (v1-v3), `yarn.lock` (v1, berry) |
+| npm | `package.json`, `package-lock.json`, `pnpm-lock.yaml` importers | `package-lock.json` (v1-v3), `yarn.lock` (v1, berry), `pnpm-lock.yaml` (v5-v9) |
 | Python | `uv.lock`, `pyproject.toml` (PEP 621, PEP 735, Poetry), `Pipfile`, `requirements.in`, hand-written `requirements.txt` | `uv.lock`, `poetry.lock`, pip-compile `# via` comments |
 | Rust | `Cargo.lock` workspace crates | `Cargo.lock` |
 | Ruby | `Gemfile.lock` | `Gemfile.lock` |
@@ -340,8 +346,13 @@ Rules, in order:
 A direct dependency is **used** when any of these holds:
 
 - a source file imports it. Python distribution names are mapped to module names
-  (`PyYAML` → `yaml`, `llama-index-core` → `llama_index`) from installed metadata in the
-  project's virtualenv, a table of known mismatches, and naming rules;
+  (`PyYAML` → `yaml`, `llama-index-core` → `llama_index`). When the package is installed, in
+  the project's virtualenv or in the environment depquiet runs in, its recorded modules are
+  used. Otherwise depquiet tries a table of known mismatches and every name the distribution
+  name allows, including a bare prefix: `django-auth-ldap` is matched by `import django`.
+  Such a match keeps the alert, and the report says it rests on a name guess instead of
+  listing those files as usage. Run depquiet where the dependencies are installed to get
+  exact answers;
 - the project runs one of its executables: `pm2 start` in a `package.json` script, a
   `Procfile` entry, or a Dockerfile command;
 - it is named in the project's code, scripts or config (`INSTALLED_APPS = ["allauth"]`,

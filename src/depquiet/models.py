@@ -154,6 +154,9 @@ class Vulnerability:
     components: list[ComponentEvidence] = field(default_factory=list)
     component_notes: list[str] = field(default_factory=list)
     component_resolution_complete: bool = False
+    # The scanner itself states that every installed version it reports is
+    # reached only from development dependencies (pnpm's per-finding ``dev``).
+    scanner_dev_only: bool = False
 
     @property
     def key(self) -> str:

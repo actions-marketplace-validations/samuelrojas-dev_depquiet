@@ -357,11 +357,23 @@ def _merge_source(
         graph.merge(part)
 
 
-_WORKSPACE_LOCKS = {"package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "uv.lock"}
+_WORKSPACE_LOCKS = {
+    "package-lock.json",
+    "npm-shrinkwrap.json",
+    "yarn.lock",
+    "pnpm-lock.yaml",
+    "uv.lock",
+}
 
 
 def _source_ecosystem(filename: str) -> str:
-    if filename in {"package.json", "package-lock.json", "npm-shrinkwrap.json", "yarn.lock"}:
+    if filename in {
+        "package.json",
+        "package-lock.json",
+        "npm-shrinkwrap.json",
+        "yarn.lock",
+        "pnpm-lock.yaml",
+    }:
         return "npm"
     if filename in {
         "pyproject.toml",
@@ -656,12 +668,13 @@ def _load_package_lock(path: Path) -> DependencyGraph:
 
 _YARN_DEP_SECTIONS = ("dependencies", "optionalDependencies", "peerDependencies")
 _YARN_HEADER = re.compile(r'^"?(@?[^@"\s,]+)@')
+_YARN_ALIAS = re.compile(r"@npm:((?:@[^/@\s]+/)?[^/@\s:]+)@")
 
 
 def _load_yarn_lock(path: Path) -> DependencyGraph:
     """yarn.lock v1 and berry: headers at column 0, deps indented under ``dependencies:``."""
     g = DependencyGraph()
-    current: str | None = None
+    current: list[str] = []
     in_deps = False
     for raw in path.read_text(encoding="utf-8").splitlines():
         if not raw.strip() or raw.lstrip().startswith("#"):
@@ -670,13 +683,42 @@ def _load_yarn_lock(path: Path) -> DependencyGraph:
         line = raw.strip()
         if indent == 0:
             m = _YARN_HEADER.match(line)
-            current = m.group(1) if m else None
+            current = [m.group(1)] if m else []
+            # ``"x-cjs@npm:x@^4"`` installs x under the name x-cjs: its
+            # dependencies belong to both names, and the alias leads to x.
+            real = _YARN_ALIAS.search(line)
+            if current and real and real.group(1) != current[0]:
+                g.add_edge(current[0], real.group(1))
+                current.append(real.group(1))
             in_deps = False
         elif indent == 2:
             in_deps = line.rstrip(":") in _YARN_DEP_SECTIONS
         elif indent >= 4 and in_deps and current:
             name = line.split(":", 1)[0] if ":" in line.split(" ", 1)[0] else line.split(" ", 1)[0]
-            g.add_edge(current, name.strip('"'))
+            for parent in current:
+                g.add_edge(parent, name.strip('"'))
+    return g
+
+
+def _load_pnpm_lock(path: Path) -> DependencyGraph:
+    """pnpm-lock.yaml: direct dependencies of every importer, and package edges.
+
+    pnpm declares its workspaces in ``pnpm-workspace.yaml``, not in
+    ``package.json``, and the lockfile lists each one as an importer with its
+    own dependencies. They are merged into one project here: a package is
+    development-only when no importer lists it, or a parent of it, for
+    production.
+    """
+    from depquiet.pnpm_lock import parse_pnpm_lock
+
+    lock = parse_pnpm_lock(path)
+    g = DependencyGraph()
+    for importer in lock.importers.values():
+        for name, dev in importer.items():
+            g.add_direct(name, dev=dev)
+    for parent, children in lock.edges.items():
+        for child in children:
+            g.add_edge(parent, child)
     return g
 
 
@@ -744,7 +786,11 @@ def _load_pyproject(path: Path) -> DependencyGraph | None:
     entries += [(n, True) for n in poetry.get("dev-dependencies") or {}]
     for grp in (poetry.get("group") or {}).values():
         entries += [(n, True) for n in (grp or {}).get("dependencies") or {}]
-    entries = [(n, dev) for n, dev in entries if n and n.lower() != "python"]
+    # ``all = ["myproject[a,b]"]`` names the project itself to combine extras.
+    # The project is not one of its own dependencies: as a root it would be
+    # "imported" by every file in the repository and vouch for everything.
+    own = _pep503(str(project.get("name") or poetry.get("name") or ""))
+    entries = [(n, dev) for n, dev in entries if n and n.lower() != "python" and _pep503(n) != own]
     if not entries:
         return DependencyGraph(has_manifest=True) if project else None
     g = DependencyGraph(has_manifest=True)
@@ -841,7 +887,16 @@ def _load_uv_lock(path: Path) -> DependencyGraph:
     """
     data = tomllib.loads(path.read_text(encoding="utf-8"))
     g = DependencyGraph()
-    for pkg in data.get("package") or []:
+    packages = data.get("package") or []
+    # The project and its workspace members. They are where dependencies come
+    # from, never dependencies themselves, even when an extra refers back to
+    # the project (``all = ["myproject[a,b]"]``).
+    own = {
+        _pep503(pkg.get("name", ""))
+        for pkg in packages
+        if "virtual" in (pkg.get("source") or {}) or "editable" in (pkg.get("source") or {})
+    }
+    for pkg in packages:
         name = pkg.get("name", "")
         source = pkg.get("source") or {}
         prod = _uv_names(pkg.get("dependencies"))
@@ -853,9 +908,11 @@ def _load_uv_lock(path: Path) -> DependencyGraph:
         if "virtual" in source or "editable" in source:
             g.has_manifest = True
             for d in prod:
-                g.add_direct(d, python=True)
+                if _pep503(d) not in own:
+                    g.add_direct(d, python=True)
             for d in dev:
-                g.add_direct(d, python=True, dev=True)
+                if _pep503(d) not in own:
+                    g.add_direct(d, python=True, dev=True)
         for d in prod + dev:
             g.add_edge(_pep503(name), _pep503(d))
     return g
@@ -1022,6 +1079,7 @@ _LOADERS: dict[str, Any] = {
     "package-lock.json": _load_package_lock,
     "npm-shrinkwrap.json": _load_package_lock,
     "yarn.lock": _load_yarn_lock,
+    "pnpm-lock.yaml": _load_pnpm_lock,
     "pyproject.toml": _load_pyproject,
     "Pipfile": _load_pipfile,
     "requirements.in": _load_requirements_in,

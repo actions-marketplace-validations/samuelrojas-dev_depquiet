@@ -62,6 +62,41 @@ def run_npm_audit(project: Path) -> dict[str, Any]:
     return data
 
 
+def run_pnpm_audit(project: Path) -> dict[str, Any]:
+    project = project.resolve()
+    executable = shutil.which("pnpm")
+    if executable is None:
+        raise ScanError("pnpm is not installed or not on PATH.")
+    try:
+        r = subprocess.run(
+            [executable, "audit", "--json"],
+            cwd=project,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=180,
+        )
+    except subprocess.TimeoutExpired as e:
+        raise ScanError("pnpm audit timed out after 180 s.") from e
+    except OSError as e:
+        raise ScanError(f"could not run pnpm audit: {e}") from e
+    try:
+        data = json.loads(r.stdout) if r.stdout else {}
+    except json.JSONDecodeError as e:
+        raise ScanError(f"pnpm audit returned invalid JSON: {_tail(r.stderr or r.stdout)}") from e
+    if (
+        r.returncode not in (0, 1)
+        or not isinstance(data, dict)
+        or "error" in data
+        or not isinstance(data.get("advisories"), dict)
+    ):
+        err = data.get("error") if isinstance(data, dict) else None
+        message = err.get("message") if isinstance(err, dict) else None
+        raise ScanError(f"pnpm audit failed: {message or _tail(r.stderr)}")
+    return data
+
+
 def lock_pins(lockfile: Path) -> tuple[list[str], list[str]]:
     """``name==version`` for every registry package in a uv.lock / poetry.lock.
 

@@ -38,12 +38,13 @@ from depquiet.parsers.grype import GrypeParser
 from depquiet.parsers.npm import NpmAuditParser
 from depquiet.parsers.osv import OsvScanner, parse_osv_response, query_osv_batch
 from depquiet.parsers.pip import PipAuditParser
+from depquiet.parsers.pnpm import PnpmAuditParser
 from depquiet.parsers.sarif import SarifParser
 from depquiet.parsers.sbom import SbomParser, is_cyclonedx, is_spdx
 from depquiet.parsers.snyk import SnykParser
 from depquiet.parsers.trivy import TrivyParser
 from depquiet.policy import Policy
-from depquiet.scanners import ScanError, run_npm_audit, run_pip_audit
+from depquiet.scanners import ScanError, run_npm_audit, run_pip_audit, run_pnpm_audit
 
 
 def _osv_batch_query(
@@ -80,6 +81,7 @@ class _Parser(Protocol):
 
 _PARSERS: list[type[_Parser]] = [
     NpmAuditParser,
+    PnpmAuditParser,
     PipAuditParser,
     TrivyParser,
     DependabotParser,
@@ -88,10 +90,14 @@ _PARSERS: list[type[_Parser]] = [
 ]
 
 
-_SCANNER_ECOSYSTEM = {"npm": "npm", "pip": "python"}
+_SCANNER_ECOSYSTEM = {"npm": "npm", "pnpm": "npm", "pip": "python"}
 
 
-_NATIVE_SCANNERS: dict[str, type[_Parser]] = {"npm": NpmAuditParser, "pip": PipAuditParser}
+_NATIVE_SCANNERS: dict[str, type[_Parser]] = {
+    "npm": NpmAuditParser,
+    "pnpm": PnpmAuditParser,
+    "pip": PipAuditParser,
+}
 
 
 def _unscanned_note(project: Path, pm: str | None) -> str:
@@ -104,11 +110,13 @@ def _unscanned_note(project: Path, pm: str | None) -> str:
     if pm not in _NATIVE_SCANNERS:
         return ""
     others = [
-        name for name, parser in _NATIVE_SCANNERS.items() if name != pm and parser.detect(project)
+        name
+        for name, parser in _NATIVE_SCANNERS.items()
+        if _SCANNER_ECOSYSTEM[name] != _SCANNER_ECOSYSTEM[pm] and parser.detect(project)
     ]
     if not others:
         return ""
-    labels = {"npm": "npm", "pip": "Python"}
+    labels = {"npm": "npm", "pnpm": "pnpm", "pip": "Python"}
     return (
         f"Only {labels[pm]} dependencies were scanned. This project also declares "
         + " and ".join(labels[name] for name in others)
@@ -220,6 +228,10 @@ def scan(
         elif isinstance(audit_json.get("vulnerabilities"), dict):
             pm = "npm"
             vulns = NpmAuditParser.parse(audit_json, project)
+        elif isinstance(audit_json.get("advisories"), dict):
+            # pnpm audit, and the npm v6 report it inherited the layout from.
+            pm = "pnpm" if PnpmAuditParser.detect(project) else "npm"
+            vulns = PnpmAuditParser.parse(audit_json, project)
         else:
             return ScanResult(
                 str(project),
@@ -316,7 +328,10 @@ def scan(
         elif _locked_for_development_only(vuln):
             reasons.append(FilterReason.DEV_DEPENDENCY)
             note = (
-                "The lockfile marks every locked copy in the advisory range as "
+                "The scanner reports every affected installed version as reached "
+                "only from development dependencies; a production install omits them."
+                if vuln.scanner_dev_only
+                else "The lockfile marks every locked copy in the advisory range as "
                 "development-only; a production install omits them."
             )
             if note not in evidence.observations:
@@ -431,6 +446,7 @@ def _run_scanner(
     runners = {
         "npm": (run_npm_audit, NpmAuditParser.parse, "npm audit"),
         "pip": (run_pip_audit, PipAuditParser.parse, "pip-audit"),
+        "pnpm": (run_pnpm_audit, PnpmAuditParser.parse, "pnpm audit"),
     }
     if pm in runners:
         run, parse, label = runners[pm]
@@ -460,6 +476,8 @@ def _locked_for_development_only(vuln: Vulnerability) -> bool:
     holds when a production copy of the same name exists at an unaffected
     version, and does not depend on the name-level graph being complete.
     """
+    if vuln.scanner_dev_only:
+        return True
     if not vuln.component_resolution_complete:
         return False
     affected = [c for c in vuln.components if c.range_match != "not_matched"]
@@ -471,11 +489,22 @@ def _import_sites(
 ) -> list[str]:
     """Where the vulnerable package enters the app: its own imports, or for a
     transitive package, the imports of the direct dependencies that pull it in."""
-    sites = reachability.find_imports(vuln)
+    sites = reachability.named_imports_for(vuln.package)
     for ancestor in decision.imported_ancestors:
-        found = reachability.find_imports_for(ancestor)
+        found = reachability.named_imports_for(ancestor)
         sites += [s for s in found if s not in sites]
     return sites
+
+
+def _guessed_only(
+    reachability: ReachabilityFilter, vuln: Vulnerability, decision: ReachabilityDecision
+) -> list[str]:
+    """Packages kept on a module-name guess, with no import that names them."""
+    return [
+        name
+        for name in dict.fromkeys([vuln.package, *decision.imported_ancestors])
+        if reachability.find_imports_for(name) and not reachability.named_imports_for(name)
+    ]
 
 
 def _collect_evidence(
@@ -502,6 +531,15 @@ def _collect_evidence(
         )
     if graph.is_executed(vuln.package):
         observations.append("Project commands reference this dependency's executable.")
+    guessed = _guessed_only(reachability, vuln, decision)
+    if guessed:
+        observations.append(
+            "No import names "
+            + ", ".join(guessed)
+            + " directly; the project imports a module with the same name prefix, which "
+            "this package may or may not provide. Kept. Installing the project's "
+            "dependencies where depquiet runs lets it read the real module names."
+        )
     if used and not sites:
         observations.append("Usage is inferred from project references, not a verified call path.")
     if decision.unreachable:

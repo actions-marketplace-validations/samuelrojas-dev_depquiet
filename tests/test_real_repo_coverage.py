@@ -300,3 +300,121 @@ def test_second_ecosystem_is_reported_as_not_scanned(tmp_path: Path, monkeypatch
     assert "Python" in default.note and "--scanner pip" in default.note
     assert "npm" in chosen.note and "--scanner npm" in chosen.note
     assert chosen.package_manager == "pip"
+
+
+# -- Python projects --------------------------------------------------------
+
+
+def _pip(*packages: tuple[str, str]) -> dict[str, Any]:
+    return {
+        "dependencies": [
+            {
+                "name": name,
+                "version": version,
+                "vulns": [{"id": f"TEST-{name.upper()}", "fix_versions": [], "description": "x"}],
+            }
+            for name, version in packages
+        ]
+    }
+
+
+def test_project_is_not_its_own_dependency(tmp_path: Path) -> None:
+    """``all = ["app[ldap]"]`` refers back to the project to combine extras."""
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "My.App"\ndependencies = ["requests"]\n'
+        '[project.optional-dependencies]\nldap = ["ldap-plugin"]\nall = ["my-app[ldap]"]\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "uv.lock").write_text(
+        'version = 1\n\n[[package]]\nname = "my-app"\nversion = "0"\nsource = { editable = "." }\n'
+        'dependencies = [{ name = "requests" }]\n\n[package.optional-dependencies]\n'
+        'ldap = [{ name = "ldap-plugin" }]\nall = [{ name = "my-app", extra = ["ldap"] }]\n\n'
+        '[[package]]\nname = "ldap-plugin"\nversion = "1.0"\n'
+        'source = { registry = "https://pypi.org/simple" }\n'
+        'dependencies = [{ name = "asn" }]\n\n'
+        '[[package]]\nname = "asn"\nversion = "1.0"\n'
+        'source = { registry = "https://pypi.org/simple" }\n\n'
+        '[[package]]\nname = "requests"\nversion = "2.0"\n'
+        'source = { registry = "https://pypi.org/simple" }\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "my_app").mkdir()
+    (tmp_path / "my_app" / "__init__.py").write_text("import requests\n", encoding="utf-8")
+    (tmp_path / "my_app" / "main.py").write_text("import my_app\n", encoding="utf-8")
+    graph = DependencyGraph.from_project(tmp_path)
+    assert "my-app" not in graph.direct
+    assert graph.direct_ancestors("asn") == {"ldap-plugin"}
+    # Nothing imports the plugin: the project importing itself is not a use of it.
+    [finding] = scan(tmp_path, audit_json=_pip(("asn", "1.0")), skip_epss=True).results
+    assert finding.introduced_by == ["ldap-plugin"]
+    assert finding.verdict == Verdict.FILTERED
+    assert finding.reasons == [FilterReason.UNREACHABLE]
+
+
+def _plugin_project(tmp_path: Path, source: str) -> None:
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "site"\ndependencies = ["webfw", "webfw-auth-ldap"]\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "app.py").write_text(source, encoding="utf-8")
+
+
+def test_prefix_guess_keeps_the_alert_without_claiming_a_usage_site(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``webfw-auth-ldap`` might live under ``webfw``; a file importing webfw is not proof."""
+    import depquiet.pynames as pynames
+
+    monkeypatch.setattr(pynames, "_running_environment", lambda: {})
+    _plugin_project(tmp_path, "from webfw.db import models\n")
+    [finding] = scan(tmp_path, audit_json=_pip(("webfw-auth-ldap", "1.0")), skip_epss=True).results
+    assert finding.verdict == Verdict.ACTION
+    assert not finding.reasons
+    assert finding.reachable_imports == []
+    assert any("same name prefix" in note for note in finding.evidence.observations)
+
+
+def test_import_of_the_plugin_itself_is_shown(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import depquiet.pynames as pynames
+
+    monkeypatch.setattr(pynames, "_running_environment", lambda: {})
+    _plugin_project(tmp_path, "import webfw_auth_ldap\n")
+    [finding] = scan(tmp_path, audit_json=_pip(("webfw-auth-ldap", "1.0")), skip_epss=True).results
+    assert [Path(site).name for site in finding.reachable_imports] == ["app.py"]
+    assert not any("same name prefix" in note for note in finding.evidence.observations)
+
+
+def test_namespace_package_import_is_shown(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import depquiet.pynames as pynames
+
+    monkeypatch.setattr(pynames, "_running_environment", lambda: {})
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "site"\ndependencies = ["cloudco-cloud-pubsub"]\n', encoding="utf-8"
+    )
+    (tmp_path / "app.py").write_text("from cloudco.cloud import pubsub_v1\n", encoding="utf-8")
+    [finding] = scan(
+        tmp_path, audit_json=_pip(("cloudco-cloud-pubsub", "1.0")), skip_epss=True
+    ).results
+    assert finding.verdict == Verdict.ACTION
+    assert [Path(site).name for site in finding.reachable_imports] == ["app.py"]
+
+
+def test_installed_distribution_uses_its_recorded_modules(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With the plugin installed, ``import webfw`` is known not to be it."""
+    import depquiet.pynames as pynames
+
+    monkeypatch.setattr(
+        pynames,
+        "_running_environment",
+        lambda: {"webfw-auth-ldap": frozenset({"webfw_auth_ldap"}), "webfw": frozenset({"webfw"})},
+    )
+    assert pynames.import_candidates("webfw-auth-ldap") == {"webfw_auth_ldap"}
+    assert pynames.guessed_candidates("webfw-auth-ldap") == set()
+    _plugin_project(tmp_path, "from webfw.db import models\n")
+    [finding] = scan(tmp_path, audit_json=_pip(("webfw-auth-ldap", "1.0")), skip_epss=True).results
+    assert finding.verdict == Verdict.FILTERED
+    assert finding.reasons == [FilterReason.UNREACHABLE]
