@@ -418,7 +418,7 @@ def scan_licenses(project: Path, package_manager: str | None = None) -> LicenseR
     for manager in pm.split("+"):
         if manager in ("npm", "pnpm"):
             packages += scan_npm_licenses(project)
-        elif manager == "pip":
+        elif manager in ("pip", "uv"):
             packages += scan_pip_licenses(project)
 
     return LicenseReport(

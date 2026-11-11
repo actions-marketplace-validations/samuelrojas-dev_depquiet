@@ -33,6 +33,7 @@ _LEVEL_MAP: dict[str, str] = {
 _MANIFEST_FILES: dict[str, str] = {
     "npm": "package.json",
     "pip": "requirements.txt",
+    "uv": "pyproject.toml",
     "go": "go.mod",
     "cargo": "Cargo.toml",
     "maven": "pom.xml",

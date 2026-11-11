@@ -458,7 +458,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--scanner",
-        choices=["npm", "pnpm", "pip"],
+        choices=["npm", "pnpm", "pip", "uv"],
         help="Scanner to run when the project has both npm and Python dependencies "
         "(default: every ecosystem the project declares, one run each, merged into one report)",
     )

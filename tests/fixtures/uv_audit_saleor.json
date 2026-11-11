@@ -1,0 +1,321 @@
+{
+ "schema": {
+  "version": "preview"
+ },
+ "summary": {
+  "audited_packages": 231,
+  "vulnerabilities": 16,
+  "adverse_statuses": 1
+ },
+ "vulnerabilities": [
+  {
+   "dependency": {
+    "name": "filelock",
+    "version": "3.32.7"
+   },
+   "id": "GHSA-567q-5qvw-pf92",
+   "display_id": "GHSA-567q-5qvw-pf92",
+   "aliases": [
+    "CVE-2026-112907"
+   ],
+   "summary": "filelock: On Windows an oplock on a soft lock's marker holds SoftFileLock.acquire() past its timeout and blocks the stale break",
+   "description": "On Windows the soft locks (`SoftFileLock`, `MarkerSoftFileLock`, `SoftFileLease`, their async forms, and a `FileLock` that fell back to a soft lock) read their ",
+   "link": "https://github.com/tox-dev/filelock/security/advisories/GHSA-567q-5qvw-pf92",
+   "fix_versions": [
+    "4.2.1"
+   ],
+   "published": "2026-10-23T22:27:32Z",
+   "modified": "2026-10-23T22:45:03.452878321Z"
+  },
+  {
+   "dependency": {
+    "name": "filelock",
+    "version": "3.32.7"
+   },
+   "id": "GHSA-6627-m3xw-93mp",
+   "display_id": "GHSA-6627-m3xw-93mp",
+   "aliases": [
+    "CVE-2026-112908"
+   ],
+   "summary": "filelock: StrictSoftFileLock creates its claim directories without the lock mode, so another local user with a write bit on them can end a live hold",
+   "description": "`StrictSoftFileLock` and `AsyncStrictSoftFileLock` apply the caller's `mode` to the sentinel (the lock file at `<path>`) and to both claim files (the files whos",
+   "link": "https://github.com/tox-dev/filelock/security/advisories/GHSA-6627-m3xw-93mp",
+   "fix_versions": [
+    "4.2.1"
+   ],
+   "published": "2026-10-28T21:09:04Z",
+   "modified": "2026-10-28T21:15:05.690884904Z"
+  },
+  {
+   "dependency": {
+    "name": "filelock",
+    "version": "3.32.7"
+   },
+   "id": "GHSA-69hj-f68j-2879",
+   "display_id": "GHSA-69hj-f68j-2879",
+   "aliases": [
+    "CVE-2026-112909"
+   ],
+   "summary": "filelock: UnixFileLock truncates and chmods any regular file another user renames or hard-links onto the lock path",
+   "description": "`UnixFileLock`, the backend of `FileLock` and `AsyncFileLock` on Unix, empties whatever regular file it finds at the lock path once it holds the `flock` (a kern",
+   "link": "https://nvd.nist.gov/vuln/detail/CVE-2026-112909",
+   "fix_versions": [
+    "4.2.1"
+   ],
+   "published": "2026-10-28T21:08:35Z",
+   "modified": "2026-10-28T21:15:04.97466779Z"
+  },
+  {
+   "dependency": {
+    "name": "filelock",
+    "version": "3.32.7"
+   },
+   "id": "GHSA-8mx5-7m5m-r77g",
+   "display_id": "GHSA-8mx5-7m5m-r77g",
+   "aliases": [
+    "CVE-2026-112910"
+   ],
+   "summary": "filelock: WindowsFileLock ignores mode: a 0o600 lock file and the ReadWriteLock database inherit the directory ACL",
+   "description": "filelock on Windows ignores the `mode` argument. `FileLock(path, mode=0o600)` creates the same file as `FileLock(path)`: one with no security descriptor of its ",
+   "link": "https://github.com/tox-dev/filelock/security/advisories/GHSA-8mx5-7m5m-r77g",
+   "fix_versions": [
+    "4.2.1"
+   ],
+   "published": "2026-10-28T21:08:55Z",
+   "modified": "2026-10-28T21:15:05.688436299Z"
+  },
+  {
+   "dependency": {
+    "name": "filelock",
+    "version": "3.32.7"
+   },
+   "id": "GHSA-9c4x-gm8v-wgc4",
+   "display_id": "GHSA-9c4x-gm8v-wgc4",
+   "aliases": [
+    "CVE-2026-112911"
+   ],
+   "summary": "filelock: StrictSoftFileLock and SoftReadWriteLock adopt a protocol directory another user created first, losing mutual exclusion",
+   "description": "`StrictSoftFileLock`, `AsyncStrictSoftFileLock`, `SoftReadWriteLock` and `AsyncSoftReadWriteLock` keep their whole ownership state as files in a directory deriv",
+   "link": "https://nvd.nist.gov/vuln/detail/CVE-2026-112911",
+   "fix_versions": [
+    "4.2.1"
+   ],
+   "published": "2026-10-28T21:08:59Z",
+   "modified": "2026-10-28T21:15:05.68170801Z"
+  },
+  {
+   "dependency": {
+    "name": "filelock",
+    "version": "3.32.7"
+   },
+   "id": "GHSA-9j6q-wvj5-jgjg",
+   "display_id": "GHSA-9j6q-wvj5-jgjg",
+   "aliases": [
+    "CVE-2026-112912"
+   ],
+   "summary": "filelock: Symlink swap during SoftFileLock's writability check leaks whether a path exists and is writable by the lock taker",
+   "description": "`raise_on_not_writable_file()` is the check that `SoftFileLock` and the locks sharing its acquire path run before every attempt. It looks at the lock path with ",
+   "link": "https://nvd.nist.gov/vuln/detail/CVE-2026-112912",
+   "fix_versions": [
+    "4.2.1"
+   ],
+   "published": "2026-10-28T21:08:40Z",
+   "modified": "2026-10-28T21:15:05.577927941Z"
+  },
+  {
+   "dependency": {
+    "name": "filelock",
+    "version": "3.32.7"
+   },
+   "id": "GHSA-9vhv-jxww-xfm5",
+   "display_id": "GHSA-9vhv-jxww-xfm5",
+   "aliases": [
+    "CVE-2026-112913"
+   ],
+   "summary": "filelock: ReadWriteLock on Windows acts on SQLite side files another local user places beside its database",
+   "description": "On Windows, `ReadWriteLock` and `AsyncReadWriteLock` (the SQLite-backed reader/writer lock) connect SQLite to the lock database by its path, in every directory.",
+   "link": "https://github.com/tox-dev/filelock/security/advisories/GHSA-9vhv-jxww-xfm5",
+   "fix_versions": [
+    "4.2.1"
+   ],
+   "published": "2026-10-23T22:28:19Z",
+   "modified": "2026-10-23T22:45:03.439584635Z"
+  },
+  {
+   "dependency": {
+    "name": "filelock",
+    "version": "3.32.7"
+   },
+   "id": "GHSA-cwqr-hh33-gh44",
+   "display_id": "GHSA-cwqr-hh33-gh44",
+   "aliases": [
+    "CVE-2026-112915"
+   ],
+   "summary": "filelock ReadWriteLock: a crafted lock database makes every acquire stall or hang regardless of timeout",
+   "description": "`ReadWriteLock` and `AsyncReadWriteLock` (the SQLite-backed reader/writer lock) run `PRAGMA journal_mode=MEMORY` on a fresh connection for every acquire. That s",
+   "link": "https://nvd.nist.gov/vuln/detail/CVE-2026-112915",
+   "fix_versions": [
+    "4.2.1"
+   ],
+   "published": "2026-10-28T21:08:49Z",
+   "modified": "2026-10-28T21:15:04.923553251Z"
+  },
+  {
+   "dependency": {
+    "name": "filelock",
+    "version": "3.32.7"
+   },
+   "id": "GHSA-fq56-3cx3-fjxp",
+   "display_id": "GHSA-fq56-3cx3-fjxp",
+   "aliases": [
+    "CVE-2026-112935"
+   ],
+   "summary": "filelock: SoftFileLock stale-lock break removes a live lock file on a reused inode number and admits two holders",
+   "description": "The stale-lock break shared by `SoftFileLock`, `MarkerSoftFileLock` and `SoftFileLease` (and their async variants, and a `FileLock` that has fallen back to a so",
+   "link": "https://nvd.nist.gov/vuln/detail/CVE-2026-112935",
+   "fix_versions": [
+    "4.2.1"
+   ],
+   "published": "2026-10-28T21:08:08Z",
+   "modified": "2026-10-28T21:15:04.933315565Z"
+  },
+  {
+   "dependency": {
+    "name": "filelock",
+    "version": "3.32.7"
+   },
+   "id": "GHSA-j8f7-rjxc-mr56",
+   "display_id": "GHSA-j8f7-rjxc-mr56",
+   "aliases": [
+    "CVE-2026-112936"
+   ],
+   "summary": "filelock: ReadWriteLock follows a symlink at the lock path into SQLite",
+   "description": "### Summary\n\n`ReadWriteLock` and `AsyncReadWriteLock` resolve the lock path with `pathlib.Path.resolve()` and pass it to `sqlite3.connect()` without refusing a ",
+   "link": "https://nvd.nist.gov/vuln/detail/CVE-2026-112936",
+   "fix_versions": [
+    "4.0.9"
+   ],
+   "published": "2026-10-28T21:08:30Z",
+   "modified": "2026-10-28T21:15:04.16998343Z"
+  },
+  {
+   "dependency": {
+    "name": "filelock",
+    "version": "3.32.7"
+   },
+   "id": "GHSA-m462-7rxw-wvpg",
+   "display_id": "GHSA-m462-7rxw-wvpg",
+   "aliases": [
+    "CVE-2026-112938"
+   ],
+   "summary": "filelock: StrictSoftFileLock follows a symbolic link swapped in at <path>.filelock and creates claim files in a directory another local user chooses",
+   "description": "`StrictSoftFileLock` and `AsyncStrictSoftFileLock` check `<path>.filelock` (the coordination directory that holds the lock's state) with one `lstat` call on its",
+   "link": "https://github.com/tox-dev/filelock/security/advisories/GHSA-m462-7rxw-wvpg",
+   "fix_versions": [
+    "4.2.1"
+   ],
+   "published": "2026-10-28T21:08:23Z",
+   "modified": "2026-10-28T21:15:04.165555871Z"
+  },
+  {
+   "dependency": {
+    "name": "filelock",
+    "version": "3.32.7"
+   },
+   "id": "GHSA-rfpc-qcw5-3pc4",
+   "display_id": "GHSA-rfpc-qcw5-3pc4",
+   "aliases": [
+    "CVE-2026-112939"
+   ],
+   "summary": "filelock: SoftFileLock removes a live holder's marker when another user forges the PID in a writable marker",
+   "description": "`SoftFileLock`, `MarkerSoftFileLock`, `SoftFileLease`, their async variants and a `FileLock` that has fallen back to a soft lock on `ENOSYS` decide from the rec",
+   "link": "https://nvd.nist.gov/vuln/detail/CVE-2026-112939",
+   "fix_versions": [
+    "4.2.1"
+   ],
+   "published": "2026-10-28T21:08:45Z",
+   "modified": "2026-10-28T21:15:05.584943666Z"
+  },
+  {
+   "dependency": {
+    "name": "filelock",
+    "version": "3.32.7"
+   },
+   "id": "GHSA-v4x8-3wr5-3wq8",
+   "display_id": "GHSA-v4x8-3wr5-3wq8",
+   "aliases": [
+    "CVE-2026-112940"
+   ],
+   "summary": "filelock ReadWriteLock: SQLite reopens the lock database by name, so a planted symlink or journal file makes the lock user's process overwrite or unlink its own files",
+   "description": "`ReadWriteLock` and `AsyncReadWriteLock` (the SQLite-backed reader/writer lock) hand SQLite a name they do not control. On Linux the lock validates its database",
+   "link": "https://nvd.nist.gov/vuln/detail/CVE-2026-112940",
+   "fix_versions": [
+    "4.2.1"
+   ],
+   "published": "2026-10-23T21:59:08Z",
+   "modified": "2026-10-23T22:15:04.43247503Z"
+  },
+  {
+   "dependency": {
+    "name": "oauthlib",
+    "version": "4.0.0"
+   },
+   "id": "GHSA-3jp2-3mrg-2vxc",
+   "display_id": "GHSA-3jp2-3mrg-2vxc",
+   "aliases": [
+    "CVE-2026-49272"
+   ],
+   "summary": "OAuthLib: Bearer token can be retrieved as long as client knows a valid client ID for device workflow",
+   "description": "### Summary\nA call to the token endpoint with a grant type of `\"urn:ietf:params:oauth:grant-type:device_code\"` and a bogus `device_code` is able to get a bearer",
+   "link": "https://github.com/oauthlib/oauthlib/security/advisories/GHSA-3jp2-3mrg-2vxc",
+   "fix_versions": [
+    "4.0.1"
+   ],
+   "published": "2026-10-27T13:30:17Z",
+   "modified": "2026-11-05T21:15:09.240948711Z"
+  },
+  {
+   "dependency": {
+    "name": "opentelemetry-api",
+    "version": "1.37.0"
+   },
+   "id": "GHSA-xcq7-p3pf-p88h",
+   "display_id": "GHSA-xcq7-p3pf-p88h",
+   "aliases": [
+    "CVE-2026-114603"
+   ],
+   "summary": "OpenTelemetry Python: Unbounded tracestate parsing in opentelemetry-api",
+   "description": "## Summary\n`TraceState.from_header` splits the inbound W3C `tracestate` header with a regular expression that starts with an unbounded optional-whitespace run, ",
+   "link": "https://github.com/open-telemetry/opentelemetry-python/security/advisories/GHSA-xcq7-p3pf-p88h",
+   "fix_versions": [
+    "1.45.1"
+   ],
+   "published": "2026-10-22T16:22:07Z",
+   "modified": "2026-10-22T16:30:40.999595074Z"
+  },
+  {
+   "dependency": {
+    "name": "setuptools",
+    "version": "83.0.0"
+   },
+   "id": "GHSA-xmj3-9gf7-h52w",
+   "display_id": "GHSA-xmj3-9gf7-h52w",
+   "aliases": [],
+   "summary": "setuptools: Windows path escape via namespace_packages.txt during legacy wheel installation  Description",
+   "description": "### Summary\n\nOn Windows, attacker-controlled content in a wheel's\n`.dist-info/namespace_packages.txt` can cause setuptools' legacy wheel\ninstallation path to cr",
+   "link": "https://github.com/pypa/setuptools/security/advisories/GHSA-xmj3-9gf7-h52w",
+   "fix_versions": [
+    "84.1.0"
+   ],
+   "published": "2026-10-23T21:44:11Z",
+   "modified": "2026-10-23T22:00:03.739009766Z"
+  }
+ ],
+ "adverse_statuses": [
+  {
+   "name": "rsa",
+   "status": "archived",
+   "reason": null
+  }
+ ]
+}

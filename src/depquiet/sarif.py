@@ -164,6 +164,7 @@ def _build_locations(
         pm_files = {
             "npm": "package.json",
             "pip": "requirements.txt",
+            "uv": "pyproject.toml",
         }
         manifest = pm_files.get(package_manager, "package.json")
         locations.append(
