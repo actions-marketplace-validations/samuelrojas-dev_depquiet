@@ -69,6 +69,15 @@ missing members, and symbolic links that stand in for a manifest, a lockfile or 
 directory that may hold one. A linked file that cannot be a graph source (a
 README, a translation file) is skipped without consequence.
 
+A Python project may leave its dependencies to the build backend
+(`dynamic = ["dependencies"]`). Its `pyproject.toml` then lists nothing, and an
+empty list is not evidence that nothing is used. depquiet takes that project's
+dependencies from `uv.lock`, which records them for the project and for every
+workspace member, from the hatch `uv-dynamic-versioning` hook table, or from the
+requirement files setuptools is told to read. With none of those, the graph is
+incomplete. Development groups are roots of their own: a package that depends on
+the project does not install them, so they are not edges from it.
+
 A report from a native scanner covers one ecosystem, and the graph is then built
 from that ecosystem's manifests and lockfiles only: an npm advisory for `glob`
 is not traced through a `Cargo.lock` path to the crate of the same name.

@@ -1123,8 +1123,26 @@ The same comparison on five larger projects at their head on 2026-11-10 (Kong/in
 188 npm alerts) gives the same picture: depquiet
 filters the 85 alerts `npm audit --omit=dev` drops, row for row, and nothing else. On npm,
 expect depquiet to match `--omit=dev` and explain the rest, not to beat it. Python is
-different, because `pip-audit` has no equivalent switch: on saleor's `uv.lock`, 14 of 16
-alerts come from packages only its development groups install.
+different, because `pip-audit` has no equivalent switch. On 17 projects with a `uv.lock`,
+at their head on 2026-11-11, `pip-audit` reported 1,004 alerts and depquiet filtered 114 as
+development-only:
+
+| Project | pip-audit alerts | Development-only, filtered |
+|---|---:|---:|
+| zulip | 43 | 43 |
+| PostHog | 255 | 31 |
+| saleor | 16 | 14 |
+| mlflow | 17 | 12 |
+| langflow | 70 | 11 |
+| llama_index, open-webui, pydantic-ai | 188 | 3 |
+| nine others (Chainlit, crewAI, litellm, ...) | 415 | 0 |
+
+Each verdict was checked against a separate walk of the project's `uv.lock`: none of the
+114 packages is reachable from a production dependency or an extra. The same walk finds 20
+more development-only alerts that depquiet keeps, most of them in llama_index, whose
+integration packages each declare their own dependencies. Nothing else was filtered: every
+one of these projects has a dynamic import somewhere, which keeps the unused-dependency
+filter off.
 
 Run them yourself: `python -I benchmarks/run_benchmark.py`. The first run clones the pinned
 commits into `benchmarks/.cache/`; `benchmarks/capture_real.py` re-captures the audits. The
