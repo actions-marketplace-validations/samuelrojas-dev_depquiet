@@ -339,6 +339,51 @@ def _pin_batches(pins: list[str]) -> list[list[str]]:
     return batches
 
 
+def run_uv_audit(project: Path) -> dict[str, Any]:
+    """``uv audit`` on the project's ``uv.lock``, as written (``--frozen``).
+
+    uv includes every group and extra by default (it only has ``--no-*``
+    options), so the report covers the whole lockfile and the triage decides
+    what is development-only.
+    """
+    project = project.resolve()
+    executable = shutil.which("uv")
+    if executable is None:
+        raise ScanError("uv is not installed.")
+    if not (project / "uv.lock").exists():
+        raise ScanError("uv audit needs a uv.lock.")
+    cmd = [
+        executable,
+        "audit",
+        "--frozen",
+        "--output-format",
+        "json",
+        "--preview-features",
+        "audit-command,json-output",
+    ]
+    try:
+        r = subprocess.run(
+            cmd,
+            cwd=project,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=600,
+        )
+    except subprocess.TimeoutExpired as e:
+        raise ScanError("uv audit timed out after 600 s.") from e
+    except OSError as e:
+        raise ScanError(f"could not run uv audit: {e}") from e
+    try:
+        data = json.loads(r.stdout) if r.stdout else None
+    except ValueError:
+        data = None
+    if not isinstance(data, dict) or not isinstance(data.get("vulnerabilities"), list):
+        raise ScanError(f"uv audit failed: {_tail(r.stderr)}")
+    return data
+
+
 def run_pip_audit(project: Path) -> dict[str, Any]:
     """Audit the *project's* dependencies, never the environment depquiet runs in.
 

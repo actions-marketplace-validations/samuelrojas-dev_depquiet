@@ -110,6 +110,7 @@ depquiet accepts output from any vulnerability scanner — natively or via SARIF
 | npm audit | JSON | `npm audit --json \| depquiet --stdin` |
 | pnpm audit | JSON | `depquiet` in a project with `pnpm-lock.yaml`, or `pnpm audit --json \| depquiet --stdin` |
 | pip-audit | JSON | `pip-audit --format json \| depquiet --stdin` |
+| uv audit (uv 0.13+) | JSON | `depquiet --scanner uv`, or `uv audit --frozen --output-format json \| depquiet --stdin` |
 | Trivy | JSON or SARIF | `trivy fs --format json . \| depquiet --stdin` |
 | Grype | JSON | `grype dir:. -o json \| depquiet --stdin` |
 | Snyk | JSON | `snyk test --json \| depquiet --stdin` |
@@ -1163,6 +1164,13 @@ every group as development-only and filtered all 43 zulip alerts, 17 of them wro
 
 Nothing else was filtered: every one of these projects has a dynamic import somewhere,
 which keeps the unused-dependency filter off.
+
+If your project is on uv, uv 0.13 ships `uv audit` (still experimental), and
+`uv audit --no-dev` excludes the development group natively. depquiet reads `uv audit`
+output too: `depquiet --scanner uv`, or automatically when uv is installed and pip-audit is
+not. What it adds on top is the rest of the triage: every group judged by its name rather
+than only `dev`, the direct dependency that brings each alert in, EPSS, and npm or pnpm
+dependencies in the same run.
 
 Run them yourself: `python -I benchmarks/run_benchmark.py`. The first run clones the pinned
 commits into `benchmarks/.cache/`; `benchmarks/capture_real.py` re-captures the audits. The

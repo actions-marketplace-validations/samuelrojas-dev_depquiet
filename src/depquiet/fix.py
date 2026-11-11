@@ -149,6 +149,8 @@ def apply_fixes(
 
 def _build_command_str(pm: str, package: str, fix_version: str) -> str:
     """Build the shell command string for display."""
+    if pm == "uv":
+        return f"uv lock --upgrade-package {package}=={fix_version}"
     if pm == "pip":
         return f"pip install {package}=={fix_version}"
     # Default to npm-style
@@ -163,7 +165,10 @@ class _CmdResult:
 
 def _run_fix(pm: str, package: str, fix_version: str, project: Path) -> _CmdResult:
     """Run the package manager command to fix a vulnerability."""
-    if pm == "pip":
+    if pm == "uv":
+        # Raise the locked version; pyproject.toml ranges stay as written.
+        cmd = ["uv", "lock", "--upgrade-package", f"{package}=={fix_version}"]
+    elif pm == "pip":
         cmd = [sys.executable, "-m", "pip", "install", f"{package}=={fix_version}"]
     else:
         cmd = ["npm", "install", f"{package}@{fix_version}"]

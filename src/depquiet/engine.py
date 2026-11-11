@@ -14,6 +14,7 @@ but not for correctness — a vulnerability is filtered if ANY filter matches.
 from __future__ import annotations
 
 import re
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
@@ -44,8 +45,15 @@ from depquiet.parsers.sarif import SarifParser
 from depquiet.parsers.sbom import SbomParser, is_cyclonedx, is_spdx
 from depquiet.parsers.snyk import SnykParser
 from depquiet.parsers.trivy import TrivyParser
+from depquiet.parsers.uv import UvAuditParser, adverse_note, is_uv_audit
 from depquiet.policy import Policy
-from depquiet.scanners import ScanError, run_npm_audit, run_pip_audit, run_pnpm_audit
+from depquiet.scanners import (
+    ScanError,
+    run_npm_audit,
+    run_pip_audit,
+    run_pnpm_audit,
+    run_uv_audit,
+)
 
 
 def _osv_batch_query(
@@ -91,7 +99,7 @@ _PARSERS: list[type[_Parser]] = [
 ]
 
 
-_SCANNER_ECOSYSTEM = {"npm": "npm", "pnpm": "npm", "pip": "python"}
+_SCANNER_ECOSYSTEM = {"npm": "npm", "pnpm": "npm", "pip": "python", "uv": "python"}
 
 
 _NATIVE_SCANNERS: dict[str, type[_Parser]] = {
@@ -140,7 +148,7 @@ def _native_scanners(project: Path) -> list[str]:
     return list(chosen.values())
 
 
-_LABELS = {"npm": "npm", "pnpm": "pnpm", "pip": "Python"}
+_LABELS = {"npm": "npm", "pnpm": "pnpm", "pip": "Python", "uv": "Python"}
 
 
 def _scan_each(project: Path, scanners: list[str], **options: Any) -> ScanResult:
@@ -291,6 +299,10 @@ def scan(
             vulns = DependabotParser.parse(audit_json, project)
         elif "packageManager" in audit_json and isinstance(audit_json.get("vulnerabilities"), list):
             vulns = SnykParser.parse(audit_json, project)
+        elif is_uv_audit(audit_json):
+            pm = "uv"
+            vulns = UvAuditParser.parse(audit_json, project)
+            scan_note = adverse_note(audit_json)
         elif isinstance(audit_json.get("dependencies"), list):
             pm = "pip"
             vulns = PipAuditParser.parse(audit_json, project)
@@ -516,6 +528,7 @@ def _run_scanner(
         "npm": (run_npm_audit, NpmAuditParser.parse, "npm audit"),
         "pip": (run_pip_audit, PipAuditParser.parse, "pip-audit"),
         "pnpm": (run_pnpm_audit, PnpmAuditParser.parse, "pnpm audit"),
+        "uv": (run_uv_audit, UvAuditParser.parse, "uv audit"),
     }
     if pm in runners:
         run, parse, label = runners[pm]
@@ -523,9 +536,25 @@ def _run_scanner(
             report = run(project)
             extra = report.get("depquiet_notes") if isinstance(report, dict) else None
             note = " ".join(n for n in extra if isinstance(n, str)) if extra else ""
+            if pm == "uv":
+                note = " ".join(part for part in (note, adverse_note(report)) if part)
             return parse(report, project), str(pm), note
         except ScanError as e:
             first = f"{label}: {e}"
+        # A uv project often has uv and no pip-audit: uv audit reads the same lock.
+        if (
+            pm == "pip"
+            and shutil.which("pip-audit") is None
+            and shutil.which("uv")
+            and (project / "uv.lock").exists()
+        ):
+            try:
+                report = run_uv_audit(project)
+                note = f"{first} Audited uv.lock with uv audit instead."
+                note = " ".join(part for part in (note, adverse_note(report)) if part)
+                return UvAuditParser.parse(report, project), "uv", note
+            except ScanError as e:
+                first = f"{first} uv audit: {e}"
         if offline or not OsvScanner.detect(project):
             hint = " OSV.dev fallback is disabled by --offline." if offline else ""
             raise ScanError(

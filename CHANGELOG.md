@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-11-11
+
+### Added
+- `uv audit` (uv 0.13+) as an input and a scanner. Its JSON is accepted on
+  `--stdin`, `--scanner uv` runs `uv audit --frozen`, and a uv project with uv
+  installed and no pip-audit is audited with it instead of failing. pip-audit
+  stays first when installed, so existing reports and finding ids do not
+  change. Packages uv flags with an adverse status (archived, deprecated...)
+  are named in the note. `fix` uses `uv lock --upgrade-package`.
+
 ## [0.35.0] - 2026-11-11
 
 ### Added
@@ -710,7 +720,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.35.0...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.36.0...HEAD
+[0.36.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.35.0...v0.36.0
 [0.35.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.34.0...v0.35.0
 [0.34.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.33.2...v0.34.0
 [0.33.2]: https://github.com/samuelrojas-dev/depquiet/compare/v0.33.1...v0.33.2
