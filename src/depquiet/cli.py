@@ -33,6 +33,7 @@ from depquiet.diff import diff_scans, diff_to_json, format_diff, format_diff_mar
 from depquiet.engine import scan
 from depquiet.finding_identity import parse_report, validate_project_id
 from depquiet.fix import apply_fixes, print_fix_report
+from depquiet.fixcheck import check_fixes
 from depquiet.html_report import write_html
 from depquiet.ignore import apply_ignores, load_ignore, print_ignore_warnings
 from depquiet.kev import KevCatalog, apply_kev, fetch_kev_catalog, load_kev_from_file
@@ -537,6 +538,12 @@ def main(argv: list[str] | None = None) -> int:
         help="Auto-fix ACTION items that have a known fix version",
     )
     parser.add_argument(
+        "--check-fixes",
+        action="store_true",
+        help="For uv projects: ask uv's resolver (uv lock --dry-run) whether each suggested "
+        "fix can be installed, and what blocks it if not. Needs uv and network access",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Show what --fix would do without changing anything",
@@ -741,6 +748,17 @@ def main(argv: list[str] | None = None) -> int:
         elif not args.json_output:
             print("\n⚠️  KEV catalog unavailable (offline with no cache)\n")
 
+    if args.check_fixes:
+        if merged.offline:
+            print(
+                "depquiet: --check-fixes needs network access; skipped (--offline).",
+                file=sys.stderr,
+            )
+        else:
+            _checks, check_note = check_fixes(result, args.path)
+            if check_note:
+                print(f"depquiet: {check_note}", file=sys.stderr)
+
     # Compute license data before serializing so --json emits one document.
     license_report = None
     if merged.license or args.license_scan:
@@ -890,6 +908,7 @@ def _print_json(result: ScanResult, *, license_report: LicenseReport | None = No
             "assessment": assess_finding(tr).to_dict(),
             "evidence": asdict(tr.evidence),
             "decision_trace": decision_trace_to_json(tr),
+            **({"fix_check": tr.fix_check.to_dict()} if tr.fix_check is not None else {}),
         }
         if tr.kev_entry is not None:
             entry["kev"] = {
