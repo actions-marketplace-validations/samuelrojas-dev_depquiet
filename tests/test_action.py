@@ -221,3 +221,28 @@ def test_diff_and_comment_reuse_sbom_scan_after_findings_failure(shell_env, tmp_
 
 def test_annotation_script_stays_inside_yaml_block():
     _step("Post PR annotations")
+
+
+def test_action_forwards_the_scanner_input(shell_env):
+    _, env = shell_env
+    env["INPUT_SCANNER"] = "uv"
+    _run_step("Run depquiet", shell_env)
+    args = json.loads(Path(env["CALLS"]).read_text().splitlines()[0])
+    assert args[args.index("--scanner") + 1] == "uv"
+
+
+def test_action_without_scanner_input_scans_every_ecosystem(shell_env):
+    _, env = shell_env
+    env["INPUT_SCANNER"] = ""
+    _run_step("Run depquiet", shell_env)
+    args = json.loads(Path(env["CALLS"]).read_text().splitlines()[0])
+    assert "--scanner" not in args
+
+
+def test_install_step_uses_the_actions_own_code_and_pip_audit():
+    """``@v0.35.0`` must run 0.35.0, and Python projects need their scanner."""
+    block, script = _step("Install depquiet")
+    assert 'pip install --disable-pip-version-check "$GITHUB_ACTION_PATH"' in script
+    assert "pip install --disable-pip-version-check pip-audit" in script
+    assert "INPUT_INSTALL_PIP_AUDIT: ${{ inputs.install-pip-audit }}" in block
+    assert "pip install depquiet" not in script

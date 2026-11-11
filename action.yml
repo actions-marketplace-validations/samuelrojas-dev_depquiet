@@ -11,6 +11,10 @@ inputs:
     description: "Project path to scan"
     required: false
     default: "."
+  scanner:
+    description: "Limit the scan to one scanner: npm, pnpm, pip or uv (default: every ecosystem the project declares)"
+    required: false
+    default: ""
   epss-threshold:
     description: "EPSS score threshold (0.0-1.0). CVEs below this are filtered."
     required: false
@@ -95,6 +99,10 @@ inputs:
     description: "Python version to use"
     required: false
     default: "3.13"
+  install-pip-audit:
+    description: "Install pip-audit so Python projects are audited (set false if your workflow installs it, or to use uv audit)"
+    required: false
+    default: "true"
 
 outputs:
   total:
@@ -132,7 +140,17 @@ runs:
 
     - name: Install depquiet
       shell: bash
-      run: pip install depquiet
+      env:
+        INPUT_INSTALL_PIP_AUDIT: ${{ inputs.install-pip-audit }}
+      # Install the action's own code, so @v0.35.0 runs 0.35.0 and a fresh
+      # tag works before PyPI's index lists it. pip-audit is depquiet's
+      # scanner for Python projects; without it they fall back to OSV.dev.
+      run: |
+        python -m pip install --disable-pip-version-check "$GITHUB_ACTION_PATH"
+        if [ "$INPUT_INSTALL_PIP_AUDIT" = "true" ]; then
+          python -m pip install --disable-pip-version-check pip-audit
+        fi
+        depquiet --version
 
     - name: Run depquiet
       id: run
@@ -140,6 +158,7 @@ runs:
       env:
         INPUT_PATH: ${{ inputs.path }}
         INPUT_EPSS_THRESHOLD: ${{ inputs.epss-threshold }}
+        INPUT_SCANNER: ${{ inputs.scanner }}
         INPUT_OFFLINE: ${{ inputs.offline }}
         INPUT_SARIF: ${{ inputs.sarif }}
         INPUT_TEMPLATES: ${{ inputs.templates }}
@@ -164,6 +183,10 @@ runs:
 
         if [ "$INPUT_OFFLINE" = "true" ]; then
           ARGS+=(--offline)
+        fi
+
+        if [ -n "$INPUT_SCANNER" ]; then
+          ARGS+=(--scanner "$INPUT_SCANNER")
         fi
 
         if [ -n "$INPUT_SARIF" ]; then

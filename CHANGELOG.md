@@ -7,7 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.36.1] - 2026-11-11
+
 ### Fixed
+- **GitHub Action:** it installed only depquiet, so a Python project had no
+  pip-audit and fell back to OSV.dev, or failed with `offline: true`. It now
+  installs pip-audit too (`install-pip-audit: false` to skip). It also
+  installed the latest depquiet from PyPI whatever tag was used; it now
+  installs the action's own code, so `@v0.36.1` runs 0.36.1 and a new tag
+  works before PyPI's index lists it. CI now runs the Action on an npm and a
+  Python project.
+- **GitHub Action:** new `scanner` input, matching `--scanner`.
 - The scan header read "(4 packages)" when 231 were audited: it counts packages
   with alerts, and now says "vulnerable packages".
 
@@ -724,7 +734,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.36.0...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.36.1...HEAD
+[0.36.1]: https://github.com/samuelrojas-dev/depquiet/compare/v0.36.0...v0.36.1
 [0.36.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.35.0...v0.36.0
 [0.35.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.34.0...v0.35.0
 [0.34.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.33.2...v0.34.0

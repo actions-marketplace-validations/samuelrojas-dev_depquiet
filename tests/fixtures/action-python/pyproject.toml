@@ -1,0 +1,12 @@
+# Fixture for the GitHub Action smoke test (.github/workflows/ci.yml).
+# requests is a production dependency; black is only in the dev group.
+# Both pins have published advisories, so pip-audit reports both and
+# depquiet must keep requests and filter black.
+[project]
+name = "demo"
+version = "0.0.0"
+requires-python = ">=3.11"
+dependencies = ["requests==2.25.0"]
+
+[dependency-groups]
+dev = ["black==23.1.0"]
