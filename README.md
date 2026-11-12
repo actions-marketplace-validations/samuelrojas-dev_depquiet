@@ -29,10 +29,10 @@ Every dismissed alert was checked against a separate walk of each `uv.lock`, wit
 project's dependency groups read by hand. Most are `virtualenv` and `filelock` pulled in
 by `pre-commit`. Details and the other 12 projects: [benchmarks](#benchmarks).
 
-Of the alerts left, many cannot be fixed by the one upgrade the scanner names. Across 18 uv
-projects, uv's resolver rejects the upgrade that clears a package's alerts for 73 of 175
-packages (42%), in 13 of the 17 projects with alerts; most often the project's own pin is
-what is in the way. See [`--check-fixes`](#can-the-fix-be-installed---check-fixes).
+Of the alerts left, many cannot be fixed by the upgrade the scanner names. Across 18 uv
+projects, uv's resolver rejects the nearest fix for 502 of 991 kept alerts (51%), in 13 of
+the 17 projects with alerts; in 81% of the blocked upgrades, the project's own pin is what
+is in the way. See [`--check-fixes`](#can-the-fix-be-installed---check-fixes).
 
 On npm, `npm audit --omit=dev` already does this: depquiet matches it row for row on the
 projects measured, and adds which direct dependency brings each kept alert in.
@@ -508,31 +508,34 @@ The first is saleor's own supply-chain cooldown; the second needs
 resolution against the package index, so it needs uv and network access; the JSON report
 has a `fix_check` object per alert.
 
-**Measured on 18 uv projects** (2026-11-11, at their head; script, raw output and every
-resolver message in [`benchmarks/fixcheck_study`](benchmarks/fixcheck_study/)). One upgrade
-was checked per package, to its highest fix, which clears all of that package's alerts:
+**Measured on 18 uv projects** (2026-11-12, at their head; script, raw output and every
+resolver message in [`benchmarks/fixcheck_study`](benchmarks/fixcheck_study/)). Each kept
+alert was checked against its own nearest fix; each package also against its highest fix,
+the one upgrade that clears all of its alerts:
 
-| | Packages | Their kept alerts |
+| | Kept alerts | Packages |
 |:--|--:|--:|
-| With a fix version | 175 | 1,011 |
-| Upgrade resolves | 102 | 468 |
-| **Upgrade blocked** | **73 (42%)** | **543** |
+| With a fix version | 991 | 175 |
+| Fix resolves | 489 | 103 |
+| **Fix blocked** | **502 (51%)** | **72 (41%)** |
 
-What blocks the 73, read from uv's messages: 45 are the project's own pin on that same
-package (`posthog requires aiohttp==3.13.5`), 15 another dependency's pin, 9 a Python
-version newer than the project's oldest supported one, 2 the project's own `exclude-newer`
-cooldown, and 2 could not be told from the stored message. None failed for network or
-build reasons. Blocked does not mean unfixable: something else has to change first.
+What blocks the 72 package upgrades, read from uv's messages:
 
-543 is an upper bound for alerts: some of them also have an older fix (a backport such as
-0.3.81 next to 1.2.22) that the run did not check on its own. depquiet now does: an alert
-whose package upgrade is blocked gets an answer for its own nearest fix.
+- 45: the project's own pin on that same package (`posthog requires aiohttp==3.13.5`).
+- 13: another package's pin. depquiet retried each with that package upgraded in the same
+  step; none resolved, because in all 13 the project pins that package too (`posthog
+  requires lxml==6.0.2`, which holds `lxml-html-clean`).
+- 9: a Python version newer than the oldest the project supports; 2: the project's own
+  `exclude-newer` cooldown; 3: not told apart from uv's message.
 
-For each block, `--check-fixes` now says what to do next. A pin in your own pyproject is
-named, with the requirement to widen. Another package's pin is retried with that package
-upgraded in the same step (up to two rounds); if that resolves, the command to run is
-printed (`uv lock --upgrade-package a==1.2 --upgrade-package b`), and if it does not, the
-pin that holds the blocker is named. A Python floor or a cooldown is reported as such.
+So 58 of the 72 (81%) come down to a pin in the project's own `pyproject.toml`, directly or
+one step away. None failed for network or build reasons. Blocked does not mean unfixable:
+it means the scanner's "update to X" is not enough, and the pin to widen is the answer.
+
+For each block, `--check-fixes` says what to do next: the requirement of yours to widen, or
+the blocking package and the pin that holds it, or the Python floor or cooldown. When
+upgrading the blocking package in the same step resolves, it prints the command
+(`uv lock --upgrade-package a==1.2 --upgrade-package b`).
 The study ran in a disposable VM, for the reason below.
 
 `uv lock` can run code: when a package (your project included) computes its metadata with a
