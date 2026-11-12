@@ -124,12 +124,20 @@ def explain_triage(tr: TriageResult) -> Explanation:
             )
         )
     else:
+        if tr.vuln.cve.upper().startswith("CVE-"):
+            detail = "EPSS lookup was skipped (--offline) or failed"
+        else:
+            cves = [a for a in tr.vuln.aliases if a.upper().startswith("CVE-")]
+            detail = (
+                f"Not looked up: EPSS scores CVE ids, and this advisory is reported as "
+                f"{tr.vuln.cve}" + (f" (alias {cves[0]})" if cves else " with no CVE id")
+            )
         signals.append(
             Signal(
                 name="EPSS score",
                 value="unavailable",
                 effect="not_applicable",
-                detail="EPSS lookup was skipped or failed",
+                detail=detail,
             )
         )
 
