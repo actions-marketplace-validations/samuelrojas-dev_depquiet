@@ -8,7 +8,8 @@ saleor pins ``opentelemetry-semantic-conventions<0.59``, which requires
 pkg==version`` answers that with uv's own resolver and writes nothing.
 
 Opt-in (``--check-fixes``): one resolution per package, with network access
-to the package index.
+to the package index. Like any ``uv lock``, it may execute build hooks of the
+project and its source distributions, so it is only for trusted checkouts.
 """
 
 from __future__ import annotations

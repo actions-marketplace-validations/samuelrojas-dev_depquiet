@@ -503,6 +503,11 @@ The first is saleor's own supply-chain cooldown; the second needs
 resolution against the package index, so it needs uv and network access; the JSON report
 has a `fix_check` object per alert.
 
+`uv lock` can run code: when a package (your project included) computes its metadata with a
+`setup.py` or another build hook, uv executes it to find its dependencies. `--check-fixes`
+does nothing `uv lock` would not do in the same checkout, but run it only on code you
+trust, and not in CI jobs that check out pull requests from outside contributors.
+
 ### Auto-remediation (`--fix`)
 
 `depquiet --fix` upgrades packages that have ACTION verdicts **and** a known fix version.
