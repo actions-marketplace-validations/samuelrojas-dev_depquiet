@@ -7,7 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.40.5] - 2026-11-12
+
 ### Fixed
+- Built-in template reasons made technical claims depquiet never verified, shown
+  as the reason an alert was dismissed, and some were wrong: qs CVE-2022-24999
+  "mitigated by default in Express 4.x" (Express 4.x was affected up to 4.17.2),
+  the node-forge CVEs called a "timing attack" (they are signature verification
+  flaws), lodash "only defaultsDeep and merge" (CVE-2020-8203 is zipObjectDeep).
+  Each reason now states only what is checked: no import of the package, or of
+  a direct dependency that brings it in. The matching was already conservative.
+  A duplicate semver template was removed (20 built-in templates).
 - Import detection for Rust, Ruby, Go, PHP, Java, C#, Swift and Dart treated
   comment markers inside strings as comments: `"assets/*"` opened a block
   comment that swallowed every later `use`/`require` up to the next `*/`, and
@@ -881,7 +891,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.4...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.5...HEAD
+[0.40.5]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.4...v0.40.5
 [0.40.4]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.3...v0.40.4
 [0.40.3]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.2...v0.40.3
 [0.40.2]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.1...v0.40.2
