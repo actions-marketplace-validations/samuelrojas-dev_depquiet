@@ -2,7 +2,15 @@
 
 Classifies dependency licenses into risk categories and flags copyleft
 contamination in proprietary projects. Supports npm (package.json) and
-pip (importlib.metadata) ecosystems.
+Python projects.
+
+Python: the packages are the project's locked ones (``uv.lock``,
+``poetry.lock``, ``pdm.lock`` or fully pinned requirement files), never the
+environment depquiet itself runs in. Each license comes from the project's
+own virtual environment (``.venv``, ``venv``, ``env``: the METADATA files are
+read, nothing is executed) when it holds that exact version, else from PyPI's
+JSON API for that version. Offline, or when PyPI has no answer, the license is
+UNKNOWN, which fails the check: an unread license is not a permissive one.
 
 Usage::
 
@@ -13,8 +21,9 @@ Usage::
 from __future__ import annotations
 
 import json
-import subprocess
+import re
 import sys
+import tomllib
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -34,6 +43,7 @@ class LicenseRisk(Enum):
 _LICENSE_RISK: dict[str, LicenseRisk] = {
     # -- LOW (permissive) --
     "MIT": LicenseRisk.LOW,
+    "MIT-0": LicenseRisk.LOW,
     "ISC": LicenseRisk.LOW,
     "BSD-2-Clause": LicenseRisk.LOW,
     "BSD-3-Clause": LicenseRisk.LOW,
@@ -84,6 +94,9 @@ _LICENSE_RISK: dict[str, LicenseRisk] = {
 
 # Common non-SPDX license strings -> normalized SPDX ID
 _LICENSE_ALIASES: dict[str, str] = {
+    "apache-2.0 license": "Apache-2.0",
+    "apache 2.0 license": "Apache-2.0",
+    "mit license": "MIT",
     "mit": "MIT",
     "isc": "ISC",
     "bsd": "BSD-3-Clause",
@@ -135,6 +148,8 @@ class LicenseReport:
     packages: list[LicenseInfo] = field(default_factory=list)
     project_path: str = ""
     package_manager: str = ""
+    # Why part of the project could not be checked (no lockfile, ...).
+    notes: list[str] = field(default_factory=list)
 
     @property
     def low(self) -> list[LicenseInfo]:
@@ -158,8 +173,8 @@ class LicenseReport:
 
     @property
     def has_issues(self) -> bool:
-        """True if any HIGH, CRITICAL, or UNKNOWN licenses found."""
-        return bool(self.high or self.critical or self.unknown)
+        """True if any HIGH, CRITICAL, or UNKNOWN licenses found, or a part was not checked."""
+        return bool(self.high or self.critical or self.unknown or self.notes)
 
 
 _RISK_ORDER = [
@@ -296,68 +311,157 @@ def _read_npm_package_license(pkg_dir: Path, name: str) -> LicenseInfo | None:
     )
 
 
-def scan_pip_licenses(project: Path) -> list[LicenseInfo]:
-    """Extract license info from pip dependencies using pip list + importlib.metadata."""
-    results: list[LicenseInfo] = []
-
-    try:
-        proc = subprocess.run(
-            [sys.executable, "-m", "pip", "list", "--format=json"],
-            capture_output=True,
-            text=True,
-            timeout=30,
-            cwd=project,
-        )
-        if proc.returncode != 0:
-            return []
-        packages = json.loads(proc.stdout)
-    except (subprocess.TimeoutExpired, FileNotFoundError, json.JSONDecodeError):
+def scan_pip_licenses(
+    project: Path, *, offline: bool = False, notes: list[str] | None = None
+) -> list[LicenseInfo]:
+    """Licenses of the project's locked Python packages (see the module docstring)."""
+    locked = locked_python_packages(project)
+    if locked is None:
+        if notes is not None:
+            notes.append(
+                "Python: no uv.lock, poetry.lock, pdm.lock or fully pinned requirements "
+                "file, so the dependency list (and its licenses) is not known."
+            )
         return []
-
-    for pkg in packages:
-        name = pkg.get("name", "")
-        version = pkg.get("version", "0.0.0")
-        if not name:
-            continue
-
-        # Get license from metadata
-        raw_license = _get_pip_license(name)
-        license_id, risk = classify_license(raw_license)
+    installed = _venv_licenses(project)
+    missing = [(n, v) for n, v in locked if installed.get(_pep503(n), ("", ""))[0] != v]
+    fetched = {} if offline else _pypi_licenses(missing)
+    results: list[LicenseInfo] = []
+    for name, version in locked:
+        key = _pep503(name)
+        if installed.get(key, ("", ""))[0] == version:
+            raw = installed[key][1]
+        elif (key, version) in fetched:
+            raw = fetched[(key, version)]
+        else:
+            raw = "UNKNOWN"
+        license_id, risk = classify_license(raw)
+        if raw == "UNKNOWN":
+            why = "not in the project environment; " + (
+                "PyPI not consulted (--offline)" if offline else "PyPI gave no license"
+            )
+            license_id, raw = "UNKNOWN", why
         results.append(
             LicenseInfo(
-                package=name,
-                version=version,
-                license_id=license_id,
-                license_raw=raw_license,
-                risk=risk,
+                package=name, version=version, license_id=license_id, license_raw=raw, risk=risk
             )
         )
-
     return results
 
 
-def _get_pip_license(package_name: str) -> str:
-    """Get license string for a pip package via importlib.metadata."""
-    try:
-        from importlib.metadata import metadata as get_metadata
+def _pep503(name: str) -> str:
+    return re.sub(r"[-_.]+", "-", name).lower()
 
-        meta = get_metadata(package_name)
-        # Try License field first
-        # get_all() returns None for a missing key; meta["License"] is
-        # deprecated for missing keys and will raise KeyError in future Pythons.
-        lic = (meta.get_all("License") or [""])[0] or ""
-        if lic and lic.strip().lower() not in ("unknown", "", "none"):
-            return str(lic.strip())
 
-        # Fall back to classifiers
-        classifiers = meta.get_all("Classifier") or []
-        for c in classifiers:
-            if c.startswith("License :: OSI Approved :: "):
-                return _classifier_to_spdx(c)
+def locked_python_packages(project: Path) -> list[tuple[str, str]] | None:
+    """(name, version) of every locked package, or None without a lock/pins."""
+    for lock in ("uv.lock", "poetry.lock", "pdm.lock"):
+        path = project / lock
+        if not path.is_file():
+            continue
+        try:
+            data = tomllib.loads(path.read_text(encoding="utf-8"))
+        except (OSError, tomllib.TOMLDecodeError):
+            continue
+        found: dict[str, tuple[str, str]] = {}
+        for pkg in data.get("package", []):
+            if not isinstance(pkg, dict):
+                continue
+            name, version = pkg.get("name"), pkg.get("version")
+            source = pkg.get("source") or {}
+            # The project itself and workspace members are not dependencies.
+            if isinstance(source, dict) and ("editable" in source or "virtual" in source):
+                continue
+            if isinstance(name, str) and isinstance(version, str) and version:
+                found.setdefault(f"{_pep503(name)}=={version}", (name, version))
+        return sorted(found.values())
 
-        return "UNKNOWN"
-    except Exception:
-        return "UNKNOWN"
+    from depquiet.scanners import pinned_requirements, requirement_files
+
+    pins: dict[str, tuple[str, str]] = {}
+    for req in requirement_files(project):
+        parsed = pinned_requirements(req)
+        if parsed is None:
+            continue
+        for pin in parsed[0]:
+            name, _, version = pin.partition("==")
+            pins.setdefault(pin, (name, version))
+    return sorted(pins.values()) if pins else None
+
+
+def _venv_licenses(project: Path) -> dict[str, tuple[str, str]]:
+    """normalized name -> (version, license) from the project's own virtualenv."""
+    from email.parser import Parser
+
+    found: dict[str, tuple[str, str]] = {}
+    for env in (".venv", "venv", "env"):
+        root = project / env
+        if not (root / "pyvenv.cfg").is_file():
+            continue
+        for meta in [
+            *root.glob("lib/python*/site-packages/*.dist-info/METADATA"),
+            *root.glob("Lib/site-packages/*.dist-info/METADATA"),
+        ]:
+            try:
+                msg = Parser().parsestr(meta.read_text(encoding="utf-8", errors="replace"))
+            except OSError:
+                continue
+            name, version = msg.get("Name"), msg.get("Version")
+            if name and version:
+                found.setdefault(
+                    _pep503(name),
+                    (
+                        version,
+                        _license_of(
+                            msg.get("License-Expression"),
+                            msg.get("License"),
+                            msg.get_all("Classifier") or [],
+                        ),
+                    ),
+                )
+    return found
+
+
+def _license_of(expression: str | None, text: str | None, classifiers: list[str]) -> str:
+    """PEP 639 expression, else a short License field, else the OSI classifier."""
+    if expression and expression.strip():
+        return expression.strip()
+    # The License field sometimes holds the whole license text: not an id.
+    short = (text or "").strip()
+    if (
+        short
+        and short.lower() not in ("unknown", "none")
+        and "\n" not in short
+        and len(short) <= 80
+    ):
+        return short
+    for c in classifiers:
+        if c.startswith("License :: OSI Approved :: "):
+            return _classifier_to_spdx(c)
+    return "UNKNOWN"
+
+
+def _pypi_licenses(packages: list[tuple[str, str]]) -> dict[tuple[str, str], str]:
+    """(normalized name, version) -> license, from PyPI's JSON API."""
+    import urllib.request
+    from concurrent.futures import ThreadPoolExecutor
+
+    def one(item: tuple[str, str]) -> tuple[tuple[str, str], str]:
+        name, version = item
+        url = f"https://pypi.org/pypi/{name}/{version}/json"
+        try:
+            with urllib.request.urlopen(url, timeout=15) as response:
+                info = json.load(response).get("info") or {}
+        except (OSError, ValueError):
+            return (_pep503(name), version), "UNKNOWN"
+        return (_pep503(name), version), _license_of(
+            info.get("license_expression"), info.get("license"), info.get("classifiers") or []
+        )
+
+    if not packages:
+        return {}
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        return dict(pool.map(one, packages))
 
 
 def _classifier_to_spdx(classifier: str) -> str:
@@ -390,7 +494,9 @@ def _classifier_to_spdx(classifier: str) -> str:
     return mapping.get(suffix, suffix)
 
 
-def scan_licenses(project: Path, package_manager: str | None = None) -> LicenseReport:
+def scan_licenses(
+    project: Path, package_manager: str | None = None, *, offline: bool = False
+) -> LicenseReport:
     """Run a license scan on a project.
 
     Args:
@@ -415,23 +521,29 @@ def scan_licenses(project: Path, package_manager: str | None = None) -> LicenseR
 
     # "npm+pip" from a scan that merged ecosystems: report each one's licenses.
     packages = []
+    notes: list[str] = []
     for manager in pm.split("+"):
         if manager in ("npm", "pnpm"):
             packages += scan_npm_licenses(project)
         elif manager in ("pip", "uv"):
-            packages += scan_pip_licenses(project)
+            packages += scan_pip_licenses(project, offline=offline, notes=notes)
 
     return LicenseReport(
         packages=packages,
         project_path=str(project),
         package_manager=pm,
+        notes=notes,
     )
 
 
 def print_license_report(report: LicenseReport) -> None:
     """Print a human-readable license compliance report to stderr."""
+    for note in report.notes:
+        print(f"\n  Not checked: {note}", file=sys.stderr)
     if not report.packages:
         print("\nNo dependencies found for license analysis.", file=sys.stderr)
+        if report.notes:
+            print("  License compliance: NOT CHECKED", file=sys.stderr)
         return
 
     total = len(report.packages)
@@ -469,7 +581,8 @@ def print_license_report(report: LicenseReport) -> None:
 
     if report.has_issues:
         print(
-            "  License compliance: FAIL — review HIGH/CRITICAL/UNKNOWN packages above",
+            "  License compliance: FAIL — review HIGH/CRITICAL/UNKNOWN packages "
+            "(and anything not checked) above",
             file=sys.stderr,
         )
     else:

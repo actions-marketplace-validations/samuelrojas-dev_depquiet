@@ -632,6 +632,16 @@ depquiet --license --json
 With `--json`, the command emits one scan document. License results are included in its
 `license` field; the vulnerability `summary` and `results` fields keep their existing shape.
 
+
+**Python packages and their licenses.** The packages are the project's locked ones
+(`uv.lock`, `poetry.lock`, `pdm.lock` or fully pinned requirement files), never the
+environment depquiet runs in. Each license is read from the project's own virtualenv
+(`.venv`, `venv`, `env`: METADATA files only, nothing is executed) when it holds that exact
+version, else from PyPI for that version. With `--offline`, or when PyPI gives no license,
+the package is UNKNOWN and the check fails: an unread license is not a permissive one.
+Without a lockfile or pinned requirements, the report says the Python dependencies were
+not checked.
+
 ### Suppression file (`.depquiet-ignore`)
 
 Teams need a way to acknowledge accepted risk without disabling the tool. The `.depquiet-ignore` file provides per-CVE and per-package suppressions with accountability:
