@@ -90,7 +90,7 @@ depquiet applies five deterministic filters to separate signal from noise:
 | **Test-only use** | The package is imported, but only from test files (`tests/`, `e2e/`, `*.test.*`, `*.spec.*`, test-runner configs), it is not run as a project command, and no application file names it |
 | **Dev dependencies** | Every known dependency path is for development, with no production parent. For npm, also when every locked copy inside the advisory's range is one the lockfile marks as development-only |
 | **EPSS scoring** | The CVE's probability of exploitation is below the threshold (default 10%) |
-| **Community templates** | A matching template's dismissal conditions can be verified against the project |
+| **Community templates** | Dismiss a listed CVE only when the package and everything that brings it in are unused |
 
 See [benchmarks](#benchmarks) for measured results on a real project.
 
@@ -1077,44 +1077,50 @@ cause the scanning step to fail; they do not run another scan.
 
 ## Community templates
 
-depquiet ships with **21 built-in templates** and uses [nuclei-style](https://github.com/projectdiscovery/nuclei-templates) YAML to encode community knowledge about known false positives:
+depquiet ships with **20 built-in templates** in [nuclei-style](https://github.com/projectdiscovery/nuclei-templates) YAML.
 
-Built-in templates require readable project source and evidence that the package and
-its dependency ancestors are unused. Absence of a vulnerable function name in application
-code does not prove that an imported library never calls it. Unverifiable conditions
-keep the alert. Custom templates without conditions are explicit unconditional dismissal
-rules, so add `not-imported` conditions when that is not your intention.
+A built-in template dismisses an alert only when depquiet can read the project source and
+finds no import of the package, or of any direct dependency that brings it in. That is the
+only thing it checks: it does not verify how a library is used, and absence of a function
+name in your code does not prove an imported library never calls it. Anything it cannot
+verify keeps the alert. Custom templates without conditions are explicit unconditional
+dismissal rules, so add `not-imported` conditions when that is not your intention.
 
-| Template | CVE | What it catches |
+Earlier versions gave each template a technical justification ("mitigated by Express 4.x
+defaults", "timing attack") that depquiet never verified, and some were wrong. Since 0.40.5
+the reason states only what was checked.
+
+| Template | Package | CVE |
 |---|---|---|
-| lodash prototype pollution | CVE-2020-8203, CVE-2019-10744 | Only merge/defaultsDeep affected |
-| semver ReDoS | CVE-2022-25883 | Only untrusted input to `semver.clean()` |
-| express open redirect | CVE-2024-29041 | Only unvalidated `res.redirect()` |
-| axios SSRF | CVE-2023-45857 | Server-side only, cookies header |
-| json5 prototype pollution | CVE-2022-46175 | Only `parse()` with `reviver` |
-| webpack-dev-middleware | CVE-2024-29180 | devDependency only |
-| ip SSRF | CVE-2023-42282 | `isPrivate()` bypass, private networks only |
-| requests proxy-auth leak | CVE-2023-32681 | Only proxy + redirect |
-| cryptography null dereference | CVE-2024-0727 | Only PKCS12 loading |
-| minimist prototype pollution | CVE-2021-44906, CVE-2020-7598 | Only direct argv parsing |
-| nth-check ReDoS | CVE-2021-3803 | Only attacker-controlled CSS selectors |
-| postcss ReDoS | CVE-2023-44270 | Only attacker-controlled CSS input |
-| glob-parent ReDoS | CVE-2020-28469 | Only attacker-controlled glob patterns |
-| node-forge timing attack | CVE-2022-24771 | Network-level timing measurement needed |
-| shell-quote injection | CVE-2021-42740 | Only untrusted input to shell-quote |
-| qs prototype pollution | CVE-2022-24999 | Mitigated by Express 4.x defaults |
-| word-wrap ReDoS | CVE-2023-26115 | Only very long strings without spaces |
-| tough-cookie prototype pollution | CVE-2023-26136 | Only attacker-controlled cookie jar |
-| js-yaml code execution | CVE-2013-4660 | Only `yaml.load()` with default schema |
-| certifi root CA removal | CVE-2023-37920 | Only chains through distrusted CAs |
+| lodash prototype pollution | lodash | CVE-2020-8203, CVE-2019-10744, CVE-2018-16487 |
+| semver ReDoS | semver | CVE-2022-25883 |
+| express open redirect | express | CVE-2024-29041 |
+| axios SSRF | axios | CVE-2023-45857 |
+| json5 prototype pollution | json5 | CVE-2022-46175 |
+| webpack-dev-middleware path traversal | webpack-dev-middleware | CVE-2024-29180 |
+| ip SSRF | ip | CVE-2023-42282 |
+| requests proxy-auth leak | requests | CVE-2023-32681 |
+| cryptography null dereference | cryptography | CVE-2024-0727 |
+| minimist prototype pollution | minimist | CVE-2021-44906, CVE-2020-7598 |
+| nth-check ReDoS | nth-check | CVE-2021-3803 |
+| postcss ReDoS | postcss | CVE-2023-44270, CVE-2021-23382, CVE-2021-23368 |
+| glob-parent ReDoS | glob-parent | CVE-2020-28469 |
+| node-forge signature verification | node-forge | CVE-2022-24771, CVE-2022-24772, CVE-2022-24773 |
+| shell-quote injection | shell-quote | CVE-2021-42740 |
+| qs prototype pollution | qs | CVE-2022-24999 |
+| word-wrap ReDoS | word-wrap | CVE-2023-26115 |
+| tough-cookie prototype pollution | tough-cookie | CVE-2023-26136 |
+| js-yaml code execution | js-yaml | CVE-2013-4660 |
+| certifi root CA removal | certifi | CVE-2023-37920, CVE-2024-39689 |
 
 ```yaml
-id: prototype-pollution-lodash
-reason: "Only defaultsDeep/merge are affected. Other lodash functions are safe."
+id: qs-prototype-pollution
+reason: "No import of qs, or of a direct dependency that brings it in, was found in the project source. ..."
+author: "@depquiet"
 cves:
-  - CVE-2020-8203
-  - CVE-2019-10744
-not-imported: ["lodash.defaultsDeep", "lodash.merge"]
+  - CVE-2022-24999
+package: qs
+not-imported: ["qs"]
 ```
 
 ### Contributing a template
@@ -1123,7 +1129,8 @@ not-imported: ["lodash.defaultsDeep", "lodash.merge"]
 2. Add the CVE, affected package, and dismiss conditions
 3. Open a PR — the community reviews and merges
 
-Templates are the growth engine: each contribution helps every depquiet user.
+A template's reason must state only what depquiet checks. Technical arguments about how a
+library is used belong in the PR discussion, with a source, not in the dismissal text.
 
 ## Configuration
 

@@ -1,5 +1,5 @@
 id: prototype-pollution-lodash-merge
-reason: "Prototype pollution in lodash only affects defaultsDeep and merge. If you don't import those functions, you're safe."
+reason: "Neither lodash nor a direct dependency that brings it in is imported, and defaultsDeep, merge and mergeWith do not appear in the project source. That is all depquiet checked. Read the advisory before relying on this."
 author: "@depquiet"
 cves:
   - CVE-2020-8203

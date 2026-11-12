@@ -1,5 +1,5 @@
 id: glob-parent-redos
-reason: "ReDoS in glob-parent only triggers with attacker-controlled glob patterns. Build tools using hardcoded globs are not affected."
+reason: "No import of glob-parent, or of a direct dependency that brings it in, was found in the project source. That is all depquiet checked: it does not verify how glob-parent is used. Read the advisory before relying on this."
 author: "@depquiet"
 cves:
   - CVE-2020-28469

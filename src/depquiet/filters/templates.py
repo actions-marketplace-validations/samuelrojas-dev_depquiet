@@ -1,17 +1,17 @@
 """Filter: community templates for known false positives.
 
-Templates are YAML files that encode community knowledge about specific CVEs
-that are commonly flagged but rarely exploitable. The nuclei project proved
-that community-driven templates create a powerful network effect.
+Templates are YAML files naming specific CVEs to dismiss when the project
+shows no use of the package. The reason text states what is checked, never an
+unverified claim about how the library behaves.
 
 Template format:
-    id: CVE-2024-48930-lodash-merge
-    dismiss-if:
-      not-imported: ["lodash.defaultsDeep", "lodash.merge"]
-    reason: "Only defaultsDeep/merge are affected. Other lodash functions are safe."
+    id: qs-prototype-pollution
+    package: qs
+    not-imported: ["qs"]
+    reason: "No import of qs, or of a direct dependency that brings it in, ..."
     author: "@contributor"
     cves:
-      - CVE-2024-48930
+      - CVE-2022-24999
 
 A template matches when ALL conditions in dismiss-if are met.
 Conditions:
