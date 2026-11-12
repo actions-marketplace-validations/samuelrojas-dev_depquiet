@@ -79,7 +79,7 @@ def study(repo: str, root: Path, skip_check: bool) -> dict[str, object]:
     if skip_check:
         return {**row, "seconds": round(time.time() - started)}
     checks, note = check_fixes(result, dest)
-    by_alert = collections.Counter(r.fix_check.status for r in kept if r.fix_check is not None)
+    by_alert = collections.Counter(_label(r.fix_check) for r in kept if r.fix_check is not None)
     row.update(
         note=note,
         packages={p: c.to_dict() for p, c in checks.items()},
@@ -94,16 +94,24 @@ def study(repo: str, root: Path, skip_check: bool) -> dict[str, object]:
     return row
 
 
+def _label(check: object) -> str:
+    """resolves / resolves-with (another package upgraded too) / blocked / error."""
+    status = str(getattr(check, "status", ""))
+    if status == "resolves" and getattr(check, "also_upgrade", None):
+        return "resolves-with"
+    return status
+
+
 def summary(rows: list[dict[str, object]]) -> str:
     lines = [
         "| Project | Commit | Alerts | Kept | Kept with a fix "
-        "| Fix installs | Blocked | Could not check |",
-        "|:--|:--|--:|--:|--:|--:|--:|--:|",
+        "| Fix installs | Installs with another upgrade | Blocked | Could not check |",
+        "|:--|:--|--:|--:|--:|--:|--:|--:|--:|",
     ]
     total: collections.Counter[str] = collections.Counter()
     for r in rows:
         if "error" in r:
-            lines.append(f"| {r['project']} | {r.get('commit', '')} | {r['error']} ||||||")
+            lines.append(f"| {r['project']} | {r.get('commit', '')} | {r['error']} |||||||")
             continue
         st = r.get("alerts_by_status", {})
         assert isinstance(st, dict)
@@ -112,16 +120,27 @@ def summary(rows: list[dict[str, object]]) -> str:
             r["kept"],
             r.get("alerts_with_fix", 0),
             st.get("resolves", 0),
+            st.get("resolves-with", 0),
             st.get("blocked", 0),
             st.get("error", 0),
         ]
-        keys = ("alerts", "kept", "fix", "ok", "blocked", "error")
+        keys = ("alerts", "kept", "fix", "ok", "with", "blocked", "error")
         for key, value in zip(keys, values, strict=True):
             total[key] += int(value)  # type: ignore[call-overload]
         lines.append(f"| {r['project']} | {r['commit']} | " + " | ".join(map(str, values)) + " |")
     lines.append(
         f"| **Total** | | {total['alerts']} | {total['kept']} | {total['fix']} | "
-        f"{total['ok']} | {total['blocked']} | {total['error']} |"
+        f"{total['ok']} | {total['with']} | {total['blocked']} | {total['error']} |"
+    )
+    reasons: collections.Counter[str] = collections.Counter()
+    for r in rows:
+        by_reason = r.get("packages_by_reason", {})
+        assert isinstance(by_reason, dict)
+        reasons.update({k: int(v) for k, v in by_reason.items()})
+    lines.append("")
+    lines.append(
+        "Package upgrades by reason: "
+        + ", ".join(f"{k} {v}" for k, v in sorted(reasons.items(), key=lambda kv: -kv[1]))
     )
     lines.append("")
     lines.append("Blocked package upgrades (reason: next step, then uv's message):")
