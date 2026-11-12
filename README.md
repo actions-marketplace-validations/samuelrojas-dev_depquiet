@@ -1069,8 +1069,10 @@ with ratings) to gate on it.
 
 - `0` — No ACTION items at or above the `--fail-on` threshold (safe to pass)
 - `1` — ACTION items found at or above the threshold (fail the build)
-- `2` — Nothing was scanned: no supported manifest or lockfile, or a lockfile that needs
-  OSV.dev while `--offline` is set. depquiet never reports an unscanned project as clean.
+- `2` — Nothing was scanned: no supported manifest or lockfile, a lockfile that needs
+  OSV.dev while `--offline` is set, or an input that cannot be read (`--stdin`,
+  `--from-sbom`, `--kev-file`, `--baseline`). depquiet never reports an unscanned project
+  as clean.
 
 ### GitHub Actions (Marketplace)
 

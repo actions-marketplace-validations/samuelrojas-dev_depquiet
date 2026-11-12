@@ -280,6 +280,10 @@ def _strip_comment(value: str) -> str:
     return value
 
 
+def _has_content(text: str) -> bool:
+    return any(line.strip() and not line.strip().startswith("#") for line in text.splitlines())
+
+
 def _parse_policy(path: Path) -> Policy | None:
     """Parse a policy YAML file."""
     import sys
@@ -295,6 +299,13 @@ def _parse_policy(path: Path) -> Policy | None:
     except Exception:
         print(f"Warning: invalid YAML in {path}", file=sys.stderr)
         return None
+    if not raw_rules and _has_content(text):
+        # A policy can escalate alerts (action: flag); losing it must not be silent.
+        print(
+            f"Warning: no rules read from {path} (expected a top-level 'rules:' list "
+            "of '- id: ...' items); the policy is not applied",
+            file=sys.stderr,
+        )
 
     rules: list[PolicyRule] = []
     for i, raw in enumerate(raw_rules):

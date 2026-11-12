@@ -700,21 +700,31 @@ Python projects need pip-audit (pip install pip-audit) or uv; npm projects need 
 
     # Read piped input or SBOM file
     audit_json: dict[str, Any] | None = None
+    # Unreadable input is exit 2, never 1: 1 means "findings", and a CI step
+    # that tolerates findings would pass a scan that never happened.
     if args.from_sbom:
         if not args.from_sbom.is_file():
             print(f"Error: file not found: {args.from_sbom}", file=sys.stderr)
-            return 1
+            return 2
         try:
             audit_json = json.loads(args.from_sbom.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, UnicodeDecodeError):
             print(f"Error: invalid JSON in {args.from_sbom}", file=sys.stderr)
-            return 1
+            return 2
+        if not isinstance(audit_json, dict):
+            print(
+                f"Error: {args.from_sbom} is not an SBOM (expected a JSON object)", file=sys.stderr
+            )
+            return 2
     elif args.stdin:
         try:
             raw = json.load(sys.stdin)
         except json.JSONDecodeError:
             print("Error: invalid JSON on stdin", file=sys.stderr)
-            return 1
+            return 2
+        if not isinstance(raw, (dict, list)):
+            print("Error: stdin is not a scanner report (expected a JSON object)", file=sys.stderr)
+            return 2
         # Dependabot exports are JSON arrays — wrap for the engine
         audit_json = {"alerts": raw} if isinstance(raw, list) else raw
 
@@ -761,7 +771,11 @@ Python projects need pip-audit (pip install pip-audit) or uv; npm projects need 
     if merged.kev or merged.kev_file:
         kev_catalog: KevCatalog | None
         if merged.kev_file:
-            kev_catalog = load_kev_from_file(merged.kev_file)
+            try:
+                kev_catalog = load_kev_from_file(merged.kev_file)
+            except (OSError, ValueError) as exc:
+                print(f"Error: cannot read KEV file {merged.kev_file}: {exc}", file=sys.stderr)
+                return 2
         else:
             kev_catalog = fetch_kev_catalog(offline=merged.offline)
         if kev_catalog is not None:
@@ -772,8 +786,10 @@ Python projects need pip-audit (pip install pip-audit) or uv; npm projects need 
                 if kev_result.escalated > 0:
                     parts.append(f"{kev_result.escalated} escalated to ACTION")
                 print("\n" + " — ".join(parts) + "\n")
-        elif not args.json_output:
-            print("\n⚠️  KEV catalog unavailable (offline with no cache)\n")
+        else:
+            # stderr, so --json users see that KEV was not checked
+            why = "offline with no cache" if merged.offline else "download failed, no cache"
+            print(f"⚠️  KEV catalog unavailable ({why}); KEV was not checked", file=sys.stderr)
 
     fix_plan = None
     if args.check_fixes or args.fix_plan is not None:

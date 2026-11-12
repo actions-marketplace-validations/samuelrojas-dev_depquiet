@@ -64,9 +64,17 @@ class KevCatalog:
 
 
 def _parse_catalog(data: dict[str, Any]) -> KevCatalog:
-    """Parse the raw KEV JSON feed into a KevCatalog."""
+    """Parse the raw KEV JSON feed into a KevCatalog.
+
+    Raises ValueError when the data is not a KEV feed: an empty or wrong
+    file must not read as "nothing here is known exploited".
+    """
+    if not isinstance(data, dict) or not isinstance(data.get("vulnerabilities"), list):
+        raise ValueError("not a CISA KEV catalog (expected a 'vulnerabilities' list)")
     entries: dict[str, KevEntry] = {}
-    for vuln in data.get("vulnerabilities", []):
+    for vuln in data["vulnerabilities"]:
+        if not isinstance(vuln, dict):
+            continue
         cve_id = vuln.get("cveID", "")
         if not cve_id:
             continue
@@ -99,7 +107,7 @@ def _read_cache(cache_path: Path) -> KevCatalog | None:
             return None
         data = json.loads(cache_path.read_text(encoding="utf-8"))
         return _parse_catalog(data)
-    except (json.JSONDecodeError, OSError, KeyError):
+    except (json.JSONDecodeError, OSError, KeyError, ValueError):
         return None
 
 
@@ -141,7 +149,7 @@ def fetch_kev_catalog(
             try:
                 data = json.loads(cache_path.read_text(encoding="utf-8"))
                 return _parse_catalog(data)
-            except (json.JSONDecodeError, OSError):
+            except (json.JSONDecodeError, OSError, ValueError):
                 pass
         return None
 
@@ -156,16 +164,24 @@ def fetch_kev_catalog(
             try:
                 data = json.loads(cache_path.read_text(encoding="utf-8"))
                 return _parse_catalog(data)
-            except (json.JSONDecodeError, OSError):
+            except (json.JSONDecodeError, OSError, ValueError):
                 pass
         return None
 
+    try:
+        catalog = _parse_catalog(data)
+    except ValueError:
+        return None  # a broken response is not cached
     _write_cache(cache_path, data)
-    return _parse_catalog(data)
+    return catalog
 
 
 def load_kev_from_file(path: Path) -> KevCatalog:
-    """Load a KEV catalog from a local JSON file (for testing / air-gapped use)."""
+    """Load a KEV catalog from a local JSON file (for testing / air-gapped use).
+
+    Raises OSError or ValueError (JSONDecodeError included) when the file
+    cannot be read or is not a KEV catalog.
+    """
     data = json.loads(path.read_text(encoding="utf-8"))
     return _parse_catalog(data)
 
