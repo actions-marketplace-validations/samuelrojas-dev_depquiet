@@ -372,8 +372,10 @@ def scan(
         evidence = evaluation.evidence
 
         # Skip all filters if package is in always_flag
-        _always = set(always_flag) if always_flag else set()
-        if vuln.package in _always:
+        # Names compare the way package managers do: ``Django`` in the config
+        # must protect ``django`` from the scanner, and ``PyYAML`` ``pyyaml``.
+        _always = {_flag_key(name) for name in always_flag or []}
+        if _flag_key(vuln.package) in _always:
             _epss = epss_filter.get_score(vuln.cve)
             results.append(
                 TriageResult(
@@ -723,6 +725,11 @@ def _project_contexts(project: Path, graph: DependencyGraph) -> list[_ProjectCon
             _ProjectContext(scope, root, local, ReachabilityFilter(root, exclude_roots=excluded))
         )
     return contexts
+
+
+def _flag_key(name: str) -> str:
+    """Case- and separator-insensitive package name (PEP 503; npm names are lowercase)."""
+    return re.sub(r"[-_.]+", "-", name.strip()).lower()
 
 
 def _evaluate_dependency(

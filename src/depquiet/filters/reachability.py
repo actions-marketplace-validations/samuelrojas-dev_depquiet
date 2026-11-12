@@ -664,19 +664,85 @@ def _py_file_imports_package(
     return _py_text_imports(f, import_candidates(package, project), read_text=read_text)
 
 
-def _strip_go_comments(source: str) -> str:
-    """Remove comments from Go source, preserving string literals.
+_CHAR_LITERAL = re.compile(r"'(?:\\(?:u\{[0-9a-fA-F]{1,6}\}|x[0-9a-fA-F]{2}|.)|[^'\\\n])'")
+_RUST_RAW = re.compile(r'r(#*)"')
 
-    Go comments use the same ``//`` and ``/* */`` syntax as JS/TS.
-    We preserve string literals (double-quoted and backtick raw strings)
-    so the import path strings remain intact.
+
+def _strip_code_comments(
+    source: str,
+    *,
+    line: tuple[str, ...] = ("//",),
+    block: bool = True,
+    quotes: str = '"',
+    char_literals: bool = False,
+    backtick_raw: bool = False,
+    rust_raw: bool = False,
+) -> str:
+    """Remove comments, keeping string literals intact.
+
+    Comment markers inside strings are text: ``"assets/*"`` must not open a
+    block comment that swallows the imports after it, and ``"#fff"`` must not
+    end a Ruby or PHP line early. A string runs to its closing quote or the
+    end of the line, whichever comes first, so an unterminated or multi-line
+    string never hides more than the rest of its own line. Missing an import
+    would make a used package look unreachable; that is the failure to avoid.
     """
-    return re.sub(
-        r"//[^\n]*"  # single-line comment
-        r"|/\*[\s\S]*?\*/",  # multi-line comment
-        " ",
-        source,
-    )
+    out: list[str] = []
+    i, n = 0, len(source)
+    while i < n:
+        c = source[i]
+        if (
+            rust_raw
+            and c == "r"
+            and (i == 0 or not (source[i - 1].isalnum() or source[i - 1] == "_"))
+        ):
+            raw = _RUST_RAW.match(source, i)
+            if raw:
+                end = source.find('"' + raw.group(1), raw.end())
+                end = n if end < 0 else end + 1 + len(raw.group(1))
+                out.append(source[i:end])
+                i = end
+                continue
+        if c in quotes:
+            j = i + 1
+            while j < n and source[j] != c and source[j] != "\n":
+                j += 2 if source[j] == "\\" else 1
+            j = min(j + 1, n) if j < n and source[j] == c else j
+            out.append(source[i:j])
+            i = j
+            continue
+        if backtick_raw and c == "`":
+            end = source.find("`", i + 1)
+            end = n if end < 0 else end + 1
+            out.append(source[i:end])
+            i = end
+            continue
+        if char_literals and c == "'":
+            literal = _CHAR_LITERAL.match(source, i)
+            if literal:
+                out.append(literal.group(0))
+                i = literal.end()
+                continue
+        if block and source.startswith("/*", i):
+            end = source.find("*/", i + 2)
+            i = n if end < 0 else end + 2
+            out.append(" ")
+            continue
+        if any(source.startswith(marker, i) for marker in line):
+            end = source.find("\n", i)
+            i = n if end < 0 else end
+            continue
+        out.append(c)
+        i += 1
+    return "".join(out)
+
+
+def _strip_go_comments(source: str) -> str:
+    """Remove Go ``//`` and ``/* */`` comments, keeping strings, runes and raw strings.
+
+    Comment markers inside strings are text (see ``_strip_code_comments``).
+    """
+    return _strip_code_comments(source, char_literals=True, backtick_raw=True)
 
 
 @lru_cache(maxsize=8192)
@@ -772,18 +838,11 @@ def _go_file_imports_package(
 
 
 def _strip_rust_comments(source: str) -> str:
-    """Remove comments from Rust source, preserving string literals.
+    """Remove Rust comments, keeping strings, raw strings and char literals.
 
-    Rust uses ``//`` for line comments and ``/* */`` for block comments
-    (which can nest, but we don't handle nesting — conservative: a nested
-    comment left partly in is safe, just potentially noisy).
+    Comment markers inside strings are text (see ``_strip_code_comments``).
     """
-    return re.sub(
-        r"//[^\n]*"  # single-line comment
-        r"|/\*[\s\S]*?\*/",  # multi-line comment (non-nested)
-        " ",
-        source,
-    )
+    return _strip_code_comments(source, char_literals=True, rust_raw=True)
 
 
 @lru_cache(maxsize=8192)
@@ -857,18 +916,11 @@ def _rs_file_imports_package(
 
 
 def _strip_java_comments(source: str) -> str:
-    """Remove comments from Java/Kotlin source.
+    """Remove Java comments, keeping string and char literals.
 
-    Java and Kotlin both use ``//`` for line comments and ``/* */`` for block
-    comments.  Like the Go/Rust strippers this is regex-based and may strip
-    ``//`` inside string literals — conservative and safe.
+    Comment markers inside strings are text (see ``_strip_code_comments``).
     """
-    return re.sub(
-        r"//[^\n]*"  # single-line comment
-        r"|/\*[\s\S]*?\*/",  # multi-line comment
-        " ",
-        source,
-    )
+    return _strip_code_comments(source, char_literals=True)
 
 
 @lru_cache(maxsize=8192)
@@ -960,15 +1012,11 @@ def _java_file_imports_package(
 
 
 def _strip_cs_comments(source: str) -> str:
-    """Remove ``//`` and ``/* */`` comments from C# source.
+    """Remove C# comments, keeping string and char literals.
 
-    Same strategy as Java/Kotlin — we strip conservatively rather than
-    parsing full syntax.  String literals containing ``//`` will also be
-    stripped, which is safe (may only add false negatives, never false
-    positives).
+    Comment markers inside strings are text (see ``_strip_code_comments``).
     """
-    text = re.sub(r"/\*.*?\*/", " ", source, flags=re.DOTALL)
-    return re.sub(r"//[^\n]*", "", text)
+    return _strip_code_comments(source, char_literals=True)
 
 
 @lru_cache(maxsize=8192)
@@ -1043,15 +1091,11 @@ def _cs_file_imports_package(
 
 
 def _strip_php_comments(source: str) -> str:
-    """Remove ``//``, ``#`` and ``/* */`` comments from PHP source.
+    """Remove PHP ``//``, ``#`` and ``/* */`` comments, keeping strings.
 
-    PHP uses three comment styles: C-style ``/* */``, C++ ``//``, and
-    shell-style ``#``.  We strip all three conservatively — string literals
-    containing comment tokens are also stripped, which is safe (may only add
-    false negatives, never false positives).
+    Comment markers inside strings are text (see ``_strip_code_comments``).
     """
-    text = re.sub(r"/\*.*?\*/", " ", source, flags=re.DOTALL)
-    return re.sub(r"(?://|#)[^\n]*", "", text)
+    return _strip_code_comments(source, line=("//", "#"), quotes="\"'")
 
 
 @lru_cache(maxsize=8192)
@@ -1122,15 +1166,13 @@ def _php_file_imports_package(
 
 
 def _strip_rb_comments(source: str) -> str:
-    r"""Remove Ruby comments from source (conservative).
+    """Remove Ruby ``#`` comments and ``=begin``/``=end`` blocks, keeping strings.
 
-    Handles single-line ``#`` comments and multi-line ``=begin``/``=end``
-    heredoc-style comments.  Does not track string boundaries — a ``#``
-    inside a string is stripped too, which is safe (conservative).
+    Comment markers inside strings are text (see ``_strip_code_comments``).
     """
-    # Remove =begin...=end blocks (must start at column 0)
+    # =begin/=end blocks start at column 0 and are not inside strings.
     text = re.sub(r"(?m)^=begin\b.*?^=end\b[^\n]*", " ", source, flags=re.DOTALL)
-    return re.sub(r"#[^\n]*", "", text)
+    return _strip_code_comments(text, line=("#",), block=False, quotes="\"'")
 
 
 @lru_cache(maxsize=8192)
@@ -1215,13 +1257,11 @@ def _rb_file_imports_package(
 
 
 def _strip_swift_comments(source: str) -> str:
-    r"""Remove Swift comments from source (conservative).
+    """Remove Swift comments, keeping strings.
 
-    Handles single-line ``//`` comments and multi-line ``/* */`` comments.
-    Does not track string boundaries — conservative.
+    Comment markers inside strings are text (see ``_strip_code_comments``).
     """
-    text = re.sub(r"/\*.*?\*/", " ", source, flags=re.DOTALL)
-    return re.sub(r"//[^\n]*", "", text)
+    return _strip_code_comments(source)
 
 
 @lru_cache(maxsize=8192)
@@ -1297,13 +1337,11 @@ def _swift_file_imports_package(
 
 
 def _strip_dart_comments(source: str) -> str:
-    r"""Remove Dart comments from source (conservative).
+    """Remove Dart comments, keeping strings.
 
-    Handles single-line ``//`` comments and multi-line ``/* */`` comments.
-    Does not track string boundaries — conservative.
+    Comment markers inside strings are text (see ``_strip_code_comments``).
     """
-    text = re.sub(r"/\*.*?\*/", " ", source, flags=re.DOTALL)
-    return re.sub(r"//[^\n]*", "", text)
+    return _strip_code_comments(source, quotes="\"'")
 
 
 @lru_cache(maxsize=8192)
