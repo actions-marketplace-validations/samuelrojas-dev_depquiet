@@ -29,6 +29,10 @@ Every dismissed alert was checked against a separate walk of each `uv.lock`, wit
 project's dependency groups read by hand. Most are `virtualenv` and `filelock` pulled in
 by `pre-commit`. Details and the other 12 projects: [benchmarks](#benchmarks).
 
+Of the alerts left, many cannot be fixed the way the scanner says. Across 18 uv projects,
+uv's resolver rejects the suggested upgrade for 543 of the 1,011 kept alerts that have a fix
+(54%), in 13 of the 17 projects with alerts: see [`--check-fixes`](#can-the-fix-be-installed---check-fixes).
+
 On npm, `npm audit --omit=dev` already does this: depquiet matches it row for row on the
 projects measured, and adds which direct dependency brings each kept alert in.
 
@@ -502,6 +506,21 @@ The first is saleor's own supply-chain cooldown; the second needs
 `✓ fix check: resolves (uv lock --upgrade-package pkg==version)`. Each check is one
 resolution against the package index, so it needs uv and network access; the JSON report
 has a `fix_check` object per alert.
+
+**Measured on 18 uv projects** (2026-11-11, at their head; script, raw output and every
+resolver message in [`benchmarks/fixcheck_study`](benchmarks/fixcheck_study/)):
+
+| | Alerts | Package upgrades |
+|:--|--:|--:|
+| Kept after triage, with a fix version | 1,011 | 175 |
+| Fix resolves | 468 | 102 |
+| **Fix blocked** | **543 (54%)** | **73 (42%)** |
+
+Of the 73 blocked upgrades, 62 conflict with another dependency's pin, 9 need a Python
+version newer than the oldest the project still supports, and 2 fall inside the project's
+own `exclude-newer` cooldown. None failed for network or build reasons. Blocked does not
+mean unfixable: it means bumping that one package is not enough, and someone has to change
+another pin first. The study ran in a disposable VM, for the reason below.
 
 `uv lock` can run code: when a package (your project included) computes its metadata with a
 `setup.py` or another build hook, uv executes it to find its dependencies. `--check-fixes`

@@ -1,0 +1,1542 @@
+[
+ {
+  "project": "saleor/saleor",
+  "commit": "ea4a69f",
+  "alerts": 16,
+  "kept": 2,
+  "note": "",
+  "packages": {
+   "oauthlib": {
+    "status": "blocked",
+    "package": "oauthlib",
+    "version": "4.0.1",
+    "command": "uv lock --upgrade-package oauthlib==4.0.1",
+    "detail": "`oauthlib` was filtered by `exclude-newer-package` to only include packages uploaded before 2026-09-28T06:02:00Z. The requested version, v4.0.1, was published at 2026-10-31T09:52:56.206Z. Consider removing the setting or updating it to a later date. Because there is no version of oauthlib==4.0.1 and your project depends on oauthlib==4.0.1, we can conclude that your project's requirements are unsatisfiable."
+   },
+   "opentelemetry-api": {
+    "status": "blocked",
+    "package": "opentelemetry-api",
+    "version": "1.45.1",
+    "command": "uv lock --upgrade-package opentelemetry-api==1.45.1",
+    "detail": "Because opentelemetry-semantic-conventions==0.58b0 depends on opentelemetry-api==1.37.0 and your project depends on opentelemetry-api==1.45.1, we can conclude that opentelemetry-semantic-conventions==0.58b0 and your project are incompatible. And because your project depends on opentelemetry-semantic-conventions>=0.58b0,<0.59, we can conclude that your project's requirements are unsatisfiable."
+   }
+  },
+  "packages_by_status": {
+   "blocked": 2
+  },
+  "alerts_with_fix": 2,
+  "alerts_by_status": {
+   "blocked": 2
+  },
+  "seconds": 54
+ },
+ {
+  "project": "zulip/zulip",
+  "commit": "53a7f94",
+  "alerts": 43,
+  "kept": 17,
+  "note": "",
+  "packages": {
+   "brotli": {
+    "status": "resolves",
+    "package": "brotli",
+    "version": "1.2.1",
+    "command": "uv lock --upgrade-package brotli==1.2.1",
+    "detail": "v1.2.0 -> v1.2.1"
+   },
+   "dnspython": {
+    "status": "blocked",
+    "package": "dnspython",
+    "version": "2.9.0",
+    "command": "uv lock --upgrade-package dnspython==2.9.0",
+    "detail": "While the active Python version is 3.12, the resolution failed for other Python versions supported by your project. Consider limiting your project's supported Python versions using `requires-python`. Because zulip-server:dev depends on dnspython<2.9.0 and dnspython==2.9.0, we can conclude that zulip-server:dev's requirements are unsatisfiable. And because your project requires zulip-server:dev, we can conclude that your project's requirements are unsatisfiable."
+   },
+   "oauthlib": {
+    "status": "resolves",
+    "package": "oauthlib",
+    "version": "4.0.1",
+    "command": "uv lock --upgrade-package oauthlib==4.0.1",
+    "detail": "v4.0.0 -> v4.0.1"
+   },
+   "pyasn1": {
+    "status": "resolves",
+    "package": "pyasn1",
+    "version": "0.6.5",
+    "command": "uv lock --upgrade-package pyasn1==0.6.5",
+    "detail": "v0.6.4 -> v0.6.5"
+   },
+   "social-auth-core": {
+    "status": "resolves",
+    "package": "social-auth-core",
+    "version": "6.2.0",
+    "command": "uv lock --upgrade-package social-auth-core==6.2.0",
+    "detail": "v4.9.1 -> v6.2.0"
+   },
+   "tornado": {
+    "status": "blocked",
+    "package": "tornado",
+    "version": "6.6",
+    "command": "uv lock --upgrade-package tornado==6.6",
+    "detail": "While the active Python version is 3.12, the resolution failed for other Python versions supported by your project. Consider limiting your project's supported Python versions using `requires-python`. The `requires-python` value (>=3.10) includes Python versions that are not supported by your dependencies (e.g., tornado==6.6 only supports >=3.11). Consider using a more restrictive `requires-python` value (like >=3.11). Because the requested Python version (>=3.10) does not satisfy Python>=3.11 an"
+   }
+  },
+  "packages_by_status": {
+   "resolves": 4,
+   "blocked": 2
+  },
+  "alerts_with_fix": 17,
+  "alerts_by_status": {
+   "resolves": 13,
+   "blocked": 4
+  },
+  "seconds": 59
+ },
+ {
+  "project": "mlflow/mlflow",
+  "commit": "e3bf4f9",
+  "alerts": 17,
+  "kept": 7,
+  "note": "",
+  "packages": {
+   "cryptography": {
+    "status": "resolves",
+    "package": "cryptography",
+    "version": "50.0.0",
+    "command": "uv lock --upgrade-package cryptography==50.0.0",
+    "detail": "v46.0.7 -> v50.0.0"
+   },
+   "paramiko": {
+    "status": "blocked",
+    "package": "paramiko",
+    "version": "5.0.0",
+    "command": "uv lock --upgrade-package paramiko==5.0.0",
+    "detail": "While the active Python version is 3.11, the resolution failed for other Python versions supported by your project. Consider limiting your project's supported Python versions using `requires-python`. Because mlflow[extras] depends on paramiko<4 and paramiko==5.0.0, we can conclude that mlflow[extras]'s requirements are unsatisfiable. And because your workspace requires mlflow[extras], we can conclude that your workspace's requirements are unsatisfiable."
+   },
+   "setuptools": {
+    "status": "blocked",
+    "package": "setuptools",
+    "version": "84.1.0",
+    "command": "uv lock --upgrade-package setuptools==84.1.0",
+    "detail": "While the active Python version is 3.11, the resolution failed for other Python versions supported by your project. Consider limiting your project's supported Python versions using `requires-python`. Because mlflow:build depends on setuptools<82 and setuptools==84.1.0, we can conclude that mlflow:build's requirements are unsatisfiable. And because your workspace requires mlflow:build, we can conclude that your workspace's requirements are unsatisfiable."
+   }
+  },
+  "packages_by_status": {
+   "resolves": 1,
+   "blocked": 2
+  },
+  "alerts_with_fix": 7,
+  "alerts_by_status": {
+   "resolves": 4,
+   "blocked": 3
+  },
+  "seconds": 137
+ },
+ {
+  "project": "langflow-ai/langflow",
+  "commit": "2cf9ce8",
+  "alerts": 70,
+  "kept": 59,
+  "note": "",
+  "packages": {
+   "dnspython": {
+    "status": "blocked",
+    "package": "dnspython",
+    "version": "2.9.0",
+    "command": "uv lock --upgrade-package dnspython==2.9.0",
+    "detail": "While the active Python version is 3.12, the resolution failed for other Python versions supported by your project. Consider limiting your project's supported Python versions using `requires-python`. Because langflow-base depends on dnspython{python_full_version >= '3.11'}>=2.9.1 and dnspython{python_full_version >= '3.11'}==2.9.0, we can conclude that langflow-base's requirements are unsatisfiable. And because your workspace requires langflow-base[ag2], we can conclude that your workspace's req"
+   },
+   "filelock": {
+    "status": "blocked",
+    "package": "filelock",
+    "version": "4.2.1",
+    "command": "uv lock --upgrade-package filelock==4.2.1",
+    "detail": "While the active Python version is 3.12, the resolution failed for other Python versions supported by your project. Consider limiting your project's supported Python versions using `requires-python`. Because langflow-base depends on filelock{python_full_version < '3.11'}>=4.1.0,<4.2.0 and filelock{python_full_version < '3.11'}==4.2.1, we can conclude that langflow-base's requirements are unsatisfiable. And because your workspace requires langflow-base[ag2], we can conclude that your workspace's "
+   },
+   "pillow": {
+    "status": "blocked",
+    "package": "pillow",
+    "version": "13.0.0",
+    "command": "uv lock --upgrade-package pillow==13.0.0",
+    "detail": "While the active Python version is 3.12, the resolution failed for other Python versions supported by your project. Consider limiting your project's supported Python versions using `requires-python`. Because langflow-base depends on pillow{python_full_version < '3.11'}>=12.3.0,<13.0.0 and pillow{python_full_version < '3.11'}==13.0.0, we can conclude that langflow-base's requirements are unsatisfiable. And because your workspace requires langflow-base[ag2], we can conclude that your workspace's r"
+   }
+  },
+  "packages_by_status": {
+   "blocked": 3
+  },
+  "alerts_with_fix": 58,
+  "alerts_by_status": {
+   "blocked": 58
+  },
+  "seconds": 164
+ },
+ {
+  "project": "pallets/flask",
+  "commit": "49943b5",
+  "alerts": 34,
+  "kept": 2,
+  "note": "",
+  "packages": {
+   "certifi": {
+    "status": "resolves",
+    "package": "certifi",
+    "version": "2026.10.18",
+    "command": "uv lock --upgrade-package certifi==2026.10.18",
+    "detail": "v2026.7.22 -> v2026.10.18"
+   },
+   "werkzeug": {
+    "status": "resolves",
+    "package": "werkzeug",
+    "version": "3.1.9",
+    "command": "uv lock --upgrade-package werkzeug==3.1.9",
+    "detail": "v3.1.8 -> v3.1.9"
+   }
+  },
+  "packages_by_status": {
+   "resolves": 2
+  },
+  "alerts_with_fix": 2,
+  "alerts_by_status": {
+   "resolves": 2
+  },
+  "seconds": 23
+ },
+ {
+  "project": "getredash/redash",
+  "commit": "f561a53",
+  "alerts": 49,
+  "kept": 48,
+  "note": "",
+  "packages": {
+   "anyio": {
+    "status": "resolves",
+    "package": "anyio",
+    "version": "4.14.2",
+    "command": "uv lock --upgrade-package anyio==4.14.2",
+    "detail": "v4.5.2 -> v4.14.2"
+   },
+   "authlib": {
+    "status": "blocked",
+    "package": "authlib",
+    "version": "1.9.1",
+    "command": "uv lock --upgrade-package authlib==1.9.1",
+    "detail": "The resolution failed for an environment that is not the current one, consider limiting the environments with `tool.uv.environments`. Because your project depends on authlib==1.8.0 and authlib==1.9.1, we can conclude that your project's requirements are unsatisfiable."
+   },
+   "certifi": {
+    "status": "resolves",
+    "package": "certifi",
+    "version": "2026.10.18",
+    "command": "uv lock --upgrade-package certifi==2026.10.18",
+    "detail": "v2026.7.22 -> v2026.10.18"
+   },
+   "dnspython": {
+    "status": "resolves",
+    "package": "dnspython",
+    "version": "2.9.0",
+    "command": "uv lock --upgrade-package dnspython==2.9.0",
+    "detail": "v2.8.0 -> v2.9.0"
+   },
+   "filelock": {
+    "status": "blocked",
+    "package": "filelock",
+    "version": "4.2.1",
+    "command": "uv lock --upgrade-package filelock==4.2.1",
+    "detail": "The resolution failed for an environment that is not the current one, consider limiting the environments with `tool.uv.environments`. Because snowflake-connector-python==4.7.5 depends on filelock>=3.5,<4 and filelock==4.2.1, we can conclude that snowflake-connector-python==4.7.5 cannot be used. And because redash:all-ds depends on snowflake-connector-python==4.7.5 and your project requires redash:all-ds, we can conclude that your project's requirements are unsatisfiable."
+   },
+   "fsspec": {
+    "status": "resolves",
+    "package": "fsspec",
+    "version": "2026.6.0",
+    "command": "uv lock --upgrade-package fsspec==2026.6.0",
+    "detail": "v2025.3.0 -> v2026.6.0"
+   },
+   "idna": {
+    "status": "resolves",
+    "package": "idna",
+    "version": "3.15",
+    "command": "uv lock --upgrade-package idna==3.15",
+    "detail": "v3.10 -> v3.15"
+   },
+   "joserfc": {
+    "status": "resolves",
+    "package": "joserfc",
+    "version": "1.7.6",
+    "command": "uv lock --upgrade-package joserfc==1.7.6",
+    "detail": "v1.7.2 -> v1.7.6"
+   },
+   "mako": {
+    "status": "resolves",
+    "package": "mako",
+    "version": "1.3.12",
+    "command": "uv lock --upgrade-package mako==1.3.12",
+    "detail": "v1.3.9 -> v1.3.12"
+   },
+   "msgpack": {
+    "status": "resolves",
+    "package": "msgpack",
+    "version": "1.2.3",
+    "command": "uv lock --upgrade-package msgpack==1.2.3",
+    "detail": "v1.2.2 -> v1.2.3"
+   },
+   "oauthlib": {
+    "status": "resolves",
+    "package": "oauthlib",
+    "version": "4.0.0",
+    "command": "uv lock --upgrade-package oauthlib==4.0.0",
+    "detail": "v3.2.2 -> v4.0.0"
+   },
+   "paramiko": {
+    "status": "blocked",
+    "package": "paramiko",
+    "version": "5.0.0",
+    "command": "uv lock --upgrade-package paramiko==5.0.0",
+    "detail": "The resolution failed for an environment that is not the current one, consider limiting the environments with `tool.uv.environments`. Because your project depends on paramiko==3.5.1 and paramiko==5.0.0, we can conclude that your project's requirements are unsatisfiable."
+   },
+   "pyasn1": {
+    "status": "resolves",
+    "package": "pyasn1",
+    "version": "0.6.5",
+    "command": "uv lock --upgrade-package pyasn1==0.6.5",
+    "detail": "v0.6.1 -> v0.6.5"
+   },
+   "pymongo": {
+    "status": "blocked",
+    "package": "pymongo",
+    "version": "4.18.3",
+    "command": "uv lock --upgrade-package pymongo==4.18.3",
+    "detail": "The resolution failed for an environment that is not the current one, consider limiting the environments with `tool.uv.environments`. Because redash:all-ds depends on pymongo==4.18.2 and pymongo==4.18.3, we can conclude that redash:all-ds's requirements are unsatisfiable. And because your project requires redash:all-ds, we can conclude that your project's requirements are unsatisfiable."
+   },
+   "pynacl": {
+    "status": "resolves",
+    "package": "pynacl",
+    "version": "1.6.2",
+    "command": "uv lock --upgrade-package pynacl==1.6.2",
+    "detail": "v1.5.0 -> v1.6.2"
+   },
+   "setuptools": {
+    "status": "resolves",
+    "package": "setuptools",
+    "version": "84.1.0",
+    "command": "uv lock --upgrade-package setuptools==84.1.0",
+    "detail": "v75.3.2 -> v84.1.0"
+   },
+   "werkzeug": {
+    "status": "blocked",
+    "package": "werkzeug",
+    "version": "3.1.9",
+    "command": "uv lock --upgrade-package werkzeug==3.1.9",
+    "detail": "The resolution failed for an environment that is not the current one, consider limiting the environments with `tool.uv.environments`. Because your project depends on werkzeug==3.1.8 and werkzeug==3.1.9, we can conclude that your project's requirements are unsatisfiable."
+   }
+  },
+  "packages_by_status": {
+   "resolves": 12,
+   "blocked": 5
+  },
+  "alerts_with_fix": 48,
+  "alerts_by_status": {
+   "resolves": 24,
+   "blocked": 24
+  },
+  "seconds": 70
+ },
+ {
+  "project": "ArchiveBox/ArchiveBox",
+  "commit": "2af81b9",
+  "alerts": 4,
+  "kept": 4,
+  "note": "",
+  "packages": {
+   "pyasn1": {
+    "status": "resolves",
+    "package": "pyasn1",
+    "version": "0.6.5",
+    "command": "uv lock --upgrade-package pyasn1==0.6.5",
+    "detail": "v0.6.4 -> v0.6.5"
+   }
+  },
+  "packages_by_status": {
+   "resolves": 1
+  },
+  "alerts_with_fix": 4,
+  "alerts_by_status": {
+   "resolves": 4
+  },
+  "seconds": 22
+ },
+ {
+  "project": "Chainlit/chainlit",
+  "commit": "190ea74",
+  "alerts": 304,
+  "kept": 304,
+  "note": "",
+  "packages": {
+   "aiohttp": {
+    "status": "resolves",
+    "package": "aiohttp",
+    "version": "3.14.4",
+    "command": "uv lock --upgrade-package aiohttp==3.14.4",
+    "detail": "v3.13.2 -> v3.14.4"
+   },
+   "anyio": {
+    "status": "resolves",
+    "package": "anyio",
+    "version": "4.14.2",
+    "command": "uv lock --upgrade-package anyio==4.14.2",
+    "detail": "v4.12.0 -> v4.14.2"
+   },
+   "azure-core": {
+    "status": "resolves",
+    "package": "azure-core",
+    "version": "1.38.0",
+    "command": "uv lock --upgrade-package azure-core==1.38.0",
+    "detail": "v1.36.0 -> v1.38.0"
+   },
+   "banks": {
+    "status": "resolves",
+    "package": "banks",
+    "version": "2.5.1",
+    "command": "uv lock --upgrade-package banks==2.5.1",
+    "detail": "v2.2.0 -> v2.5.1"
+   },
+   "certifi": {
+    "status": "resolves",
+    "package": "certifi",
+    "version": "2026.10.18",
+    "command": "uv lock --upgrade-package certifi==2026.10.18",
+    "detail": "v2025.11.12 -> v2026.10.18"
+   },
+   "cryptography": {
+    "status": "resolves",
+    "package": "cryptography",
+    "version": "50.0.0",
+    "command": "uv lock --upgrade-package cryptography==50.0.0",
+    "detail": "v46.0.3 -> v50.0.0"
+   },
+   "dnspython": {
+    "status": "blocked",
+    "package": "dnspython",
+    "version": "2.9.0",
+    "command": "uv lock --upgrade-package dnspython==2.9.0",
+    "detail": "While the active Python version is 3.13, the resolution failed for other Python versions supported by your project. Consider limiting your project's supported Python versions using `requires-python`. The `requires-python` value (>=3.10, <3.14.0) includes Python versions that are not supported by your dependencies (e.g., dnspython==2.9.0 only supports >=3.11). Consider using a more restrictive `requires-python` value (like >=3.11). Because the requested Python version (>=3.10, <3.14.0) does not s"
+   },
+   "filelock": {
+    "status": "blocked",
+    "package": "filelock",
+    "version": "4.2.1",
+    "command": "uv lock --upgrade-package filelock==4.2.1",
+    "detail": "While the active Python version is 3.13, the resolution failed for other Python versions supported by your project. Consider limiting your project's supported Python versions using `requires-python`. The `requires-python` value (>=3.10, <3.14.0) includes Python versions that are not supported by your dependencies (e.g., filelock==4.2.1 only supports >=3.11). Consider using a more restrictive `requires-python` value (like >=3.11). Because the requested Python version (>=3.10, <3.14.0) does not sa"
+   },
+   "fsspec": {
+    "status": "resolves",
+    "package": "fsspec",
+    "version": "2026.6.0",
+    "command": "uv lock --upgrade-package fsspec==2026.6.0",
+    "detail": "v2025.12.0 -> v2026.6.0"
+   },
+   "idna": {
+    "status": "resolves",
+    "package": "idna",
+    "version": "3.15",
+    "command": "uv lock --upgrade-package idna==3.15",
+    "detail": "v3.11 -> v3.15"
+   },
+   "langchain": {
+    "status": "resolves",
+    "package": "langchain",
+    "version": "1.3.9",
+    "command": "uv lock --upgrade-package langchain==1.3.9",
+    "detail": "v1.2.15 -> v1.3.9"
+   },
+   "langchain-core": {
+    "status": "blocked",
+    "package": "langchain-core",
+    "version": "0.3.85",
+    "command": "uv lock --upgrade-package langchain-core==0.3.85",
+    "detail": "Because langchain>=1.3.0a1,<=1.3.0a2 depends on langchain-core>=1.4.0a2,<2.0.0 and all of: langchain>=1.0.0,<=1.2.4 langchain>=1.2.6,<=1.3.4 langchain>=1.3.6 depend on langchain-core==0.3.85, we can conclude that langchain>=1.3.0a1,<=1.3.0a2 cannot be used. (1)"
+   },
+   "langgraph-checkpoint": {
+    "status": "resolves",
+    "package": "langgraph-checkpoint",
+    "version": "4.1.1",
+    "command": "uv lock --upgrade-package langgraph-checkpoint==4.1.1",
+    "detail": "v4.0.1 -> v4.1.1"
+   },
+   "langgraph-sdk": {
+    "status": "resolves",
+    "package": "langgraph-sdk",
+    "version": "0.4.4",
+    "command": "uv lock --upgrade-package langgraph-sdk==0.4.4",
+    "detail": "v0.3.12 -> v0.4.4"
+   },
+   "langsmith": {
+    "status": "resolves",
+    "package": "langsmith",
+    "version": "0.8.18",
+    "command": "uv lock --upgrade-package langsmith==0.8.18",
+    "detail": "v0.7.26 -> v0.8.18"
+   },
+   "marshmallow": {
+    "status": "resolves",
+    "package": "marshmallow",
+    "version": "3.26.2",
+    "command": "uv lock --upgrade-package marshmallow==3.26.2",
+    "detail": "v3.26.1 -> v3.26.2"
+   },
+   "mcp": {
+    "status": "resolves",
+    "package": "mcp",
+    "version": "1.30.0",
+    "command": "uv lock --upgrade-package mcp==1.30.0",
+    "detail": "v1.29.1 -> v1.30.0"
+   },
+   "multidict": {
+    "status": "resolves",
+    "package": "multidict",
+    "version": "6.9.1",
+    "command": "uv lock --upgrade-package multidict==6.9.1",
+    "detail": "v6.7.0 -> v6.9.1"
+   },
+   "nltk": {
+    "status": "resolves",
+    "package": "nltk",
+    "version": "3.10.3",
+    "command": "uv lock --upgrade-package nltk==3.10.3",
+    "detail": "v3.9.2 -> v3.10.3"
+   },
+   "oauthlib": {
+    "status": "resolves",
+    "package": "oauthlib",
+    "version": "4.0.1",
+    "command": "uv lock --upgrade-package oauthlib==4.0.1",
+    "detail": "v3.3.1 -> v4.0.1"
+   },
+   "opentelemetry-api": {
+    "status": "resolves",
+    "package": "opentelemetry-api",
+    "version": "1.45.1",
+    "command": "uv lock --upgrade-package opentelemetry-api==1.45.1",
+    "detail": "v1.39.0 -> v1.45.1"
+   },
+   "pillow": {
+    "status": "blocked",
+    "package": "pillow",
+    "version": "13.0.0",
+    "command": "uv lock --upgrade-package pillow==13.0.0",
+    "detail": "While the active Python version is 3.13, the resolution failed for other Python versions supported by your project. Consider limiting your project's supported Python versions using `requires-python`. The `requires-python` value (>=3.10, <3.14.0) includes Python versions that are not supported by your dependencies (e.g., pillow==13.0.0 only supports >=3.11). Consider using a more restrictive `requires-python` value (like >=3.11). Because the requested Python version (>=3.10, <3.14.0) does not sat"
+   },
+   "protobuf": {
+    "status": "resolves",
+    "package": "protobuf",
+    "version": "5.29.6",
+    "command": "uv lock --upgrade-package protobuf==5.29.6",
+    "detail": "v6.33.1 -> v5.29.6"
+   },
+   "pyasn1": {
+    "status": "resolves",
+    "package": "pyasn1",
+    "version": "0.6.5",
+    "command": "uv lock --upgrade-package pyasn1==0.6.5",
+    "detail": "v0.6.1 -> v0.6.5"
+   },
+   "pygments": {
+    "status": "resolves",
+    "package": "pygments",
+    "version": "2.20.0",
+    "command": "uv lock --upgrade-package pygments==2.20.0",
+    "detail": "v2.19.2 -> v2.20.0"
+   },
+   "pyjwt": {
+    "status": "resolves",
+    "package": "pyjwt",
+    "version": "2.15.0",
+    "command": "uv lock --upgrade-package pyjwt==2.15.0",
+    "detail": "v2.13.0 -> v2.15.0"
+   },
+   "pyopenssl": {
+    "status": "resolves",
+    "package": "pyopenssl",
+    "version": "26.0.0",
+    "command": "uv lock --upgrade-package pyopenssl==26.0.0",
+    "detail": "v25.3.0 -> v26.0.0"
+   },
+   "pypdf": {
+    "status": "resolves",
+    "package": "pypdf",
+    "version": "6.21.4",
+    "command": "uv lock --upgrade-package pypdf==6.21.4",
+    "detail": "v6.4.0 -> v6.21.4"
+   },
+   "pytest": {
+    "status": "resolves",
+    "package": "pytest",
+    "version": "9.0.3",
+    "command": "uv lock --upgrade-package pytest==9.0.3",
+    "detail": "v8.4.2 -> v9.0.3"
+   },
+   "python-dotenv": {
+    "status": "resolves",
+    "package": "python-dotenv",
+    "version": "1.2.2",
+    "command": "uv lock --upgrade-package python-dotenv==1.2.2",
+    "detail": "v1.2.1 -> v1.2.2"
+   },
+   "python-engineio": {
+    "status": "resolves",
+    "package": "python-engineio",
+    "version": "4.13.2",
+    "command": "uv lock --upgrade-package python-engineio==4.13.2",
+    "detail": "v4.12.3 -> v4.13.2"
+   },
+   "python-socketio": {
+    "status": "resolves",
+    "package": "python-socketio",
+    "version": "5.16.2",
+    "command": "uv lock --upgrade-package python-socketio==5.16.2",
+    "detail": "v5.15.0 -> v5.16.2"
+   },
+   "requests": {
+    "status": "resolves",
+    "package": "requests",
+    "version": "2.33.0",
+    "command": "uv lock --upgrade-package requests==2.33.0",
+    "detail": "v2.32.5 -> v2.33.0"
+   },
+   "semantic-kernel": {
+    "status": "blocked",
+    "package": "semantic-kernel",
+    "version": "1.39.4",
+    "command": "uv lock --upgrade-package semantic-kernel==1.39.4",
+    "detail": "Because semantic-kernel==1.39.4 depends on openai>=1.98.0,<2 and chainlit[tests] depends on openai>=2.0.0,<3.0.0, we can conclude that chainlit[tests] and semantic-kernel==1.39.4 are incompatible. And because chainlit[tests] depends on semantic-kernel==1.39.4 and your project requires chainlit[tests], we can conclude that your project's requirements are unsatisfiable."
+   },
+   "setuptools": {
+    "status": "resolves",
+    "package": "setuptools",
+    "version": "84.1.0",
+    "command": "uv lock --upgrade-package setuptools==84.1.0",
+    "detail": "v80.9.0 -> v84.1.0"
+   },
+   "soupsieve": {
+    "status": "resolves",
+    "package": "soupsieve",
+    "version": "2.9.0",
+    "command": "uv lock --upgrade-package soupsieve==2.9.0",
+    "detail": "v2.8 -> v2.9"
+   },
+   "starlette": {
+    "status": "resolves",
+    "package": "starlette",
+    "version": "1.3.1",
+    "command": "uv lock --upgrade-package starlette==1.3.1",
+    "detail": "v0.50.0 -> v1.3.1"
+   },
+   "transformers": {
+    "status": "resolves",
+    "package": "transformers",
+    "version": "5.10.0",
+    "command": "uv lock --upgrade-package transformers==5.10.0",
+    "detail": "v5.5.0 -> v5.10.0"
+   },
+   "urllib3": {
+    "status": "resolves",
+    "package": "urllib3",
+    "version": "2.8.0",
+    "command": "uv lock --upgrade-package urllib3==2.8.0",
+    "detail": "v2.5.0 -> v2.8.0"
+   },
+   "werkzeug": {
+    "status": "resolves",
+    "package": "werkzeug",
+    "version": "3.1.9",
+    "command": "uv lock --upgrade-package werkzeug==3.1.9",
+    "detail": "v3.1.1 -> v3.1.9"
+   }
+  },
+  "packages_by_status": {
+   "resolves": 35,
+   "blocked": 5
+  },
+  "alerts_with_fix": 303,
+  "alerts_by_status": {
+   "resolves": 235,
+   "blocked": 68
+  },
+  "seconds": 75
+ },
+ {
+  "project": "wger-project/wger",
+  "commit": "c6ee8a7",
+  "alerts": 1,
+  "kept": 1,
+  "note": "",
+  "packages": {
+   "oauthlib": {
+    "status": "resolves",
+    "package": "oauthlib",
+    "version": "4.0.1",
+    "command": "uv lock --upgrade-package oauthlib==4.0.1",
+    "detail": "v4.0.0 -> v4.0.1"
+   }
+  },
+  "packages_by_status": {
+   "resolves": 1
+  },
+  "alerts_with_fix": 1,
+  "alerts_by_status": {
+   "resolves": 1
+  },
+  "seconds": 8
+ },
+ {
+  "project": "crewAIInc/crewAI",
+  "commit": "7e4efa9",
+  "alerts": 56,
+  "kept": 56,
+  "note": "",
+  "packages": {
+   "filelock": {
+    "status": "blocked",
+    "package": "filelock",
+    "version": "4.2.1",
+    "command": "uv lock --upgrade-package filelock==4.2.1",
+    "detail": "While the active Python version is 3.13, the resolution failed for other Python versions supported by your project. Consider limiting your project's supported Python versions using `requires-python`. Because litellm==1.105.3 depends on filelock{python_full_version < '3.11'}>=3.24.2,<4 and filelock{python_full_version < '3.11'}==4.2.1, we can conclude that litellm==1.105.3 cannot be used. And because only the following versions of litellm are available: litellm<=1.105.3 litellm>=1.105.4 we can co"
+   },
+   "pillow": {
+    "status": "blocked",
+    "package": "pillow",
+    "version": "13.0.0",
+    "command": "uv lock --upgrade-package pillow==13.0.0",
+    "detail": "While the active Python version is 3.13, the resolution failed for other Python versions supported by your project. Consider limiting your project's supported Python versions using `requires-python`. The `requires-python` value (>=3.10, <3.14) includes Python versions that are not supported by your dependencies (e.g., pillow==13.0.0 only supports >=3.11). Consider using a more restrictive `requires-python` value (like >=3.11). Because the requested Python version (>=3.10, <3.14) does not satisfy"
+   },
+   "pymongo": {
+    "status": "blocked",
+    "package": "pymongo",
+    "version": "4.18.3",
+    "command": "uv lock --upgrade-package pymongo==4.18.3",
+    "detail": "While the active Python version is 3.13, the resolution failed for other Python versions supported by your project. Consider limiting your project's supported Python versions using `requires-python`. Because crewai-tools[azure-documentdb] depends on pymongo{python_full_version < '3.11'}>=4.18.2,<4.18.3 and pymongo{python_full_version < '3.11'}==4.18.3, we can conclude that crewai-tools[azure-documentdb]'s requirements are unsatisfiable. And because your workspace requires crewai-tools[azure-docu"
+   },
+   "unstructured": {
+    "status": "blocked",
+    "package": "unstructured",
+    "version": "0.24.1",
+    "command": "uv lock --upgrade-package unstructured==0.24.1",
+    "detail": "While the active Python version is 3.13, the resolution failed for other Python versions supported by your project. Consider limiting your project's supported Python versions using `requires-python`. The `requires-python` value (>=3.10, <3.14) includes Python versions that are not supported by your dependencies (e.g., unstructured==0.24.1 only supports >=3.11, <3.14). Consider using a more restrictive `requires-python` value (like >=3.11, <3.14). Because the requested Python version (>=3.10, <3."
+   }
+  },
+  "packages_by_status": {
+   "blocked": 4
+  },
+  "alerts_with_fix": 52,
+  "alerts_by_status": {
+   "blocked": 52
+  },
+  "seconds": 60
+ },
+ {
+  "project": "goauthentik/authentik",
+  "commit": "17ea6af",
+  "alerts": 2,
+  "kept": 2,
+  "note": "",
+  "packages": {
+   "autobahn": {
+    "status": "blocked",
+    "package": "autobahn",
+    "version": "26.7.1",
+    "command": "uv lock --upgrade-package autobahn==26.7.1",
+    "detail": "The resolution failed for an environment that is not the current one, consider limiting the environments with `tool.uv.environments`. Because autobahn==26.7.1 depends on cbor2{platform_python_implementation == 'PyPy' and sys_platform == 'win32'}>=5.2.0,<6 and daphne>=4.2.3 depends on autobahn==26.7.1, we can conclude that daphne>=4.2.3 depends on cbor2>=5.2.0,<6. And because webauthn>=3.0.1 depends on cbor2>=6.1.2, we can conclude that daphne>=4.2.3 and webauthn>=3.0.1 are incompatible. And beca"
+   },
+   "opentelemetry-api": {
+    "status": "blocked",
+    "package": "opentelemetry-api",
+    "version": "1.45.1",
+    "command": "uv lock --upgrade-package opentelemetry-api==1.45.1",
+    "detail": "The resolution failed for an environment that is not the current one, consider limiting the environments with `tool.uv.environments`. Because authentik depends on opentelemetry-api==1.44.0 and opentelemetry-api==1.45.1, we can conclude that authentik's requirements are unsatisfiable. And because your workspace requires authentik, we can conclude that your workspace's requirements are unsatisfiable."
+   }
+  },
+  "packages_by_status": {
+   "blocked": 2
+  },
+  "alerts_with_fix": 2,
+  "alerts_by_status": {
+   "blocked": 2
+  },
+  "seconds": 28
+ },
+ {
+  "project": "BerriAI/litellm",
+  "commit": "45a31852",
+  "alerts": 46,
+  "kept": 46,
+  "note": "",
+  "packages": {
+   "dnspython": {
+    "status": "blocked",
+    "package": "dnspython",
+    "version": "2.9.0",
+    "command": "uv lock --upgrade-package dnspython==2.9.0",
+    "detail": "While the active Python version is 3.13, the resolution failed for other Python versions supported by your project. Consider limiting your project's supported Python versions using `requires-python`. The `requires-python` value (>=3.10, <3.16) includes Python versions that are not supported by your dependencies (e.g., dnspython==2.9.0 only supports >=3.11). Consider using a more restrictive `requires-python` value (like >=3.11). Because litellm[proxy] depends on fastapi-sso>=0.19.0 and fastapi-s"
+   },
+   "filelock": {
+    "status": "blocked",
+    "package": "filelock",
+    "version": "4.2.1",
+    "command": "uv lock --upgrade-package filelock==4.2.1",
+    "detail": "While the active Python version is 3.13, the resolution failed for other Python versions supported by your project. Consider limiting your project's supported Python versions using `requires-python`. Because litellm depends on filelock{python_full_version < '3.11'}<3.20.4 and filelock==4.2.1, we can conclude that litellm's requirements are unsatisfiable. And because your workspace requires litellm[bedrock-realtime], we can conclude that your workspace's requirements are unsatisfiable."
+   },
+   "pillow": {
+    "status": "blocked",
+    "package": "pillow",
+    "version": "13.0.0",
+    "command": "uv lock --upgrade-package pillow==13.0.0",
+    "detail": "While the active Python version is 3.13, the resolution failed for other Python versions supported by your project. Consider limiting your project's supported Python versions using `requires-python`. Because litellm:ci depends on pillow{python_full_version < '3.11'}==12.3.0 and pillow{python_full_version < '3.11'}==13.0.0, we can conclude that litellm:ci's requirements are unsatisfiable. And because your workspace requires litellm:ci, we can conclude that your workspace's requirements are unsati"
+   },
+   "tornado": {
+    "status": "blocked",
+    "package": "tornado",
+    "version": "6.6",
+    "command": "uv lock --upgrade-package tornado==6.6",
+    "detail": "While the active Python version is 3.13, the resolution failed for other Python versions supported by your project. Consider limiting your project's supported Python versions using `requires-python`. The `requires-python` value (>=3.10, <3.16) includes Python versions that are not supported by your dependencies (e.g., tornado==6.6 only supports >=3.11). Consider using a more restrictive `requires-python` value (like >=3.11). `tornado` was filtered by `exclude-newer` to only include packages uplo"
+   }
+  },
+  "packages_by_status": {
+   "blocked": 4
+  },
+  "alerts_with_fix": 46,
+  "alerts_by_status": {
+   "blocked": 46
+  },
+  "seconds": 130
+ },
+ {
+  "project": "pydantic/pydantic-ai",
+  "commit": "22781bb",
+  "alerts": 0,
+  "kept": 0,
+  "note": "",
+  "packages": {},
+  "packages_by_status": {},
+  "alerts_with_fix": 0,
+  "alerts_by_status": {},
+  "seconds": 42
+ },
+ {
+  "project": "open-webui/open-webui",
+  "commit": "b0e6098",
+  "alerts": 119,
+  "kept": 118,
+  "note": "",
+  "packages": {
+   "anthropic": {
+    "status": "blocked",
+    "package": "anthropic",
+    "version": "0.87.0",
+    "command": "uv lock --upgrade-package anthropic==0.87.0",
+    "detail": "The resolution failed for an environment that is not the current one, consider limiting the environments with `tool.uv.environments`. Because your project depends on anthropic==0.86.0 and anthropic==0.87.0, we can conclude that your project's requirements are unsatisfiable. And because your project requires open-webui[all], we can conclude that your project's requirements are unsatisfiable."
+   },
+   "anyio": {
+    "status": "resolves",
+    "package": "anyio",
+    "version": "4.14.2",
+    "command": "uv lock --upgrade-package anyio==4.14.2",
+    "detail": "v4.14.0 -> v4.14.2"
+   },
+   "authlib": {
+    "status": "blocked",
+    "package": "authlib",
+    "version": "1.9.1",
+    "command": "uv lock --upgrade-package authlib==1.9.1",
+    "detail": "The resolution failed for an environment that is not the current one, consider limiting the environments with `tool.uv.environments`. Because your project depends on authlib==1.7.2 and authlib==1.9.1, we can conclude that your project's requirements are unsatisfiable. And because your project requires open-webui[all], we can conclude that your project's requirements are unsatisfiable."
+   },
+   "black": {
+    "status": "blocked",
+    "package": "black",
+    "version": "26.10.1",
+    "command": "uv lock --upgrade-package black==26.10.1",
+    "detail": "The resolution failed for an environment that is not the current one, consider limiting the environments with `tool.uv.environments`. Because your project depends on black==26.5.1 and black==26.10.1, we can conclude that your project's requirements are unsatisfiable. And because your project requires open-webui[all], we can conclude that your project's requirements are unsatisfiable."
+   },
+   "certifi": {
+    "status": "resolves",
+    "package": "certifi",
+    "version": "2026.10.18",
+    "command": "uv lock --upgrade-package certifi==2026.10.18",
+    "detail": "v2026.6.17 -> v2026.10.18"
+   },
+   "cryptography": {
+    "status": "blocked",
+    "package": "cryptography",
+    "version": "50.0.0",
+    "command": "uv lock --upgrade-package cryptography==50.0.0",
+    "detail": "The resolution failed for an environment that is not the current one, consider limiting the environments with `tool.uv.environments`. Because your project depends on cryptography==48.0.1 and cryptography==50.0.0, we can conclude that your project's requirements are unsatisfiable. And because your project requires open-webui[all], we can conclude that your project's requirements are unsatisfiable."
+   },
+   "datasets": {
+    "status": "blocked",
+    "package": "datasets",
+    "version": "5.0.1",
+    "command": "uv lock --upgrade-package datasets==5.0.1",
+    "detail": "The resolution failed for an environment that is not the current one, consider limiting the environments with `tool.uv.environments`. Because datasets==5.0.1 depends on pyarrow>=21.0.0 and colbert-ai>=0.2.22 depends on datasets==5.0.1, we can conclude that colbert-ai>=0.2.22 depends on pyarrow>=21.0.0. And because open-webui[all] depends on colbert-ai==0.2.22, we can conclude that open-webui[all] depends on pyarrow>=21.0.0. And because your project depends on pyarrow==20.0.0 and your project req"
+   },
+   "filelock": {
+    "status": "blocked",
+    "package": "filelock",
+    "version": "4.2.1",
+    "command": "uv lock --upgrade-package filelock==4.2.1",
+    "detail": "The resolution failed for an environment that is not the current one, consider limiting the environments with `tool.uv.environments`. Because unstructured==0.22.31 depends on filelock>=3.12.0,<4.0.0 and filelock==4.2.1, we can conclude that unstructured==0.22.31 cannot be used. And because open-webui[all] depends on unstructured==0.22.31 and your project requires open-webui[all], we can conclude that your project's requirements are unsatisfiable."
+   },
+   "fsspec": {
+    "status": "resolves",
+    "package": "fsspec",
+    "version": "2026.6.0",
+    "command": "uv lock --upgrade-package fsspec==2026.6.0",
+    "detail": "v2025.3.0 -> v2026.6.0"
+   },
+   "gitpython": {
+    "status": "resolves",
+    "package": "gitpython",
+    "version": "3.2.1",
+    "command": "uv lock --upgrade-package gitpython==3.2.1",
+    "detail": "v3.1.50 -> v3.2.1"
+   },
+   "h2": {
+    "status": "resolves",
+    "package": "h2",
+    "version": "4.4.1",
+    "command": "uv lock --upgrade-package h2==4.4.1",
+    "detail": "v4.3.0 -> v4.4.1"
+   },
+   "hpack": {
+    "status": "resolves",
+    "package": "hpack",
+    "version": "4.2.0",
+    "command": "uv lock --upgrade-package hpack==4.2.0",
+    "detail": "v4.1.0 -> v4.2.0"
+   },
+   "joserfc": {
+    "status": "blocked",
+    "package": "joserfc",
+    "version": "1.7.6",
+    "command": "uv lock --upgrade-package joserfc==1.7.6",
+    "detail": "The resolution failed for an environment that is not the current one, consider limiting the environments with `tool.uv.environments`. Because your project depends on joserfc==1.7.4 and joserfc==1.7.6, we can conclude that your project's requirements are unsatisfiable. And because your project requires open-webui[all], we can conclude that your project's requirements are unsatisfiable."
+   },
+   "multidict": {
+    "status": "resolves",
+    "package": "multidict",
+    "version": "6.9.1",
+    "command": "uv lock --upgrade-package multidict==6.9.1",
+    "detail": "v6.7.1 -> v6.9.1"
+   },
+   "oauthlib": {
+    "status": "resolves",
+    "package": "oauthlib",
+    "version": "4.0.1",
+    "command": "uv lock --upgrade-package oauthlib==4.0.1",
+    "detail": "v3.3.1 -> v4.0.1"
+   },
+   "opentelemetry-api": {
+    "status": "resolves",
+    "package": "opentelemetry-api",
+    "version": "1.45.1",
+    "command": "uv lock --upgrade-package opentelemetry-api==1.45.1",
+    "detail": "v1.42.1 -> v1.45.1"
+   },
+   "pyarrow": {
+    "status": "blocked",
+    "package": "pyarrow",
+    "version": "23.0.1",
+    "command": "uv lock --upgrade-package pyarrow==23.0.1",
+    "detail": "The resolution failed for an environment that is not the current one, consider limiting the environments with `tool.uv.environments`. Because your project depends on pyarrow==20.0.0 and pyarrow==23.0.1, we can conclude that your project's requirements are unsatisfiable. And because your project requires open-webui[all], we can conclude that your project's requirements are unsatisfiable."
+   },
+   "pyasn1": {
+    "status": "resolves",
+    "package": "pyasn1",
+    "version": "0.6.5",
+    "command": "uv lock --upgrade-package pyasn1==0.6.5",
+    "detail": "v0.6.3 -> v0.6.5"
+   },
+   "pyjwt": {
+    "status": "blocked",
+    "package": "pyjwt",
+    "version": "2.15.0",
+    "command": "uv lock --upgrade-package pyjwt==2.15.0",
+    "detail": "The resolution failed for an environment that is not the current one, consider limiting the environments with `tool.uv.environments`. Because your project depends on pyjwt[crypto]==2.13.0 and pyjwt==2.15.0, we can conclude that your project's requirements are unsatisfiable. And because your project requires open-webui[all], we can conclude that your project's requirements are unsatisfiable."
+   },
+   "pypdf": {
+    "status": "blocked",
+    "package": "pypdf",
+    "version": "6.21.4",
+    "command": "uv lock --upgrade-package pypdf==6.21.4",
+    "detail": "The resolution failed for an environment that is not the current one, consider limiting the environments with `tool.uv.environments`. Because your project depends on pypdf==6.21.2 and pypdf==6.21.4, we can conclude that your project's requirements are unsatisfiable. And because your project requires open-webui[all], we can conclude that your project's requirements are unsatisfiable."
+   },
+   "sentence-transformers": {
+    "status": "blocked",
+    "package": "sentence-transformers",
+    "version": "5.6.0",
+    "command": "uv lock --upgrade-package sentence-transformers==5.6.0",
+    "detail": "The resolution failed for an environment that is not the current one, consider limiting the environments with `tool.uv.environments`. Because your project depends on sentence-transformers==5.5.1 and sentence-transformers==5.6.0, we can conclude that your project's requirements are unsatisfiable. And because your project requires open-webui[all], we can conclude that your project's requirements are unsatisfiable."
+   },
+   "setuptools": {
+    "status": "resolves",
+    "package": "setuptools",
+    "version": "84.1.0",
+    "command": "uv lock --upgrade-package setuptools==84.1.0",
+    "detail": "v81.0.0 -> v84.1.0"
+   },
+   "soupsieve": {
+    "status": "resolves",
+    "package": "soupsieve",
+    "version": "2.9.0",
+    "command": "uv lock --upgrade-package soupsieve==2.9.0",
+    "detail": "v2.8.4 -> v2.9"
+   },
+   "torch": {
+    "status": "resolves",
+    "package": "torch",
+    "version": "2.13.0",
+    "command": "uv lock --upgrade-package torch==2.13.0",
+    "detail": "v2.12.1 -> v2.13.0"
+   },
+   "transformers": {
+    "status": "blocked",
+    "package": "transformers",
+    "version": "5.10.0",
+    "command": "uv lock --upgrade-package transformers==5.10.0",
+    "detail": "The resolution failed for an environment that is not the current one, consider limiting the environments with `tool.uv.environments`. Because your project depends on transformers==5.5.4 and transformers==5.10.0, we can conclude that your project's requirements are unsatisfiable. And because your project requires open-webui[all], we can conclude that your project's requirements are unsatisfiable."
+   },
+   "unstructured": {
+    "status": "blocked",
+    "package": "unstructured",
+    "version": "0.24.1",
+    "command": "uv lock --upgrade-package unstructured==0.24.1",
+    "detail": "The resolution failed for an environment that is not the current one, consider limiting the environments with `tool.uv.environments`. Because open-webui[all] depends on unstructured==0.22.31 and unstructured==0.24.1, we can conclude that open-webui[all]'s requirements are unsatisfiable. And because your project requires open-webui[all], we can conclude that your project's requirements are unsatisfiable."
+   },
+   "urllib3": {
+    "status": "resolves",
+    "package": "urllib3",
+    "version": "2.8.0",
+    "command": "uv lock --upgrade-package urllib3==2.8.0",
+    "detail": "v2.7.0 -> v2.8.0"
+   },
+   "werkzeug": {
+    "status": "resolves",
+    "package": "werkzeug",
+    "version": "3.1.9",
+    "command": "uv lock --upgrade-package werkzeug==3.1.9",
+    "detail": "v3.1.8 -> v3.1.9"
+   }
+  },
+  "packages_by_status": {
+   "blocked": 13,
+   "resolves": 15
+  },
+  "alerts_with_fix": 112,
+  "alerts_by_status": {
+   "blocked": 55,
+   "resolves": 57
+  },
+  "seconds": 51
+ },
+ {
+  "project": "mitmproxy/mitmproxy",
+  "commit": "af5d157",
+  "alerts": 49,
+  "kept": 49,
+  "note": "",
+  "packages": {
+   "filelock": {
+    "status": "resolves",
+    "package": "filelock",
+    "version": "4.2.1",
+    "command": "uv lock --upgrade-package filelock==4.2.1",
+    "detail": "v3.25.0 -> v4.2.1"
+   },
+   "idna": {
+    "status": "resolves",
+    "package": "idna",
+    "version": "3.15",
+    "command": "uv lock --upgrade-package idna==3.15",
+    "detail": "v3.11 -> v3.15"
+   },
+   "pyasn1": {
+    "status": "resolves",
+    "package": "pyasn1",
+    "version": "0.6.5",
+    "command": "uv lock --upgrade-package pyasn1==0.6.5",
+    "detail": "v0.6.2 -> v0.6.5"
+   },
+   "pygments": {
+    "status": "resolves",
+    "package": "pygments",
+    "version": "2.20.0",
+    "command": "uv lock --upgrade-package pygments==2.20.0",
+    "detail": "v2.19.2 -> v2.20.0"
+   },
+   "pytest": {
+    "status": "blocked",
+    "package": "pytest",
+    "version": "9.0.3",
+    "command": "uv lock --upgrade-package pytest==9.0.3",
+    "detail": "Because mitmproxy:dev depends on pytest==8.4.2 and pytest==9.0.3, we can conclude that mitmproxy:dev's requirements are unsatisfiable. And because your project requires mitmproxy:dev, we can conclude that your project's requirements are unsatisfiable."
+   },
+   "setuptools": {
+    "status": "resolves",
+    "package": "setuptools",
+    "version": "84.1.0",
+    "command": "uv lock --upgrade-package setuptools==84.1.0",
+    "detail": "v80.10.2 -> v84.1.0"
+   },
+   "tornado": {
+    "status": "blocked",
+    "package": "tornado",
+    "version": "6.6",
+    "command": "uv lock --upgrade-package tornado==6.6",
+    "detail": "Because your project depends on tornado>=6.5.0,<=6.5.10 and tornado==6.6, we can conclude that your project's requirements are unsatisfiable."
+   },
+   "urllib3": {
+    "status": "resolves",
+    "package": "urllib3",
+    "version": "2.8.0",
+    "command": "uv lock --upgrade-package urllib3==2.8.0",
+    "detail": "v2.6.3 -> v2.8.0"
+   },
+   "urwid": {
+    "status": "resolves",
+    "package": "urwid",
+    "version": "4.0.7",
+    "command": "uv lock --upgrade-package urwid==4.0.7",
+    "detail": "v3.0.3 -> v4.0.7"
+   },
+   "uv": {
+    "status": "resolves",
+    "package": "uv",
+    "version": "0.13.4",
+    "command": "uv lock --upgrade-package uv==0.13.4",
+    "detail": "v0.9.28 -> v0.13.4"
+   },
+   "virtualenv": {
+    "status": "resolves",
+    "package": "virtualenv",
+    "version": "21.14.9",
+    "command": "uv lock --upgrade-package virtualenv==21.14.9",
+    "detail": "v21.1.0 -> v21.14.9"
+   }
+  },
+  "packages_by_status": {
+   "resolves": 9,
+   "blocked": 2
+  },
+  "alerts_with_fix": 49,
+  "alerts_by_status": {
+   "resolves": 45,
+   "blocked": 4
+  },
+  "seconds": 28
+ },
+ {
+  "project": "run-llama/llama_index",
+  "commit": "baeabbf",
+  "alerts": 60,
+  "kept": 59,
+  "note": "",
+  "packages": {
+   "black": {
+    "status": "blocked",
+    "package": "black",
+    "version": "26.10.1",
+    "command": "uv lock --upgrade-package black==26.10.1",
+    "detail": "The resolution failed for an environment that is not the current one, consider limiting the environments with `tool.uv.environments`. Because llama-index:dev depends on black[jupyter]>=23.7.0,<=26.5.1 and black==26.10.1, we can conclude that llama-index:dev's requirements are unsatisfiable. And because your project requires llama-index:dev, we can conclude that your project's requirements are unsatisfiable."
+   },
+   "filelock": {
+    "status": "blocked",
+    "package": "filelock",
+    "version": "4.2.1",
+    "command": "uv lock --upgrade-package filelock==4.2.1",
+    "detail": "While the active Python version is 3.15, the resolution failed for other Python versions supported by your project. Consider limiting your project's supported Python versions using `requires-python`. Because virtualenv>=20.10.0,<=20.16.2 depends on filelock>=3.2,<4 and all of: virtualenv>=20.10.0,<=20.34.0 virtualenv>=20.35.2,<=20.35.4 depend on filelock==4.2.1, we can conclude that virtualenv>=20.10.0,<=20.16.2 cannot be used. And because only the following versions of virtualenv are available:"
+   },
+   "pillow": {
+    "status": "blocked",
+    "package": "pillow",
+    "version": "13.0.0",
+    "command": "uv lock --upgrade-package pillow==13.0.0",
+    "detail": "While the active Python version is 3.15, the resolution failed for other Python versions supported by your project. Consider limiting your project's supported Python versions using `requires-python`. The `requires-python` value (>=3.10, <4.0) includes Python versions that are not supported by your dependencies (e.g., pillow==13.0.0 only supports >=3.11). Consider using a more restrictive `requires-python` value (like >=3.11). Because the requested Python version (>=3.10, <4.0) does not satisfy P"
+   },
+   "tornado": {
+    "status": "blocked",
+    "package": "tornado",
+    "version": "6.6",
+    "command": "uv lock --upgrade-package tornado==6.6",
+    "detail": "While the active Python version is 3.15, the resolution failed for other Python versions supported by your project. Consider limiting your project's supported Python versions using `requires-python`. The `requires-python` value (>=3.10, <4.0) includes Python versions that are not supported by your dependencies (e.g., tornado==6.6 only supports >=3.11). Consider using a more restrictive `requires-python` value (like >=3.11). Because the requested Python version (>=3.10, <4.0) does not satisfy Pyt"
+   }
+  },
+  "packages_by_status": {
+   "blocked": 4
+  },
+  "alerts_with_fix": 59,
+  "alerts_by_status": {
+   "blocked": 59
+  },
+  "seconds": 136
+ },
+ {
+  "project": "PrefectHQ/prefect",
+  "commit": "5cf5adc",
+  "alerts": 2,
+  "kept": 2,
+  "note": "",
+  "packages": {
+   "setuptools": {
+    "status": "resolves",
+    "package": "setuptools",
+    "version": "84.1.0",
+    "command": "uv lock --upgrade-package setuptools==84.1.0",
+    "detail": "v80.10.2 -> v84.1.0"
+   }
+  },
+  "packages_by_status": {
+   "resolves": 1
+  },
+  "alerts_with_fix": 2,
+  "alerts_by_status": {
+   "resolves": 2
+  },
+  "seconds": 54
+ },
+ {
+  "project": "PostHog/posthog",
+  "commit": "02a3f47b3",
+  "alerts": 255,
+  "kept": 247,
+  "note": "",
+  "packages": {
+   "aiohttp": {
+    "status": "blocked",
+    "package": "aiohttp",
+    "version": "3.14.4",
+    "command": "uv lock --upgrade-package aiohttp==3.14.4",
+    "detail": "Because posthog depends on aiohttp==3.13.5 and aiohttp==3.14.4, we can conclude that posthog's requirements are unsatisfiable. And because your workspace requires posthog, we can conclude that your workspace's requirements are unsatisfiable."
+   },
+   "anyio": {
+    "status": "resolves",
+    "package": "anyio",
+    "version": "4.14.2",
+    "command": "uv lock --upgrade-package anyio==4.14.2",
+    "detail": "v4.9.0 -> v4.14.2"
+   },
+   "black": {
+    "status": "resolves",
+    "package": "black",
+    "version": "26.10.1",
+    "command": "uv lock --upgrade-package black==26.10.1",
+    "detail": "v26.3.1 -> v26.10.1"
+   },
+   "cryptography": {
+    "status": "blocked",
+    "package": "cryptography",
+    "version": "50.0.0",
+    "command": "uv lock --upgrade-package cryptography==50.0.0",
+    "detail": "Because posthog depends on cryptography==46.0.7 and cryptography==50.0.0, we can conclude that posthog's requirements are unsatisfiable. And because your workspace requires posthog, we can conclude that your workspace's requirements are unsatisfiable."
+   },
+   "dagster": {
+    "status": "blocked",
+    "package": "dagster",
+    "version": "1.13.1",
+    "command": "uv lock --upgrade-package dagster==1.13.1",
+    "detail": "Because posthog depends on dagster==1.12.11 and dagster==1.13.1, we can conclude that posthog's requirements are unsatisfiable. And because your workspace requires posthog, we can conclude that your workspace's requirements are unsatisfiable."
+   },
+   "datasets": {
+    "status": "resolves",
+    "package": "datasets",
+    "version": "5.0.1",
+    "command": "uv lock --upgrade-package datasets==5.0.1",
+    "detail": "v2.14.4 -> v5.0.1"
+   },
+   "dnspython": {
+    "status": "blocked",
+    "package": "dnspython",
+    "version": "2.9.0",
+    "command": "uv lock --upgrade-package dnspython==2.9.0",
+    "detail": "Because posthog depends on dnspython==2.8.0 and dnspython==2.9.0, we can conclude that posthog's requirements are unsatisfiable. And because your workspace requires posthog, we can conclude that your workspace's requirements are unsatisfiable."
+   },
+   "filelock": {
+    "status": "blocked",
+    "package": "filelock",
+    "version": "4.2.1",
+    "command": "uv lock --upgrade-package filelock==4.2.1",
+    "detail": "Because snowflake-connector-python==4.7.5 depends on filelock>=3.5,<4 and dagster==1.12.11 depends on filelock==4.2.1, we can conclude that dagster==1.12.11 and snowflake-connector-python==4.7.5 are incompatible. And because posthog depends on dagster==1.12.11, we can conclude that posthog and snowflake-connector-python==4.7.5 are incompatible. And because posthog depends on snowflake-connector-python==4.7.5 and your workspace requires posthog, we can conclude that your workspace's requirements "
+   },
+   "fsspec": {
+    "status": "blocked",
+    "package": "fsspec",
+    "version": "2026.6.0",
+    "command": "uv lock --upgrade-package fsspec==2026.6.0",
+    "detail": "Because s3fs==2025.12.0 depends on fsspec==2025.12.0 and dlt==1.31.0 depends on fsspec==2026.6.0, we can conclude that dlt==1.31.0 and s3fs==2025.12.0 are incompatible. And because posthog depends on dlt==1.31.0, we can conclude that posthog and s3fs==2025.12.0 are incompatible. And because posthog depends on s3fs==2025.12.0 and your workspace requires posthog, we can conclude that your workspace's requirements are unsatisfiable."
+   },
+   "graphql-core": {
+    "status": "resolves",
+    "package": "graphql-core",
+    "version": "3.2.12",
+    "command": "uv lock --upgrade-package graphql-core==3.2.12",
+    "detail": "v3.2.6 -> v3.2.12"
+   },
+   "h2": {
+    "status": "resolves",
+    "package": "h2",
+    "version": "4.4.1",
+    "command": "uv lock --upgrade-package h2==4.4.1",
+    "detail": "v4.3.0 -> v4.4.1"
+   },
+   "hpack": {
+    "status": "resolves",
+    "package": "hpack",
+    "version": "4.2.0",
+    "command": "uv lock --upgrade-package hpack==4.2.0",
+    "detail": "v4.1.0 -> v4.2.0"
+   },
+   "idna": {
+    "status": "resolves",
+    "package": "idna",
+    "version": "3.15",
+    "command": "uv lock --upgrade-package idna==3.15",
+    "detail": "v3.10 -> v3.15"
+   },
+   "langchain": {
+    "status": "blocked",
+    "package": "langchain",
+    "version": "1.3.9",
+    "command": "uv lock --upgrade-package langchain==1.3.9",
+    "detail": "Because posthog depends on langchain>=0.3.30,<0.4.dev0 and langchain==1.3.9, we can conclude that posthog's requirements are unsatisfiable. And because your workspace requires posthog, we can conclude that your workspace's requirements are unsatisfiable."
+   },
+   "langchain-anthropic": {
+    "status": "blocked",
+    "package": "langchain-anthropic",
+    "version": "1.4.6",
+    "command": "uv lock --upgrade-package langchain-anthropic==1.4.6",
+    "detail": "Because posthog depends on langchain-anthropic>=0.3.22,<0.4.dev0 and langchain-anthropic==1.4.6, we can conclude that posthog's requirements are unsatisfiable. And because your workspace requires posthog, we can conclude that your workspace's requirements are unsatisfiable."
+   },
+   "langchain-core": {
+    "status": "blocked",
+    "package": "langchain-core",
+    "version": "1.2.22",
+    "command": "uv lock --upgrade-package langchain-core==1.2.22",
+    "detail": "Because posthog depends on langchain-core>=0.3.86,<0.4.dev0 and langchain-core==1.2.22, we can conclude that posthog's requirements are unsatisfiable. And because your workspace requires posthog, we can conclude that your workspace's requirements are unsatisfiable."
+   },
+   "langchain-openai": {
+    "status": "blocked",
+    "package": "langchain-openai",
+    "version": "1.1.14",
+    "command": "uv lock --upgrade-package langchain-openai==1.1.14",
+    "detail": "Because posthog depends on langchain-openai>=0.3.35,<0.4.dev0 and langchain-openai==1.1.14, we can conclude that posthog's requirements are unsatisfiable. And because your workspace requires posthog, we can conclude that your workspace's requirements are unsatisfiable."
+   },
+   "langchain-text-splitters": {
+    "status": "blocked",
+    "package": "langchain-text-splitters",
+    "version": "1.1.2",
+    "command": "uv lock --upgrade-package langchain-text-splitters==1.1.2",
+    "detail": "Because langchain==0.3.30 depends on langchain-text-splitters>=0.3.9,<1.0.0 and langchain-text-splitters==1.1.2, we can conclude that langchain==0.3.30 cannot be used. And because only the following versions of langchain are available: langchain<=0.3.30 langchain>=0.4.dev0 we can conclude that langchain>=0.3.30,<0.4.dev0 cannot be used. And because posthog depends on langchain>=0.3.30,<0.4.dev0 and your workspace requires posthog, we can conclude that your workspace's requirements are unsatisfia"
+   },
+   "langgraph": {
+    "status": "blocked",
+    "package": "langgraph",
+    "version": "1.0.10",
+    "command": "uv lock --upgrade-package langgraph==1.0.10",
+    "detail": "Because posthog depends on langgraph==0.4.10 and langgraph==1.0.10, we can conclude that posthog's requirements are unsatisfiable. And because your workspace requires posthog, we can conclude that your workspace's requirements are unsatisfiable."
+   },
+   "langgraph-sdk": {
+    "status": "blocked",
+    "package": "langgraph-sdk",
+    "version": "0.4.4",
+    "command": "uv lock --upgrade-package langgraph-sdk==0.4.4",
+    "detail": "Because langgraph-sdk==0.4.4 depends on langchain-core>=1.4.0,<2 and langgraph==0.4.10 depends on langgraph-sdk==0.4.4, we can conclude that langgraph==0.4.10 depends on langchain-core>=1.4.0,<2. And because posthog depends on langchain-core>=0.3.86,<0.4.dev0, we can conclude that langgraph==0.4.10 and posthog are incompatible. And because posthog depends on langgraph==0.4.10 and your workspace requires posthog, we can conclude that your workspace's requirements are unsatisfiable."
+   },
+   "langsmith": {
+    "status": "resolves",
+    "package": "langsmith",
+    "version": "0.8.18",
+    "command": "uv lock --upgrade-package langsmith==0.8.18",
+    "detail": "v0.4.10 -> v0.8.18"
+   },
+   "lxml": {
+    "status": "blocked",
+    "package": "lxml",
+    "version": "6.1.0",
+    "command": "uv lock --upgrade-package lxml==6.1.0",
+    "detail": "Because posthog depends on lxml==6.0.2 and lxml==6.1.0, we can conclude that posthog's requirements are unsatisfiable. And because your workspace requires posthog, we can conclude that your workspace's requirements are unsatisfiable."
+   },
+   "lxml-html-clean": {
+    "status": "blocked",
+    "package": "lxml-html-clean",
+    "version": "0.4.5",
+    "command": "uv lock --upgrade-package lxml-html-clean==0.4.5",
+    "detail": "Because lxml-html-clean==0.4.5 depends on lxml>=6.1.1 and lxml[html-clean]==6.0.2 depends on lxml-html-clean==0.4.5, we can conclude that lxml[html-clean]==6.0.2 depends on lxml>=6.1.1. And because justext>=3.0.1 depends on lxml[html-clean]>=4.4.2, we can conclude that justext>=3.0.1 depends on one of: lxml>=4.4.2,<=6.0.1 lxml>=6.0.3"
+   },
+   "mako": {
+    "status": "resolves",
+    "package": "mako",
+    "version": "1.3.12",
+    "command": "uv lock --upgrade-package mako==1.3.12",
+    "detail": "v1.3.10 -> v1.3.12"
+   },
+   "mcp": {
+    "status": "blocked",
+    "package": "mcp",
+    "version": "1.30.0",
+    "command": "uv lock --upgrade-package mcp==1.30.0",
+    "detail": "Because posthog depends on mcp>=1.29.1,<1.30.dev0 and mcp==1.30.0, we can conclude that posthog's requirements are unsatisfiable. And because your workspace requires posthog, we can conclude that your workspace's requirements are unsatisfiable."
+   },
+   "multidict": {
+    "status": "resolves",
+    "package": "multidict",
+    "version": "6.9.1",
+    "command": "uv lock --upgrade-package multidict==6.9.1",
+    "detail": "v6.8.0 -> v6.9.1"
+   },
+   "nltk": {
+    "status": "resolves",
+    "package": "nltk",
+    "version": "3.10.3",
+    "command": "uv lock --upgrade-package nltk==3.10.3",
+    "detail": "v3.9.4 -> v3.10.3"
+   },
+   "oauthlib": {
+    "status": "resolves",
+    "package": "oauthlib",
+    "version": "4.0.1",
+    "command": "uv lock --upgrade-package oauthlib==4.0.1",
+    "detail": "v3.3.1 -> v4.0.1"
+   },
+   "opentelemetry-api": {
+    "status": "blocked",
+    "package": "opentelemetry-api",
+    "version": "1.45.1",
+    "command": "uv lock --upgrade-package opentelemetry-api==1.45.1",
+    "detail": "Because opentelemetry-sdk==1.35.0 depends on opentelemetry-api==1.35.0 and dagster-cloud==1.12.11 depends on opentelemetry-api==1.45.1, we can conclude that dagster-cloud==1.12.11 and opentelemetry-sdk==1.35.0 are incompatible. And because posthog depends on dagster-cloud==1.12.11, we can conclude that opentelemetry-sdk==1.35.0 and posthog are incompatible. And because posthog depends on opentelemetry-sdk==1.35.0 and your workspace requires posthog, we can conclude that your workspace's requirem"
+   },
+   "paramiko": {
+    "status": "blocked",
+    "package": "paramiko",
+    "version": "5.0.0",
+    "command": "uv lock --upgrade-package paramiko==5.0.0",
+    "detail": "Because posthog depends on paramiko>=3.5.1,<3.6.dev0 and paramiko==5.0.0, we can conclude that posthog's requirements are unsatisfiable. And because your workspace requires posthog, we can conclude that your workspace's requirements are unsatisfiable."
+   },
+   "pillow": {
+    "status": "blocked",
+    "package": "pillow",
+    "version": "13.0.0",
+    "command": "uv lock --upgrade-package pillow==13.0.0",
+    "detail": "Because posthog depends on pillow==12.3.0 and pillow==13.0.0, we can conclude that posthog's requirements are unsatisfiable. And because your workspace requires posthog, we can conclude that your workspace's requirements are unsatisfiable."
+   },
+   "pyasn1": {
+    "status": "resolves",
+    "package": "pyasn1",
+    "version": "0.6.5",
+    "command": "uv lock --upgrade-package pyasn1==0.6.5",
+    "detail": "v0.6.3 -> v0.6.5"
+   },
+   "pydantic-settings": {
+    "status": "resolves",
+    "package": "pydantic-settings",
+    "version": "2.14.2",
+    "command": "uv lock --upgrade-package pydantic-settings==2.14.2",
+    "detail": "v2.12.0 -> v2.14.2"
+   },
+   "pymongo": {
+    "status": "blocked",
+    "package": "pymongo",
+    "version": "4.18.3",
+    "command": "uv lock --upgrade-package pymongo==4.18.3",
+    "detail": "Because posthog depends on pymongo==4.17.0 and pymongo==4.18.3, we can conclude that posthog's requirements are unsatisfiable. And because your workspace requires posthog, we can conclude that your workspace's requirements are unsatisfiable."
+   },
+   "pyopenssl": {
+    "status": "resolves",
+    "package": "pyopenssl",
+    "version": "26.0.0",
+    "command": "uv lock --upgrade-package pyopenssl==26.0.0",
+    "detail": "v25.3.0 -> v26.0.0"
+   },
+   "pypdf": {
+    "status": "blocked",
+    "package": "pypdf",
+    "version": "6.21.4",
+    "command": "uv lock --upgrade-package pypdf==6.21.4",
+    "detail": "Because posthog depends on pypdf==6.12.2 and pypdf==6.21.4, we can conclude that posthog's requirements are unsatisfiable. And because your workspace requires posthog, we can conclude that your workspace's requirements are unsatisfiable."
+   },
+   "python-multipart": {
+    "status": "resolves",
+    "package": "python-multipart",
+    "version": "0.0.31",
+    "command": "uv lock --upgrade-package python-multipart==0.0.31",
+    "detail": "v0.0.26 -> v0.0.31"
+   },
+   "setuptools": {
+    "status": "resolves",
+    "package": "setuptools",
+    "version": "84.1.0",
+    "command": "uv lock --upgrade-package setuptools==84.1.0",
+    "detail": "v80.9.0 -> v84.1.0"
+   },
+   "social-auth-core": {
+    "status": "blocked",
+    "package": "social-auth-core",
+    "version": "6.2.0",
+    "command": "uv lock --upgrade-package social-auth-core==6.2.0",
+    "detail": "Because posthog depends on social-auth-core>=4.9.0,<4.10.dev0 and social-auth-core==6.2.0, we can conclude that posthog's requirements are unsatisfiable. And because your workspace requires posthog, we can conclude that your workspace's requirements are unsatisfiable."
+   },
+   "soupsieve": {
+    "status": "resolves",
+    "package": "soupsieve",
+    "version": "2.9.0",
+    "command": "uv lock --upgrade-package soupsieve==2.9.0",
+    "detail": "v2.7 -> v2.9"
+   },
+   "sqlparse": {
+    "status": "blocked",
+    "package": "sqlparse",
+    "version": "0.6.0",
+    "command": "uv lock --upgrade-package sqlparse==0.6.0",
+    "detail": "Because posthog depends on sqlparse==0.5.4 and sqlparse==0.6.0, we can conclude that posthog's requirements are unsatisfiable. And because your workspace requires posthog, we can conclude that your workspace's requirements are unsatisfiable."
+   },
+   "starlette": {
+    "status": "resolves",
+    "package": "starlette",
+    "version": "1.3.1",
+    "command": "uv lock --upgrade-package starlette==1.3.1",
+    "detail": "v0.49.1 -> v1.3.1"
+   },
+   "torch": {
+    "status": "blocked",
+    "package": "torch",
+    "version": "2.13.0",
+    "command": "uv lock --upgrade-package torch==2.13.0",
+    "detail": "Because posthog:sentiment depends on torch>=2.10.0,<2.11.dev0 and torch==2.13.0, we can conclude that posthog:sentiment's requirements are unsatisfiable. And because your workspace requires posthog:sentiment, we can conclude that your workspace's requirements are unsatisfiable."
+   },
+   "transformers": {
+    "status": "blocked",
+    "package": "transformers",
+    "version": "5.10.0",
+    "command": "uv lock --upgrade-package transformers==5.10.0",
+    "detail": "Because optimum[onnxruntime]==1.25.3 depends on transformers>=4.36,<4.52.0 and optimum==1.25.3 depends on transformers==5.10.0, we can conclude that optimum==1.25.3 and optimum[onnxruntime]==1.25.3 are incompatible. And because posthog:sentiment depends on optimum[onnxruntime]>=1.25.3,<1.26.dev0 and your workspace requires posthog:sentiment, we can conclude that your workspace's requirements are unsatisfiable."
+   },
+   "urllib3": {
+    "status": "resolves",
+    "package": "urllib3",
+    "version": "2.8.0",
+    "command": "uv lock --upgrade-package urllib3==2.8.0",
+    "detail": "v1.26.20 -> v2.8.0"
+   },
+   "zeep": {
+    "status": "resolves",
+    "package": "zeep",
+    "version": "4.3.3",
+    "command": "uv lock --upgrade-package zeep==4.3.3",
+    "detail": "v4.3.1 -> v4.3.3"
+   }
+  },
+  "packages_by_status": {
+   "blocked": 25,
+   "resolves": 21
+  },
+  "alerts_with_fix": 247,
+  "alerts_by_status": {
+   "blocked": 166,
+   "resolves": 81
+  },
+  "seconds": 653
+ }
+]
