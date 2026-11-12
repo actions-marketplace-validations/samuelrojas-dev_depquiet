@@ -994,6 +994,14 @@ depquiet --fail-on none --summary $GITHUB_STEP_SUMMARY
 
 ## CI Integration
 
+
+**Alerts without a severity.** pip-audit and uv audit report no severity, so their
+alerts carry a placeholder (`moderate`, marked `"severity_known": false` in `--json`).
+`--fail-on high` or `critical` counts those as meeting the threshold and says so on
+stderr: a placeholder must never let a critical advisory through. Use `--fail-on none`
+to never fail, or a scanner that reports severity (npm audit, Grype, OSV.dev, an SBOM
+with ratings) to gate on it.
+
 ### Exit codes
 
 - `0` — No ACTION items at or above the `--fail-on` threshold (safe to pass)

@@ -245,9 +245,8 @@ class TestExtractSeverity:
         rule = {"defaultConfiguration": {"level": "warning"}}
         assert _extract_severity(result, rule) == Severity.MODERATE
 
-    def test_fallback_moderate(self) -> None:
-        result = {"properties": {}}
-        assert _extract_severity(result, None) == Severity.MODERATE
+    def test_no_severity_is_unknown(self) -> None:
+        assert _extract_severity({"properties": {}}, None) is None
 
 
 # ---------------------------------------------------------------------------

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `--fail-on high` (or `critical`) passed every pip-audit and uv audit alert:
+  those scanners report no severity, and the placeholder `moderate` was compared
+  as if measured. Alerts without a severity now count as meeting the threshold,
+  with a note on stderr, and `--json` marks them `"severity_known": false`. The
+  same placeholder from OSV.dev, SARIF and SBOM input is marked unknown too.
+
 ## [0.40.1] - 2026-11-12
 
 ### Fixed

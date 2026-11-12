@@ -103,6 +103,7 @@ class UvAuditParser:
                     url=link if isinstance(link, str) else "",
                     fix_version=nearest_fix(version, fixes),
                     is_direct=True,
+                    severity_known=False,
                 )
             )
         return vulns

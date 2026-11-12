@@ -852,10 +852,24 @@ def _should_fail(result: ScanResult, fail_on: str | None) -> bool:
         return True
 
     threshold = _SEVERITY_RANK.get(fail_on, 1)
+    unknown = 0
     for tr in result.action:
+        if not tr.vuln.severity_known:
+            # pip-audit and uv audit give no severity: a placeholder must not
+            # let a critical advisory through a "high" gate.
+            unknown += 1
+            continue
         rank = _SEVERITY_RANK.get(tr.vuln.severity.value, 0)
         if rank >= threshold:
             return True
+    if unknown:
+        print(
+            f"depquiet: --fail-on {fail_on}: {unknown} ACTION alert(s) come without a "
+            "severity from the scanner (pip-audit and uv audit report none), so they "
+            "count as meeting the threshold.",
+            file=sys.stderr,
+        )
+        return True
     return False
 
 
@@ -891,6 +905,7 @@ def _print_json(result: ScanResult, *, license_report: LicenseReport | None = No
             "component_notes": list(tr.vuln.component_notes),
             "component_resolution_complete": tr.vuln.component_resolution_complete,
             "severity": tr.vuln.severity.value,
+            **({} if tr.vuln.severity_known else {"severity_known": False}),
             "title": tr.vuln.title,
             "url": tr.vuln.url,
             "verdict": tr.verdict.value,
