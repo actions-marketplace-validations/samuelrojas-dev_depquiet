@@ -262,3 +262,72 @@ class TestWriteSummary:
         write_summary(result, out)
         content = out.read_text(encoding="utf-8")
         assert "All clear" in content
+
+
+def test_fix_checks_table_lists_blocked_first_with_the_next_step():
+    from depquiet.fixcheck import FixCheck
+    from depquiet.models import (
+        ScanResult,
+        Severity,
+        TriageResult,
+        Verdict,
+        Vulnerability,
+    )
+
+    def finding(package: str, fix: str, check: FixCheck) -> TriageResult:
+        vuln = Vulnerability(
+            cve=f"GHSA-{package}",
+            package=package,
+            version="1.0",
+            severity=Severity.HIGH,
+            title="t",
+            fix_version=fix,
+        )
+        r = TriageResult(vuln=vuln, verdict=Verdict.ACTION)
+        r.fix_check = check
+        return r
+
+    resolves = FixCheck("resolves", "filelock", "4.2.1")
+    with_blocker = FixCheck(
+        "resolves",
+        "opentelemetry-api",
+        "1.45.1",
+        also_upgrade=["opentelemetry-semantic-conventions"],
+    )
+    blocked = FixCheck(
+        "blocked",
+        "aiohttp",
+        "3.14.4",
+        detail="Because posthog | depends on ...",
+        reason="own-pin",
+        next_step="posthog requires aiohttp==3.13.5: widen that requirement to allow 3.14.4.",
+    )
+    result = ScanResult(
+        project_path=".",
+        package_manager="uv",
+        total_dependencies=4,
+        results=[
+            finding("filelock", "4.2.1", resolves),
+            finding("opentelemetry-api", "1.45.1", with_blocker),
+            finding("aiohttp", "3.14.4", blocked),
+            finding("aiohttp", "3.14.4", blocked),  # same upgrade, one row
+        ],
+    )
+    md = render_summary(result)
+    assert "### 🔧 Can the fixes be installed?" in md
+    rows = [line for line in md.splitlines() if line.startswith("| `")]
+    fix_rows = [row for row in rows if "→" in row]
+    assert len(fix_rows) == 3
+    assert fix_rows[0].startswith(
+        "| `aiohttp` → `3.14.4` | ❌ blocked | posthog requires aiohttp==3.13.5"
+    )
+    assert "✅ with `opentelemetry-semantic-conventions`" in md
+    assert "--upgrade-package opentelemetry-semantic-conventions`" in md
+
+
+def test_no_fix_check_no_table():
+    from depquiet.models import ScanResult
+
+    assert "Can the fixes be installed" not in render_summary(
+        ScanResult(project_path=".", package_manager="uv", total_dependencies=0, results=[])
+    )

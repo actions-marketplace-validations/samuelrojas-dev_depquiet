@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- GitHub Action input `check-fixes`: runs `--check-fixes` (installing uv if
+  needed) and the Job Summary gains a "Can the fixes be installed?" table with the
+  command for each upgrade that resolves and the next step for each that is blocked.
+
 ## [0.39.0] - 2026-11-11
 
 ### Added
