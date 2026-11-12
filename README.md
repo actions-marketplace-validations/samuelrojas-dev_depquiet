@@ -854,7 +854,10 @@ depquiet --kev
 depquiet --kev-file /path/to/known_exploited_vulnerabilities.json
 ```
 
-How it works: KEV-listed CVEs are **auto-escalated to ACTION** regardless of other filters. A low-EPSS, devDependency, or unreachable vulnerability that's on the KEV catalog gets promoted to ACTION because active exploitation trumps all other signals.
+How it works: KEV-listed CVEs are **auto-escalated to ACTION** regardless of other filters.
+The match uses every identifier of the advisory: uv audit names advisories by GHSA id and
+pip-audit by PYSEC or GHSA id, with the CVE as an alias, and KEV lists CVEs only.
+`.depquiet-ignore` entries and policy `cves:` match aliases the same way. A low-EPSS, devDependency, or unreachable vulnerability that's on the KEV catalog gets promoted to ACTION because active exploitation trumps all other signals.
 
 The KEV feed is cached locally for 24 hours. On network failure, depquiet falls back to the expired cache. In `--offline` mode, only the cache is used.
 
