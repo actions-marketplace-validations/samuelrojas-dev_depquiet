@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+Found by installing 0.41.0 from PyPI in a clean environment and using it on uv,
+requirements.txt and npm projects:
+- `--check-fixes` showed only the last line of uv's error ("we can conclude that
+  your project's requirements are unsatisfiable") with uv 0.11, which draws the
+  cause tree with `╰─▶` instead of `cause:`. Both formats are read now.
+- `depquiet explain` said "EPSS lookup was skipped or failed" for pip-audit and
+  uv audit findings, whose ids are not CVEs. It now says EPSS scores CVE ids and
+  names the advisory's CVE alias.
+- Advisory titles in the terminal showed raw Markdown (`### Impact`, links) cut
+  mid-word; they are one clean line now.
+- `--fix` on a project without a uv.lock listed one line per advisory; it lists
+  one line per package with the version that clears all of them.
+- `--fix-plan` on a project without a uv.lock reported "--check-fixes works on
+  projects with a uv.lock"; it names `--fix-plan`.
+- The report footer said "product impact remains under investigation"; it now
+  says what verdicts are based on. `depquiet --help` lists common runs and the
+  `explain`, `diff` and `baseline` commands.
+
 ## [0.41.0] - 2026-11-12
 
 ### Added

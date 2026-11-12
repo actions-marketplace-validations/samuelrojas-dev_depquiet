@@ -7,6 +7,7 @@ Colors and symbols make it scannable in <5 seconds.
 
 from __future__ import annotations
 
+import re
 import sys
 from typing import Any
 
@@ -116,7 +117,7 @@ def print_scan_result(result: ScanResult) -> None:
                     print(f"     {_c(_DIM, '→')} {imp}")
 
             if r.vuln.title:
-                print(f"     {_c(_DIM, r.vuln.title[:80])}")
+                print(f"     {_c(_DIM, _one_line(r.vuln.title))}")
             if r.fix_check is not None:
                 _print_fix_check(r.fix_check)
 
@@ -131,7 +132,10 @@ def print_scan_result(result: ScanResult) -> None:
         parts.append(_c(_GREEN, f"{len(filtered)} filtered"))
 
     print(f"Total: {total} alerts — {' | '.join(parts)}")
-    print("Priority reflects dependency triage; product impact remains under investigation.")
+    print(
+        "Verdicts come from how each package is used (imports, dependency type, lockfile), "
+        "not from whether your code calls the vulnerable function."
+    )
     print()
 
 
@@ -151,3 +155,19 @@ def _print_fix_check(check: Any) -> None:
     print(f"     {_c(_YELLOW, '✗')} fix check: {label}: {check.detail[:240]}")
     if next_step:
         print(f"       → {next_step}")
+
+
+def _one_line(title: str, width: int = 80) -> str:
+    """An advisory title or description as one readable line.
+
+    Scanners pass Markdown through (``### Impact``, backticks, links); a
+    terminal line shows it raw and cut mid-word.
+    """
+    text = re.sub(r"(?m)^\s*#{1,6}\s*(Impact|Summary|Description|Details)\b:?", " ", title)
+    text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)  # [text](url) -> text
+    text = re.sub(r"[#*`]+", "", text)
+    text = " ".join(text.split())
+    if len(text) <= width:
+        return text
+    cut = text[: width - 1].rsplit(" ", 1)[0]
+    return cut + "…"

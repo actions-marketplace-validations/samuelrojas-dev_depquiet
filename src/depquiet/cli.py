@@ -442,6 +442,20 @@ def main(argv: list[str] | None = None) -> int:
         description=(
             "Silence the noise. Surface the signal. Triage vulnerability alerts in seconds."
         ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""common runs:
+  depquiet                          scan the project in this directory
+  depquiet --json                   machine-readable report
+  depquiet --check-fixes            uv: can each fix be installed, and what blocks it
+  depquiet --fix-plan plan.diff     uv: one verified pyproject.toml change for all fixes
+  depquiet --fail-on high           fail CI on high or critical ACTION alerts
+
+other commands:
+  depquiet explain <ID>             why one alert got its verdict
+  depquiet diff OLD.json NEW.json   new, fixed and changed findings between two scans
+  depquiet baseline ...             record accepted findings (see depquiet baseline -h)
+
+Python projects need pip-audit (pip install pip-audit) or uv; npm projects need npm.""",
     )
     parser.add_argument("--version", action="version", version=f"depquiet {__version__}")
     parser.add_argument(
@@ -775,7 +789,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             checks, check_note = check_fixes(result, args.path)
             if check_note:
-                print(f"depquiet: {check_note}", file=sys.stderr)
+                print(f"depquiet: {check_note.replace('--check-fixes', flag)}", file=sys.stderr)
             elif args.fix_plan is not None:
                 fix_plan = build_fix_plan(result, args.path, checks)
 
