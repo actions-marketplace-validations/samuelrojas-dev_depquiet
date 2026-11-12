@@ -193,3 +193,202 @@ def test_cli_json_includes_the_fix_check(tmp_path: Path, monkeypatch, capsys) ->
     report = json.loads(capsys.readouterr().out)
     checks = {r["package"]: r["fix_check"]["status"] for r in report["results"] if "fix_check" in r}
     assert checks == {"oauthlib": "blocked", "opentelemetry-api": "blocked"}
+
+
+# --- What blocks a fix, and what to do about it -------------------------------
+# OWN_PIN, GROUP_PIN and the tornado clause of PYTHON_FLOOR are uv 0.13.7's
+# output from the 2026-11-11 study (benchmarks/fixcheck_study), trimmed to the
+# cause lines. SEMCONV_PINNED is written in uv's phrasing for the retry case.
+
+from depquiet.fixcheck import FixCheck, _classify, _dependency_blockers, check_fix  # noqa: E402
+from depquiet.models import nearest_fix  # noqa: E402
+
+OWN_PIN = """\
+error: No solution found when resolving dependencies:
+  cause: Because posthog depends on aiohttp==3.13.5 and aiohttp==3.14.4, we can conclude that posthog's requirements are unsatisfiable.
+         And because your workspace requires posthog, we can conclude that your workspace's requirements are unsatisfiable.
+"""
+GROUP_PIN = """\
+error: No solution found when resolving dependencies:
+  cause: Because litellm:ci depends on pillow{python_full_version < '3.11'}==12.3.0 and pillow{python_full_version < '3.11'}==13.0.0, we can conclude that litellm:ci's requirements are unsatisfiable.
+"""
+PYTHON_FLOOR = """\
+error: No solution found when resolving dependencies for split (markers: python_full_version == '3.10.*'):
+  cause: The `requires-python` value (>=3.10) includes Python versions that are not supported by your dependencies (e.g., tornado==6.6 only supports >=3.11). Consider using a more restrictive `requires-python` value (like >=3.11).
+"""
+SEMCONV_PINNED = """\
+error: No solution found when resolving dependencies:
+  cause: Because only opentelemetry-semantic-conventions<=0.58b0 is available and your project depends on opentelemetry-semantic-conventions>=0.58b0,<0.59, we can conclude that your project depends on opentelemetry-semantic-conventions==0.58b0.
+         And because opentelemetry-semantic-conventions==0.58b0 depends on opentelemetry-api==1.37.0 and your project depends on opentelemetry-api==1.45.1, we can conclude that your project's requirements are unsatisfiable.
+"""
+
+
+def _classified(stderr: str, package: str, version: str) -> FixCheck:
+    check = FixCheck("blocked", package, version)
+    _classify(check, stderr)
+    return check
+
+
+def test_own_pin_names_the_requirement_to_widen() -> None:
+    check = _classified(OWN_PIN, "aiohttp", "3.14.4")
+    assert check.reason == "own-pin"
+    assert (
+        check.next_step
+        == "posthog requires aiohttp==3.13.5: widen that requirement to allow 3.14.4."
+    )
+
+
+def test_own_pin_in_a_dependency_group_with_a_marker() -> None:
+    check = _classified(GROUP_PIN, "pillow", "13.0.0")
+    assert check.reason == "own-pin"
+    assert check.next_step.startswith("litellm:ci requires pillow==12.3.0:")
+
+
+def test_python_floor() -> None:
+    check = _classified(PYTHON_FLOOR, "tornado", "6.6")
+    assert check.reason == "python"
+    assert "only supports Python >=3.11:" in check.next_step
+
+
+def test_cooldown() -> None:
+    check = _classified(OAUTHLIB, "oauthlib", "4.0.1")
+    assert check.reason == "cooldown"
+    assert "exclude-newer" in check.next_step
+
+
+def test_the_request_itself_is_not_a_pin() -> None:
+    # "your project depends on opentelemetry-api==1.45.1" is the upgrade being asked.
+    assert _classified(OTEL, "opentelemetry-api", "1.45.1").reason == ""
+
+
+def test_dependency_blockers_skip_project_members() -> None:
+    assert _dependency_blockers(OTEL, "opentelemetry-api", set()) == [
+        "opentelemetry-semantic-conventions"
+    ]
+    assert (
+        _dependency_blockers(OTEL, "opentelemetry-api", {"opentelemetry-semantic-conventions"})
+        == []
+    )
+
+
+def _uv(answers: dict[tuple[str, ...], tuple[int, str]], calls: list[list[str]]):
+    def run(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(cmd)
+        specs = tuple(cmd[i + 1] for i, arg in enumerate(cmd) if arg == "--upgrade-package")
+        code, text = answers.get(specs, (0, ""))
+        return subprocess.CompletedProcess(
+            cmd, code, text if code == 0 else "", "" if code == 0 else text
+        )
+
+    return run
+
+
+def _check(tmp_path: Path, answers, package: str, version: str) -> tuple[FixCheck, list[list[str]]]:
+    calls: list[list[str]] = []
+    with (
+        patch("depquiet.fixcheck.shutil.which", return_value="/usr/bin/uv"),
+        patch("depquiet.fixcheck.subprocess.run", side_effect=_uv(answers, calls)),
+    ):
+        return check_fix(tmp_path, package, version), calls
+
+
+def test_blocker_upgraded_in_the_same_step_resolves(tmp_path: Path) -> None:
+    answers = {
+        ("opentelemetry-api==1.45.1",): (1, OTEL),
+        ("opentelemetry-api==1.45.1", "opentelemetry-semantic-conventions"): (
+            0,
+            "Resolved 232 packages\nUpdate opentelemetry-api v1.37.0 -> v1.45.1\n"
+            "Update opentelemetry-semantic-conventions v0.58b0 -> v0.66b1\n",
+        ),
+    }
+    check, calls = _check(tmp_path, answers, "opentelemetry-api", "1.45.1")
+    assert len(calls) == 2
+    assert check.status == "resolves" and check.reason == "dependency"
+    assert check.also_upgrade == ["opentelemetry-semantic-conventions"]
+    assert check.command == (
+        "uv lock --upgrade-package opentelemetry-api==1.45.1"
+        " --upgrade-package opentelemetry-semantic-conventions"
+    )
+    assert "opentelemetry-semantic-conventions v0.58b0 -> v0.66b1" in check.updates
+    # The first answer is kept: it explains why the plain bump fails.
+    assert check.detail.startswith("Because opentelemetry-semantic-conventions==0.58b0")
+
+
+def test_blocker_held_by_your_own_pin(tmp_path: Path) -> None:
+    # saleor: upgrading semantic-conventions is not enough, saleor pins it <0.59.
+    answers = {
+        ("opentelemetry-api==1.45.1",): (1, OTEL),
+        ("opentelemetry-api==1.45.1", "opentelemetry-semantic-conventions"): (1, SEMCONV_PINNED),
+    }
+    check, _ = _check(tmp_path, answers, "opentelemetry-api", "1.45.1")
+    assert check.status == "blocked" and check.reason == "dependency"
+    assert check.next_step == (
+        "needs opentelemetry-semantic-conventions upgraded too, but your project requires "
+        "opentelemetry-semantic-conventions>=0.58b0,<0.59: widen that requirement."
+    )
+
+
+def test_own_pin_is_not_retried(tmp_path: Path) -> None:
+    check, calls = _check(tmp_path, {("aiohttp==3.14.4",): (1, OWN_PIN)}, "aiohttp", "3.14.4")
+    assert len(calls) == 1 and check.reason == "own-pin"
+
+
+def test_an_older_backport_gets_its_own_answer(tmp_path: Path) -> None:
+    """Two alerts on one package: fixed in 0.3.81 (backport) and in 1.2.22."""
+    project = _project(tmp_path)
+    result = _scan(project)
+    otel = [r for r in result.results if r.vuln.package == "opentelemetry-api"]
+    assert otel
+    backport = otel[0]
+    newest = copy_finding(backport, cve="GHSA-newest", fix="1.50.0")
+    result.results.append(newest)
+    for r in result.results:
+        r.verdict = Verdict.ACTION
+    answers: dict[tuple[str, ...], tuple[int, str]] = {
+        ("opentelemetry-api==1.50.0",): (
+            1,
+            "error: No solution found when resolving dependencies:\n"
+            "  cause: Because shop depends on opentelemetry-api<1.46 and opentelemetry-api==1.50.0, "
+            "we can conclude that shop's requirements are unsatisfiable.\n",
+        ),
+        ("opentelemetry-api==1.45.1",): (0, "Update opentelemetry-api v1.37.0 -> v1.45.1\n"),
+        ("oauthlib==4.0.1",): (1, OAUTHLIB),
+        ("filelock==4.2.1",): (0, RESOLVED),
+        ("filelock==4.0.9",): (0, RESOLVED),
+        ("setuptools==78.1.1",): (0, ""),
+    }
+    calls: list[list[str]] = []
+    with (
+        patch("depquiet.fixcheck.shutil.which", return_value="/usr/bin/uv"),
+        patch("depquiet.fixcheck.subprocess.run", side_effect=_uv(answers, calls)),
+    ):
+        checks, _ = check_fixes(result, project)
+    assert checks["opentelemetry-api"].status == "blocked"
+    assert newest.fix_check.status == "blocked"
+    assert backport.fix_check.status == "resolves"
+
+
+def copy_finding(finding, *, cve: str, fix: str):
+    import copy
+
+    clone = copy.deepcopy(finding)
+    clone.vuln.cve = cve
+    clone.vuln.fix_version = fix
+    return clone
+
+
+@pytest.mark.parametrize(
+    ("installed", "fixes", "expected"),
+    [
+        ("0.3.70", ["0.3.81", "1.2.22"], "0.3.81"),
+        ("1.0.0", ["0.3.81", "1.2.22"], "1.2.22"),
+        ("1.0.0", ["1.4", "1.2.22"], "1.2.22"),
+        ("", ["0.3.81", "1.2.22"], "0.3.81"),
+        ("9.0", ["0.3.81"], "0.3.81"),
+        ("1.0", [], ""),
+    ],
+)
+def test_nearest_fix_above_the_installed_version(
+    installed: str, fixes: list[str], expected: str
+) -> None:
+    assert nearest_fix(installed, fixes) == expected

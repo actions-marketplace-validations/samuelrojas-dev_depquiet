@@ -84,6 +84,9 @@ def study(repo: str, root: Path, skip_check: bool) -> dict[str, object]:
         note=note,
         packages={p: c.to_dict() for p, c in checks.items()},
         packages_by_status=dict(collections.Counter(c.status for c in checks.values())),
+        packages_by_reason=dict(
+            collections.Counter(c.reason or "none" for c in checks.values() if c.status != "error")
+        ),
         alerts_with_fix=sum(by_alert.values()),
         alerts_by_status=dict(by_alert),
         seconds=round(time.time() - started),
@@ -121,13 +124,25 @@ def summary(rows: list[dict[str, object]]) -> str:
         f"{total['ok']} | {total['blocked']} | {total['error']} |"
     )
     lines.append("")
-    lines.append("Blocked fixes:")
+    lines.append("Blocked package upgrades (reason: next step, then uv's message):")
     for r in rows:
         packages = r.get("packages", {})
         assert isinstance(packages, dict)
         for check in packages.values():
             if check["status"] == "blocked":
-                lines.append(f"- {r['project']}: {check['command']}: {check['detail'][:300]}")
+                reason = check.get("reason") or "unclassified"
+                lines.append(
+                    f"- {r['project']}: {check['command']}: {reason}: "
+                    f"{check.get('next_step', '')} | {check['detail'][:300]}"
+                )
+    lines.append("")
+    lines.append("Resolved only with another package upgraded in the same step:")
+    for r in rows:
+        packages = r.get("packages", {})
+        assert isinstance(packages, dict)
+        for check in packages.values():
+            if check["status"] == "resolves" and check.get("also_upgrade"):
+                lines.append(f"- {r['project']}: {check['command']}")
     return "\n".join(lines) + "\n"
 
 

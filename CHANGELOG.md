@@ -7,10 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `--check-fixes` explains each blocked fix and what to do next: a pin in your own
+  pyproject (named, with the requirement to widen), another package's pin (retried
+  with that package upgraded in the same step, up to two rounds, printing the
+  command that resolves), a Python floor, or an `exclude-newer` cooldown. The JSON
+  `fix_check` gains `reason`, `next_step`, `also_upgrade` and `updates`.
+- An alert whose package upgrade is blocked is checked against its own nearest fix,
+  so an older backport that installs is reported as resolving.
+
+### Fixed
+- pip-audit and uv audit fixes: the fix version is the nearest one above the
+  installed version, not the first listed (which could be an older release line).
+
 ### Documentation
-- Fix-check study on 18 uv projects: uv's resolver rejects the suggested upgrade
-  for 543 of 1,011 kept alerts with a fix (54%). Script, raw results and VM runner
-  in `benchmarks/fixcheck_study/`; numbers in the README.
+- Fix-check study on 18 uv projects: uv's resolver rejects the upgrade that clears
+  a package's alerts for 73 of 175 packages (42%), carrying up to 543 of 1,011 kept
+  alerts with a fix. Script, raw results and VM runner in
+  `benchmarks/fixcheck_study/`; numbers in the README.
 - `--check-fixes` runs `uv lock`, which may execute build hooks (`setup.py`):
   documented in the README and the `--help` text, with the advice to use it only
   on trusted checkouts and not on pull requests from outside contributors.

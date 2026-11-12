@@ -136,9 +136,18 @@ def print_scan_result(result: ScanResult) -> None:
 
 
 def _print_fix_check(check: Any) -> None:
+    also = getattr(check, "also_upgrade", [])
+    next_step = getattr(check, "next_step", "")
     if check.status == "resolves":
-        line = f"fix check: resolves ({check.command})"
-        print(f"     {_c(_GREEN, '✓')} {_c(_DIM, line)}")
-    else:
-        label = "blocked" if check.status == "blocked" else "could not check"
-        print(f"     {_c(_YELLOW, '✗')} fix check: {label}: {check.detail[:240]}")
+        if also:
+            line = f"fix check: resolves if {', '.join(also)} is upgraded in the same step"
+            print(f"     {_c(_GREEN, '✓')} {line}")
+            print(f"       {_c(_DIM, check.command)}")
+        else:
+            line = f"fix check: resolves ({check.command})"
+            print(f"     {_c(_GREEN, '✓')} {_c(_DIM, line)}")
+        return
+    label = "blocked" if check.status == "blocked" else "could not check"
+    print(f"     {_c(_YELLOW, '✗')} fix check: {label}: {check.detail[:240]}")
+    if next_step:
+        print(f"       → {next_step}")

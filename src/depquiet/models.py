@@ -310,3 +310,30 @@ class ScanResult:
     @property
     def filter_rate(self) -> float:
         return len(self.filtered) / len(self.results) * 100 if self.results else 0
+
+
+def version_key(version: str) -> tuple[Any, ...]:
+    """Order release numbers well enough to compare fixes (4.2.1 > 4.0.9)."""
+    parts: list[Any] = []
+    for piece in re.split(r"[.+-]", version):
+        parts.append((0, int(piece)) if piece.isdigit() else (1, piece))
+    return tuple(parts)
+
+
+def nearest_fix(installed: str, fixes: list[str]) -> str:
+    """The lowest fixed version above ``installed``.
+
+    Scanners list every release line that carries the fix (``0.3.81, 1.2.22``);
+    the nearest one above what is installed is the smallest upgrade. Without
+    an installed version, or none above it, the first listed fix is kept.
+    """
+    if not fixes:
+        return ""
+    if installed:
+        try:
+            above = [f for f in fixes if version_key(f) > version_key(installed)]
+            if above:
+                return min(above, key=version_key)
+        except TypeError:  # pieces that do not compare (1.0 vs 1.0rc1 shapes)
+            pass
+    return fixes[0]
