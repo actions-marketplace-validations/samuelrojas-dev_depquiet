@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.42.2] - 2026-11-12
+
 ### Fixed
 Found by running 0.42.1 from PyPI on a real pip-audit project with live EPSS
 scores (EPSS ordering and alias lookup worked as intended):
@@ -980,7 +982,8 @@ requirements.txt and npm projects:
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.42.1...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.42.2...HEAD
+[0.42.2]: https://github.com/samuelrojas-dev/depquiet/compare/v0.42.1...v0.42.2
 [0.42.1]: https://github.com/samuelrojas-dev/depquiet/compare/v0.42.0...v0.42.1
 [0.42.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.41.0...v0.42.0
 [0.41.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.6...v0.41.0
