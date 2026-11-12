@@ -7,7 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.40.2] - 2026-11-12
+
 ### Fixed
+- Policy rules could widen to every finding: a trailing `# comment`
+  (`severity: [low, info]  # noise`), a misspelled key (`severty:`), an unknown
+  severity, the documented `medium`, or an unreadable `epss_below` dropped that
+  condition, so a filter rule meant for low-severity noise filtered critical
+  alerts too. Comments are now stripped, `medium` means `moderate`, and a rule
+  with an unknown key, severity or EPSS bound is skipped with a warning.
+- `.depquiet-ignore`: an `expires` date with a trailing comment, slashes or a
+  typo was read as no expiry, making a temporary suppression permanent. Comments
+  are stripped, and an unreadable date now counts as expired, with a warning.
 - `--fail-on high` (or `critical`) passed every pip-audit and uv audit alert:
   those scanners report no severity, and the placeholder `moderate` was compared
   as if measured. Alerts without a severity now count as meeting the threshold,
@@ -820,7 +831,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.1...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.2...HEAD
+[0.40.2]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.1...v0.40.2
 [0.40.1]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.0...v0.40.1
 [0.40.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.39.0...v0.40.0
 [0.39.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.38.0...v0.39.0

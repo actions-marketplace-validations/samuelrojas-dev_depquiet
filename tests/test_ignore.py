@@ -379,3 +379,50 @@ class TestApplyIgnores:
         apply_ignores(result, ignore)
         assert result.results[0].verdict == Verdict.FILTERED
         assert result.results[1].verdict == Verdict.ACTION
+
+
+# --- An expiry that cannot be read must not make a suppression permanent ----
+
+import pytest  # noqa: E402
+
+from depquiet.ignore import load_ignore as _load  # noqa: E402
+
+
+@pytest.mark.parametrize(
+    ("expires", "expected"),
+    [
+        ("2025-06-01  # temporary", "parsed"),
+        ("'2025-06-01'", "parsed"),
+        ("2025/06/01", "invalid"),
+        ("2025-13-01", "invalid"),
+        ("June 2025", "invalid"),
+    ],
+)
+def test_expiry_is_read_or_treated_as_expired(tmp_path, capsys, expires, expected):
+    (tmp_path / ".depquiet-ignore").write_text(
+        f"ignores:\n  - cve: CVE-2024-1\n    reason: waf\n    expires: {expires}\n",
+        encoding="utf-8",
+    )
+    ignore = _load(tmp_path)
+    entry = ignore.entries[0]
+    assert entry.is_expired()  # every date above is in the past or unreadable
+    assert ignore.matches("CVE-2024-1", "x") is None
+    if expected == "parsed":
+        assert str(entry.expires) == "2025-06-01"
+    else:
+        assert entry.expires_invalid
+        assert "treated as expired" in capsys.readouterr().err
+
+
+def test_inline_comment_is_not_part_of_the_value(tmp_path):
+    (tmp_path / ".depquiet-ignore").write_text(
+        "ignores:\n  - cve: CVE-2024-1  # waf rule\n    package: lodash # only tests\n"
+        "    reason: 'Mitigated # by WAF'\n",
+        encoding="utf-8",
+    )
+    entry = _load(tmp_path).entries[0]
+    assert (entry.cve, entry.package, entry.reason) == (
+        "CVE-2024-1",
+        "lodash",
+        "Mitigated # by WAF",
+    )

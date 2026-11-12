@@ -28,6 +28,7 @@ File format (.depquiet-ignore)::
 
 from __future__ import annotations
 
+import re
 import sys
 from dataclasses import dataclass, field
 from datetime import date
@@ -45,6 +46,9 @@ class IgnoreEntry:
     reason: str = ""
     expires: date | None = None
     author: str = ""
+    # The ``expires`` text when it is not a readable date. Such an entry counts
+    # as expired: a typo must not turn a temporary suppression into a permanent one.
+    expires_invalid: str = ""
 
     @property
     def key(self) -> str:
@@ -58,6 +62,8 @@ class IgnoreEntry:
 
     def is_expired(self, today: date | None = None) -> bool:
         """Check if this entry has expired."""
+        if self.expires_invalid:
+            return True
         if self.expires is None:
             return False
         if today is None:
@@ -171,7 +177,7 @@ def _parse_ignore_yaml(text: str) -> list[dict[str, str]]:
             rest = stripped[2:].strip()
             if ":" in rest:
                 k, v = rest.split(":", 1)
-                current[k.strip()] = v.strip().strip("'\"")
+                current[k.strip()] = _scalar(v)
             continue
 
         if current is None:
@@ -180,12 +186,22 @@ def _parse_ignore_yaml(text: str) -> list[dict[str, str]]:
         # Key: value line
         if ":" in stripped:
             k, v = stripped.split(":", 1)
-            current[k.strip()] = v.strip().strip("'\"")
+            current[k.strip()] = _scalar(v)
 
     if current is not None:
         entries.append(current)
 
     return entries
+
+
+def _scalar(value: str) -> str:
+    """A YAML scalar: quotes removed, or a trailing `` # comment`` dropped."""
+    value = value.strip()
+    if value[:1] in ("'", '"'):
+        end = value.find(value[0], 1)
+        if end > 0:
+            return value[1:end]
+    return re.split(r"\s+#", value, maxsplit=1)[0].strip()
 
 
 def _parse_date(s: str) -> date | None:
@@ -222,7 +238,9 @@ def _parse_ignore(path: Path) -> IgnoreFile | None:
         package = raw.get("package", "").strip() or None
         reason = raw.get("reason", "").strip()
         author = raw.get("author", "").strip()
-        expires = _parse_date(raw.get("expires", ""))
+        expires_text = raw.get("expires", "").strip()
+        expires = _parse_date(expires_text)
+        expires_invalid = expires_text if expires_text and expires is None else ""
 
         if not cve and not package:
             print(
@@ -230,6 +248,13 @@ def _parse_ignore(path: Path) -> IgnoreFile | None:
                 file=sys.stderr,
             )
             continue
+
+        if expires_invalid:
+            print(
+                f"Warning: unreadable expires {expires_invalid!r} for {cve or package} in "
+                f"{path}: the suppression is treated as expired (write YYYY-MM-DD)",
+                file=sys.stderr,
+            )
 
         if not reason:
             print(
@@ -244,6 +269,7 @@ def _parse_ignore(path: Path) -> IgnoreFile | None:
                 reason=reason,
                 expires=expires,
                 author=author,
+                expires_invalid=expires_invalid,
             )
         )
 
@@ -296,10 +322,12 @@ def print_ignore_warnings(ignore_file: IgnoreFile) -> None:
         target = entry.cve or entry.package or "?"
         if entry.cve and entry.package:
             target = f"{entry.cve} ({entry.package})"
-        print(
-            f"   {target}  expired {entry.expires}  — {entry.reason}",
-            file=sys.stderr,
+        when = (
+            f"unreadable expires {entry.expires_invalid!r}"
+            if entry.expires_invalid
+            else f"expired {entry.expires}"
         )
+        print(f"   {target}  {when}  — {entry.reason}", file=sys.stderr)
     print(
         "   Remove or update these entries to clear this warning.",
         file=sys.stderr,

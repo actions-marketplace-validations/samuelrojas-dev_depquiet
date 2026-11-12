@@ -311,3 +311,58 @@ class TestPolicyEngineIntegration:
         # Policy should escalate from FILTERED to ACTION
         assert len(result.results) == 1
         assert result.results[0].verdict == Verdict.ACTION
+
+
+# --- A comment or a typo must never widen a rule ------------------------------
+
+import pytest  # noqa: E402
+
+from depquiet.models import Severity as _Sev  # noqa: E402
+from depquiet.models import TriageResult as _TR  # noqa: E402
+from depquiet.models import Verdict as _V  # noqa: E402
+from depquiet.models import Vulnerability as _Vuln  # noqa: E402
+from depquiet.policy import load_policy as _load_policy  # noqa: E402
+
+
+def _critical() -> _TR:
+    vuln = _Vuln(cve="CVE-1", package="lodash", version="1", severity=_Sev.CRITICAL)
+    return _TR(vuln=vuln, verdict=_V.ACTION, epss_score=0.9)
+
+
+def _policy(tmp_path, match: str):
+    (tmp_path / ".depquiet-policy.yml").write_text(
+        f"rules:\n  - id: r\n    action: filter  # noise\n    match:\n      {match}\n",
+        encoding="utf-8",
+    )
+    return _load_policy(tmp_path)
+
+
+@pytest.mark.parametrize(
+    "match",
+    [
+        "severity: [low, info]  # noise only",
+        "severity: low # noise",
+        "epss_below: 0.01 # almost never exploited",
+        "packages: [left-pad] # not ours",
+    ],
+)
+def test_commented_rule_keeps_its_condition(tmp_path, match):
+    policy = _policy(tmp_path, match)
+    assert [r.id for r in policy.rules] == ["r"]
+    assert policy.apply(_critical()) == (_V.ACTION, None)
+
+
+@pytest.mark.parametrize(
+    "match",
+    ["severity: [lwo]", "severity: urgent", "epss_below: often", "severty: [low, info]"],
+)
+def test_unreadable_condition_skips_the_rule(tmp_path, capsys, match):
+    policy = _policy(tmp_path, match)
+    assert policy is None or policy.rules == []
+    assert "skipped" in capsys.readouterr().err
+
+
+def test_medium_means_moderate(tmp_path):
+    policy = _policy(tmp_path, "severity: medium")
+    assert policy.rules[0].severity == [_Sev.MODERATE]
+    assert policy.apply(_critical()) == (_V.ACTION, None)

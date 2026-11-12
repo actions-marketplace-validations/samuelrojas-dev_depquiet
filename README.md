@@ -1188,13 +1188,17 @@ All conditions on a rule must match (AND logic):
 
 | Condition | Type | Description |
 |-----------|------|-------------|
-| `severity` | string or list | `critical`, `high`, `medium`, `low`, `info` |
+| `severity` | string or list | `critical`, `high`, `medium` (or `moderate`), `low`, `info` |
 | `packages` | string or list | Package names to match |
 | `epss_below` | float | EPSS score below this threshold |
 | `epss_above` | float | EPSS score above this threshold |
 | `is_dev` | bool | Match dev dependencies only |
 | `has_fix` | bool | Match vulnerabilities with a known fix |
 | `cves` | string or list | Specific CVE IDs |
+
+A rule with an unknown key (`severty:`), an unknown severity or an EPSS bound that is not a
+number between 0 and 1 is skipped with a warning: dropping just that condition would widen the
+rule to every finding. A trailing `# comment` on a line is ignored.
 
 ### Actions
 
