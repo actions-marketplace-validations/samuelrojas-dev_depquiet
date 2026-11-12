@@ -61,7 +61,7 @@ def render_summary(result: ScanResult) -> str:
         for r in result.action:
             epss = f"{r.epss_score:.0%}" if r.epss_score is not None else "—"
             fix = f"`{r.vuln.fix_label}`" if r.vuln.fix_version else "—"
-            sev = _severity_badge(r.vuln.severity.value)
+            sev = _severity_badge(r.vuln.severity_label)
             cve = r.vuln.cve
             if r.vuln.url:
                 cve = f"[{r.vuln.cve}]({r.vuln.url})"
@@ -82,7 +82,7 @@ def render_summary(result: ScanResult) -> str:
         lines.append("|-----|---------|----------|------|")
         for r in result.review:
             epss = f"{r.epss_score:.0%}" if r.epss_score is not None else "—"
-            sev = _severity_badge(r.vuln.severity.value)
+            sev = _severity_badge(r.vuln.severity_label)
             cve = r.vuln.cve
             if r.vuln.url:
                 cve = f"[{r.vuln.cve}]({r.vuln.url})"
@@ -184,6 +184,7 @@ def _severity_badge(severity: str) -> str:
         "moderate": "🟡 Moderate",
         "low": "🟢 Low",
         "info": "Info",
+        "unknown": "⚪ Unknown",
     }
     return badges.get(severity, severity)
 

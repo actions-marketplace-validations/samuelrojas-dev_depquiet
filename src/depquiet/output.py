@@ -87,7 +87,7 @@ def print_scan_result(result: ScanResult) -> None:
         for r in review:
             epss_str = f"EPSS {r.epss_score:.0%}" if r.epss_score is not None else "no EPSS"
             print(
-                f"   {r.vuln.cve:20s} {r.vuln.package:25s} {r.vuln.severity.value:10s} {epss_str}"
+                f"   {r.vuln.cve:20s} {r.vuln.package:25s} {r.vuln.severity_label:10s} {epss_str}"
             )
 
     # Action required

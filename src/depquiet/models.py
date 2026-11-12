@@ -169,6 +169,11 @@ class Vulnerability:
     aliases: list[str] = field(default_factory=list)
 
     @property
+    def severity_label(self) -> str:
+        """The severity to show: ``unknown`` when the scanner reported none."""
+        return self.severity.value if self.severity_known else "unknown"
+
+    @property
     def ids(self) -> list[str]:
         """The advisory id first, then its aliases, without duplicates."""
         return list(dict.fromkeys([i for i in (self.cve, *self.aliases) if i]))

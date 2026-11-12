@@ -303,7 +303,7 @@ def explain_triage(tr: TriageResult) -> Explanation:
         cve=tr.vuln.cve,
         package=tr.vuln.package,
         version=tr.vuln.version,
-        severity=tr.vuln.severity.value,
+        severity=tr.vuln.severity_label,
         title=tr.vuln.title,
         verdict=tr.verdict.value,
         reason_summary=tr.reason_summary,

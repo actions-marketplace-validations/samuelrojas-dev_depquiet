@@ -67,3 +67,48 @@ def test_uv_audit_findings_have_no_known_severity() -> None:
     fixture = Path(__file__).parent / "fixtures" / "uv_audit_saleor.json"
     vulns = UvAuditParser.parse(json.loads(fixture.read_text(encoding="utf-8")), Path("."))
     assert vulns and not any(v.severity_known for v in vulns)
+
+
+# --- Displays and exports say "unknown"; GitHub levels fail safe -------------
+
+
+def _with(verdict: Verdict) -> ScanResult:
+    result = _result(known=False)
+    result.results[0].verdict = verdict
+    result.scanned = True
+    return result
+
+
+def test_sarif_marks_unknown_action_as_error_and_says_unknown() -> None:
+    from depquiet.sarif import to_sarif
+
+    run = to_sarif(_with(Verdict.ACTION))["runs"][0]
+    (result,) = run["results"]
+    assert result["level"] == "error"
+    assert result["properties"]["severity"] == "unknown"
+    assert run["tool"]["driver"]["rules"][0]["defaultConfiguration"]["level"] == "error"
+    assert to_sarif(_with(Verdict.REVIEW))["runs"][0]["results"][0]["level"] == "warning"
+
+
+def test_annotation_marks_unknown_action_as_failure() -> None:
+    from depquiet.annotations import _finding_to_annotation
+
+    annotation = _finding_to_annotation(_with(Verdict.ACTION).results[0], "uv.lock", ".")
+    assert annotation.annotation_level == "failure"
+    assert "UNKNOWN" in annotation.message and "MODERATE" not in annotation.message
+
+
+def test_summary_and_label_say_unknown() -> None:
+    from depquiet.summary import render_summary
+
+    result = _with(Verdict.ACTION)
+    assert result.results[0].vuln.severity_label == "unknown"
+    assert "⚪ Unknown" in render_summary(result)
+
+
+def test_sbom_never_writes_a_placeholder_rating() -> None:
+    from depquiet.sbom import generate_cyclonedx_json
+
+    doc = generate_cyclonedx_json(_with(Verdict.ACTION))
+    ratings = [r["severity"] for v in doc.get("vulnerabilities", []) for r in v["ratings"]]
+    assert ratings and set(ratings) == {"unknown"}
