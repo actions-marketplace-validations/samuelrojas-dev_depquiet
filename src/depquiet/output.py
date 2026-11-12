@@ -11,7 +11,7 @@ import re
 import sys
 from typing import Any
 
-from depquiet.models import FilterReason, ScanResult
+from depquiet.models import FilterReason, ScanResult, is_prerelease
 
 # ANSI colors — disabled when not a TTY
 _RED = "\033[91m"
@@ -101,6 +101,8 @@ def print_scan_result(result: ScanResult) -> None:
             if r.vuln.fix_version:
                 target = f"{r.vuln.fix_package} " if r.vuln.fix_package else ""
                 fix_str = f"FIX: update {target}to {r.vuln.fix_version}"
+                if is_prerelease(r.vuln.fix_version):
+                    fix_str += " (pre-release)"
             parts = [r.vuln.cve, r.vuln.package]
             if epss_str:
                 parts.append(epss_str)

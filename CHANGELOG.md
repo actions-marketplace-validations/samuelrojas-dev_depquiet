@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+Found by reviewing 0.42.0 end to end, every command and input file:
+- `depquiet init` wrote `epss_threshold: 0.1` into new configs, turning EPSS
+  filtering back on. It now leaves it as a commented-out example.
+- A missing, empty or wrong `--kev-file` crashed with a traceback and exit 1,
+  the "findings" code; a CI step that tolerates findings passed without a KEV
+  check. It is now an error with exit 2. A `{}` file no longer reads as "no
+  exploited CVEs". When the KEV catalog cannot be downloaded, the warning goes
+  to stderr, so `--json` users see it too.
+- `--from-sbom` and `--stdin` input that cannot be read is exit 2 (was 1), and a
+  JSON array given as an SBOM no longer crashes.
+- A `--policy`, `--ignore` or `--config` file that yields nothing (wrong shape)
+  was ignored silently; a lost policy can drop `flag` rules. It now warns.
+- A fix that exists only as a pre-release (`26.10.0rc1`) is labeled
+  `(pre-release)` in the terminal and in `depquiet explain`.
+- `depquiet init --path` with a mistyped directory created that directory. It
+  now stops with exit 2.
+
 ## [0.42.0] - 2026-11-12
 
 ### Changed

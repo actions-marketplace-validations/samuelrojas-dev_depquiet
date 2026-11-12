@@ -211,6 +211,15 @@ def _parse_config(path: Path, project: Path) -> Config:
 
     # --- Triage tuning ---
 
+    if not data and any(
+        line.strip() and not line.strip().startswith("#") for line in text.splitlines()
+    ):
+        print(
+            f"Warning: no settings read from {path} (expected 'key: value' lines, "
+            "e.g. 'kev: true'); defaults are used",
+            file=sys.stderr,
+        )
+
     unknown = sorted(set(data) - _KNOWN_KEYS)
     if unknown:
         print(

@@ -231,6 +231,14 @@ def _parse_ignore(path: Path) -> IgnoreFile | None:
     except Exception:
         print(f"Warning: invalid YAML in {path}", file=sys.stderr)
         return None
+    if not raw_entries and any(
+        line.strip() and not line.strip().startswith("#") for line in text.splitlines()
+    ):
+        print(
+            f"Warning: no entries read from {path} (expected a top-level 'ignores:' list "
+            "of '- cve: ...' items); nothing is ignored",
+            file=sys.stderr,
+        )
 
     entries: list[IgnoreEntry] = []
     for raw in raw_entries:

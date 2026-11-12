@@ -30,6 +30,7 @@ from depquiet.models import (
     TriageResult,
     Verdict,
     WorkspaceEvidence,
+    is_prerelease,
 )
 
 # ---------------------------------------------------------------------------
@@ -512,7 +513,8 @@ def format_explanation(exp: Explanation) -> str:
         lines.append(f"   Evidence: {observation}")
 
     if exp.fix_available:
-        lines.append(f"   Fix: upgrade to {exp.fix_version}")
+        pre = " (pre-release)" if is_prerelease(exp.fix_version.split("@")[-1]) else ""
+        lines.append(f"   Fix: upgrade to {exp.fix_version}{pre}")
 
     lines.append("")
     lines.append("   Signals:")

@@ -129,8 +129,9 @@ class TestParseCatalog:
         assert cat.count == 0
 
     def test_missing_vulnerabilities_key(self):
-        cat = _parse_catalog({})
-        assert cat.count == 0
+        # {} is not a catalog; reading it as "nothing exploited" would hide KEV matches
+        with pytest.raises(ValueError):
+            _parse_catalog({})
 
     def test_catalog_version(self):
         feed = _kev_feed([])

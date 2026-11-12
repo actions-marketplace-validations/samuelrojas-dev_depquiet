@@ -342,6 +342,21 @@ def version_key(version: str) -> tuple[Any, ...]:
     return tuple(parts)
 
 
+_PRERELEASE = re.compile(
+    r"(?i)\d\.?(?:a|b|c|rc|alpha|beta|pre|preview|dev)\.?\d*(?:$|[.+-])"  # PEP 440
+    r"|-[0-9a-z]"  # semver: 2.0.0-beta.1
+)
+
+
+def is_prerelease(version: str) -> bool:
+    """True for alpha, beta, rc and dev versions (``26.10.0rc1``, ``2.0.0-beta.1``).
+
+    Advisories sometimes list only a release candidate as the fix; the
+    report has to say so, since most projects never install one by accident.
+    """
+    return bool(_PRERELEASE.search(version.strip()))
+
+
 def nearest_fix(installed: str, fixes: list[str]) -> str:
     """The lowest fixed version above ``installed``.
 

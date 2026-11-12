@@ -917,7 +917,7 @@ class TestCliEdgeCases:
             code = main(["--stdin"])
         finally:
             sys.stdin = old_stdin
-        assert code == 1
+        assert code == 2  # an input error, not findings
         captured = capsys.readouterr()
         assert "invalid JSON" in captured.err
 
