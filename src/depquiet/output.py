@@ -7,11 +7,10 @@ Colors and symbols make it scannable in <5 seconds.
 
 from __future__ import annotations
 
-import re
 import sys
 from typing import Any
 
-from depquiet.models import FilterReason, ScanResult, is_prerelease
+from depquiet.models import FilterReason, ScanResult, epss_percent, is_prerelease, short_title
 
 # ANSI colors — disabled when not a TTY
 _RED = "\033[91m"
@@ -86,7 +85,9 @@ def print_scan_result(result: ScanResult) -> None:
         print()
         print(f"{_c(_YELLOW, '⚠️')}  {_c(_BOLD, f'REVIEW: {len(review)} alerts')}")
         for r in review:
-            epss_str = f"EPSS {r.epss_score:.0%}" if r.epss_score is not None else "no EPSS"
+            epss_str = (
+                f"EPSS {epss_percent(r.epss_score)}" if r.epss_score is not None else "no EPSS"
+            )
             print(
                 f"   {r.vuln.cve:20s} {r.vuln.package:25s} {r.vuln.severity_label:10s} {epss_str}"
             )
@@ -96,7 +97,7 @@ def print_scan_result(result: ScanResult) -> None:
         print()
         print(f"{_c(_RED, '🔴')} {_c(_BOLD, f'ACTION REQUIRED: {len(action)} alerts')}")
         for r in action:
-            epss_str = f"EPSS {r.epss_score:.0%}" if r.epss_score is not None else ""
+            epss_str = f"EPSS {epss_percent(r.epss_score)}" if r.epss_score is not None else ""
             fix_str = ""
             if r.vuln.fix_version:
                 target = f"{r.vuln.fix_package} " if r.vuln.fix_package else ""
@@ -160,19 +161,8 @@ def _print_fix_check(check: Any) -> None:
 
 
 def _one_line(title: str, width: int = 80) -> str:
-    """An advisory title or description as one readable line.
-
-    Scanners pass Markdown through (``### Impact``, backticks, links); a
-    terminal line shows it raw and cut mid-word.
-    """
-    text = re.sub(r"(?m)^\s*#{1,6}\s*(Impact|Summary|Description|Details)\b:?", " ", title)
-    text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)  # [text](url) -> text
-    text = re.sub(r"[#*`]+", "", text)
-    text = " ".join(text.split())
-    if len(text) <= width:
-        return text
-    cut = text[: width - 1].rsplit(" ", 1)[0]
-    return cut + "…"
+    """An advisory title or description as one readable line."""
+    return short_title(title, width)
 
 
 _SEVERITY_ORDER = {"critical": 0, "high": 1, "moderate": 2, "low": 3, "info": 4}

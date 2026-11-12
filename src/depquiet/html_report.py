@@ -17,7 +17,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from depquiet.assessment import assess_finding, decision_trace_to_json
-from depquiet.models import FilterReason, ScanResult, TriageResult
+from depquiet.models import FilterReason, ScanResult, TriageResult, epss_percent
 
 
 def render_html(result: ScanResult) -> str:
@@ -256,7 +256,7 @@ def _build_chart_section(result: ScanResult) -> str:
 def _finding_row(tr: TriageResult) -> str:
     """Render one finding as a table row."""
 
-    epss = f"{tr.epss_score:.0%}" if tr.epss_score is not None else "—"
+    epss = epss_percent(tr.epss_score) if tr.epss_score is not None else "—"
     fix = f"<code>{_esc(tr.vuln.fix_label)}</code>" if tr.vuln.fix_version else "—"
     sev = tr.vuln.severity_label
     sev_color = _SEVERITY_COLORS.get(sev, "#94a3b8")

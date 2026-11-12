@@ -71,8 +71,10 @@ class TestExplainSignals:
         tr = _triage(epss_score=0.85)
         exp = explain_triage(tr)
         epss = next(s for s in exp.signals if s.name == "EPSS score")
-        assert epss.value == "85.0%"
-        assert epss.effect == "escalated"
+        assert epss.value == "85%"
+        # EPSS orders the report; it does not escalate the verdict
+        assert epss.effect == "neutral"
+        assert "High probability" in epss.detail
 
     def test_epss_low_score_filtered(self):
         tr = _triage(
@@ -82,7 +84,7 @@ class TestExplainSignals:
         )
         exp = explain_triage(tr)
         epss = next(s for s in exp.signals if s.name == "EPSS score")
-        assert epss.value == "2.0%"
+        assert epss.value == "2%"
         assert epss.effect == "filtered"
 
     def test_epss_unavailable(self):

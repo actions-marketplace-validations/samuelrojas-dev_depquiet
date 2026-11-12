@@ -357,6 +357,34 @@ def is_prerelease(version: str) -> bool:
     return bool(_PRERELEASE.search(version.strip()))
 
 
+def epss_percent(score: float) -> str:
+    """An EPSS score as a percentage that never rounds a real score to 0%.
+
+    Most scores are below 1%; ``0%`` would read as "no chance".
+    """
+    if score >= 0.01:
+        return f"{score:.0%}"
+    if score >= 0.001:
+        return f"{score:.1%}"
+    return "<0.1%"
+
+
+def short_title(text: str, width: int = 120) -> str:
+    """An advisory summary or description as one clean line of at most *width*.
+
+    Markdown is stripped before cutting: cutting the raw text first left
+    titles like "urllib3's streaming API is" once a long link was removed.
+    """
+    text = re.sub(r"(?m)^\s*#{1,6}\s*(Impact|Summary|Description|Details)\b:?", " ", text)
+    text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)  # [text](url) -> text
+    text = re.sub(r"[#*`]+", "", text)
+    text = " ".join(text.split())
+    if len(text) <= width:
+        return text
+    cut = text[: width - 1].rsplit(" ", 1)[0]
+    return cut + "…"
+
+
 def nearest_fix(installed: str, fixes: list[str]) -> str:
     """The lowest fixed version above ``installed``.
 

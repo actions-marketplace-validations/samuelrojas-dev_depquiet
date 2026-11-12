@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+Found by running 0.42.1 from PyPI on a real pip-audit project with live EPSS
+scores (EPSS ordering and alias lookup worked as intended):
+- Advisory titles were cut to 120 characters before Markdown was stripped, so
+  a long link left titles like "urllib3's streaming API is". Titles are now
+  cleaned first, then cut at a word, in every parser.
+- EPSS scores below 0.5% showed as `EPSS 0%`, which reads as "no chance". They
+  now show as `0.4%` or `<0.1%` in the terminal, Job Summary, HTML report and
+  `depquiet explain`.
+- `depquiet explain` called an EPSS score of 50%+ "escalated" and any other
+  score "Above threshold", though EPSS no longer changes the verdict and no
+  threshold is set by default. It now says the score orders the report.
+
 ## [0.42.1] - 2026-11-12
 
 ### Fixed

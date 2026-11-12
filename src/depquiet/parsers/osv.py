@@ -37,7 +37,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-from depquiet.models import Severity, Vulnerability
+from depquiet.models import Severity, Vulnerability, short_title
 from depquiet.scanners import ScanError
 
 _OSV_BATCH_URL = "https://api.osv.dev/v1/querybatch"
@@ -594,7 +594,7 @@ def parse_osv_response(
 
             summary = osv_vuln.get("summary", "")
             details = osv_vuln.get("details", "")
-            title = summary or details[:200] or cve
+            title = summary or short_title(details, 200) or cve
 
             measured = _osv_severity(osv_vuln)
             fix_version = _extract_fix_version(osv_vuln, pkg_name)
@@ -616,7 +616,7 @@ def parse_osv_response(
                     package=pkg_name,
                     version=pkg_version,
                     severity=measured or Severity.MODERATE,
-                    title=title[:200],
+                    title=short_title(title, 200),
                     url=url,
                     fix_version=fix_version,
                     is_direct=True,

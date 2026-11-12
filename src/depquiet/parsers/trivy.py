@@ -37,7 +37,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from depquiet.models import Severity, Vulnerability
+from depquiet.models import Severity, Vulnerability, short_title
 
 
 class TrivyParser:
@@ -99,7 +99,7 @@ class TrivyParser:
                         package=pkg,
                         version=installed,
                         severity=severity,
-                        title=title[:120] if title else cve,
+                        title=short_title(title) if title else cve,
                         url=url,
                         fix_version=fix_version,
                         is_direct=True,

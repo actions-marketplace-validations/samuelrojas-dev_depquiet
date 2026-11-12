@@ -30,6 +30,7 @@ from depquiet.models import (
     TriageResult,
     Verdict,
     WorkspaceEvidence,
+    epss_percent,
     is_prerelease,
 )
 
@@ -106,20 +107,22 @@ def explain_triage(tr: TriageResult) -> Explanation:
 
     # 1. EPSS score
     if tr.epss_score is not None:
-        pct = tr.epss_score * 100
+        # EPSS orders the report; it changes the verdict only through an
+        # explicit --epss-threshold, which shows up as the LOW_EPSS reason.
         if FilterReason.LOW_EPSS in tr.reasons:
             effect = "filtered"
-            detail = "Below threshold — low probability of exploitation"
-        elif pct >= 50:
-            effect = "escalated"
-            detail = "High probability of exploitation"
+            detail = "Below the configured EPSS threshold"
         else:
             effect = "neutral"
-            detail = "Above threshold"
+            level = "High" if tr.epss_score >= 0.5 else "Estimated"
+            detail = (
+                f"{level} probability of exploitation in the next 30 days, across the "
+                "internet; it orders the report and does not change the verdict"
+            )
         signals.append(
             Signal(
                 name="EPSS score",
-                value=f"{pct:.1f}%",
+                value=epss_percent(tr.epss_score),
                 effect=effect,
                 detail=detail,
             )

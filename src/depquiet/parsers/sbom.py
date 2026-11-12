@@ -30,7 +30,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from depquiet.models import Severity, Vulnerability
+from depquiet.models import Severity, Vulnerability, short_title
 
 # -- Purl parsing --
 
@@ -190,7 +190,7 @@ def _parse_cyclonedx_vulns(
 
         # Description / title
         desc = vuln_entry.get("description", vuln_id)
-        title = desc[:200] if desc else vuln_id
+        title = short_title(desc, 200) if desc else vuln_id
 
         # Source URL
         url = ""

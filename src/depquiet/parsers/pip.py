@@ -21,7 +21,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from depquiet.models import Severity, Vulnerability, nearest_fix
+from depquiet.models import Severity, Vulnerability, nearest_fix, short_title
 
 
 class PipAuditParser:
@@ -89,7 +89,7 @@ class PipAuditParser:
                         package=pkg_name,
                         version=pkg_version,
                         severity=severity,
-                        title=description[:120] if description else cve,
+                        title=short_title(description) if description else cve,
                         fix_version=nearest_fix(pkg_version, fix_versions),
                         is_direct=True,
                         severity_known=False,
