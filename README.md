@@ -545,6 +545,52 @@ The study ran in a disposable VM, for the reason below.
 does nothing `uv lock` would not do in the same checkout, but run it only on code you
 trust, and not in CI jobs that check out pull requests from outside contributors.
 
+### One verified change for all the fixes (`--fix-plan`)
+
+`--check-fixes` says, per package, whether the fix installs and what blocks it. `--fix-plan`
+answers the next question: what do I change so the fixes install, together?
+
+```bash
+depquiet --fix-plan plan.diff     # or --fix-plan alone to print the diff
+git apply plan.diff
+uv lock --upgrade-package ...     # the command it prints
+```
+
+For a uv project it:
+
+1. widens each requirement of yours that blocks a fix, just enough (`==2.31.0` → `==2.33.0`,
+   `<3.7` → `<4`; other clauses, extras and markers stay as written);
+2. when another package holds a fix back and you pin that package, lets uv pick a version of
+   it that allows the fix, and pins that version in your style;
+3. applies everything to a **temporary copy** of the project and runs `uv lock --dry-run` with
+   all the upgrades at once. If they don't fit together, it keeps each fix that still
+   resolves with the ones already kept and reports the rest with uv's reason.
+
+Nothing in the project is changed. What is verified is resolution only: whether your code
+works with the new versions, a major version change above all, is for your tests to say.
+Like `--check-fixes`, it runs `uv lock`, so use it on trusted code.
+
+Real run on a small project pinning `requests==2.31.0` and `botocore==1.29.0` (which caps
+`urllib3` below 2):
+
+```
+🔧 Fix plan
+   ✓ requests 2.31.0 → 2.33.0: widen your requirement
+   ✓ urllib3 1.26.20 → 2.8.0: also move botocore → 1.44.2, which holds it back  (major version change)
+
+   Verified with uv's resolver: all fixes resolve together.
+   Then run: uv lock --upgrade-package requests==2.33.0 --upgrade-package urllib3==2.8.0 --upgrade-package botocore==1.44.2
+```
+```diff
+-    "requests==2.31.0",
+-    "botocore==1.29.0",
++    "requests==2.33.0",
++    "botocore==1.44.2",
+```
+
+After `git apply` and that command, pip-audit reports no known vulnerabilities in the
+project's dependencies. Python-floor and cooldown blocks are reported, not planned.
+
 ### Auto-remediation (`--fix`)
 
 `depquiet --fix` upgrades packages that have ACTION verdicts **and** a known fix version:
