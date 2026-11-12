@@ -355,9 +355,9 @@ class TestOsvSeverity:
         vuln = {"severity": [{"score": "2.0"}]}
         assert _osv_severity(vuln) == Severity.LOW
 
-    def test_default_moderate(self) -> None:
-        vuln = {}
-        assert _osv_severity(vuln) == Severity.MODERATE
+    def test_no_severity_is_unknown(self) -> None:
+        # No severity in the advisory: unknown, not a made-up "moderate".
+        assert _osv_severity({}) is None
 
 
 class TestExtractFixVersion:

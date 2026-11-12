@@ -445,8 +445,8 @@ def _cvss3_base_score(vector: str) -> float | None:
     return ((scaled + 9999) // 10000) / 10
 
 
-def _osv_severity(vuln_data: dict[str, Any]) -> Severity:
-    """Extract severity from OSV vulnerability data."""
+def _osv_severity(vuln_data: dict[str, Any]) -> Severity | None:
+    """Extract severity from OSV vulnerability data; None when it gives none."""
     # database_specific may have severity
     db_specific = vuln_data.get("database_specific", {})
     sev = db_specific.get("severity", "")
@@ -480,7 +480,7 @@ def _osv_severity(vuln_data: dict[str, Any]) -> Severity:
     if unsupported:
         raise ScanError(f"cannot determine OSV.dev severity for {vuln_data.get('id', 'advisory')}.")
 
-    return Severity.MODERATE
+    return None
 
 
 def _extract_fix_version(vuln_data: dict[str, Any], package_name: str) -> str:
@@ -596,7 +596,7 @@ def parse_osv_response(
             details = osv_vuln.get("details", "")
             title = summary or details[:200] or cve
 
-            severity = _osv_severity(osv_vuln)
+            measured = _osv_severity(osv_vuln)
             fix_version = _extract_fix_version(osv_vuln, pkg_name)
 
             # URL: prefer the first reference of type WEB or ADVISORY
@@ -615,11 +615,12 @@ def parse_osv_response(
                     cve=cve,
                     package=pkg_name,
                     version=pkg_version,
-                    severity=severity,
+                    severity=measured or Severity.MODERATE,
                     title=title[:200],
                     url=url,
                     fix_version=fix_version,
                     is_direct=True,
+                    severity_known=measured is not None,
                 )
             )
 

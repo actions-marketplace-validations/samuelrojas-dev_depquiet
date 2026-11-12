@@ -92,6 +92,7 @@ class PipAuditParser:
                         title=description[:120] if description else cve,
                         fix_version=nearest_fix(pkg_version, fix_versions),
                         is_direct=True,
+                        severity_known=False,
                     )
                 )
 

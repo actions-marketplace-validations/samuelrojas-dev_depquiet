@@ -163,10 +163,12 @@ def _parse_cyclonedx_vulns(
 
         # Severity from ratings
         severity = Severity.MODERATE
+        severity_known = False
         for rating in vuln_entry.get("ratings", []):
             sev_str = rating.get("severity", "").lower()
             if sev_str in _CDX_SEVERITY:
                 severity = _CDX_SEVERITY[sev_str]
+                severity_known = sev_str != "unknown"
                 break
             # Try CVSS score
             score = rating.get("score")
@@ -181,6 +183,7 @@ def _parse_cyclonedx_vulns(
                         severity = Severity.MODERATE
                     else:
                         severity = Severity.LOW
+                    severity_known = True
                     break
                 except (ValueError, TypeError):
                     pass
@@ -214,6 +217,7 @@ def _parse_cyclonedx_vulns(
                         package="unknown",
                         version="",
                         severity=severity,
+                        severity_known=severity_known,
                         title=title,
                         url=url,
                     )
@@ -254,6 +258,7 @@ def _parse_cyclonedx_vulns(
                     package=pkg_name,
                     version=pkg_version,
                     severity=severity,
+                    severity_known=severity_known,
                     title=title,
                     url=url,
                     fix_version=fix_version,
@@ -360,6 +365,7 @@ def _parse_spdx_vulns(
                     package=pkg_name,
                     version=pkg_version,
                     severity=Severity.MODERATE,  # SPDX has no severity field
+                    severity_known=False,
                     title=ref.get("comment", cve),
                     url=locator if locator.startswith("http") else "",
                 )

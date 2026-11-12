@@ -166,8 +166,8 @@ def _extract_fix_version(result: dict[str, Any], rule: dict[str, Any] | None) ->
     return ""
 
 
-def _extract_severity(result: dict[str, Any], rule: dict[str, Any] | None) -> Severity:
-    """Extract severity from SARIF level, CVSS score, or properties."""
+def _extract_severity(result: dict[str, Any], rule: dict[str, Any] | None) -> Severity | None:
+    """Extract severity from SARIF level, CVSS score, or properties; None if absent."""
     props = result.get("properties", {})
 
     # CVSS score takes priority — it's the most precise
@@ -216,7 +216,7 @@ def _extract_severity(result: dict[str, Any], rule: dict[str, Any] | None) -> Se
         if default_level in _LEVEL_MAP:
             return _LEVEL_MAP[default_level]
 
-    return Severity.MODERATE
+    return None
 
 
 class SarifParser:
@@ -271,7 +271,7 @@ class SarifParser:
                 pkg = _extract_package(result, rule)
                 version = _extract_version(result, rule)
                 fix_version = _extract_fix_version(result, rule)
-                severity = _extract_severity(result, rule)
+                measured = _extract_severity(result, rule)
 
                 # Skip results with no identifiable package — we can't triage
                 # what we can't match against the dependency tree
@@ -305,7 +305,8 @@ class SarifParser:
                         cve=cve,
                         package=pkg,
                         version=version,
-                        severity=severity,
+                        severity=measured or Severity.MODERATE,
+                        severity_known=measured is not None,
                         title=title,
                         url=url,
                         fix_version=fix_version,

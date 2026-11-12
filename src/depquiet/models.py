@@ -160,6 +160,10 @@ class Vulnerability:
     # The scanner itself states that every installed version it reports is
     # reached only from development dependencies (pnpm's per-finding ``dev``).
     scanner_dev_only: bool = False
+    # False when the scanner gave no severity and ``severity`` is a placeholder
+    # (pip-audit and uv audit report none). A severity gate must not treat a
+    # placeholder as a measurement: ``--fail-on high`` counts these as meeting it.
+    severity_known: bool = True
 
     @property
     def key(self) -> str:
