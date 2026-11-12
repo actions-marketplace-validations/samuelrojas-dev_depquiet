@@ -29,9 +29,10 @@ Every dismissed alert was checked against a separate walk of each `uv.lock`, wit
 project's dependency groups read by hand. Most are `virtualenv` and `filelock` pulled in
 by `pre-commit`. Details and the other 12 projects: [benchmarks](#benchmarks).
 
-Of the alerts left, many cannot be fixed the way the scanner says. Across 18 uv projects,
-uv's resolver rejects the suggested upgrade for 543 of the 1,011 kept alerts that have a fix
-(54%), in 13 of the 17 projects with alerts: see [`--check-fixes`](#can-the-fix-be-installed---check-fixes).
+Of the alerts left, many cannot be fixed by the one upgrade the scanner names. Across 18 uv
+projects, uv's resolver rejects the upgrade that clears a package's alerts for 73 of 175
+packages (42%), in 13 of the 17 projects with alerts; most often the project's own pin is
+what is in the way. See [`--check-fixes`](#can-the-fix-be-installed---check-fixes).
 
 On npm, `npm audit --omit=dev` already does this: depquiet matches it row for row on the
 projects measured, and adds which direct dependency brings each kept alert in.
@@ -508,19 +509,31 @@ resolution against the package index, so it needs uv and network access; the JSO
 has a `fix_check` object per alert.
 
 **Measured on 18 uv projects** (2026-11-11, at their head; script, raw output and every
-resolver message in [`benchmarks/fixcheck_study`](benchmarks/fixcheck_study/)):
+resolver message in [`benchmarks/fixcheck_study`](benchmarks/fixcheck_study/)). One upgrade
+was checked per package, to its highest fix, which clears all of that package's alerts:
 
-| | Alerts | Package upgrades |
+| | Packages | Their kept alerts |
 |:--|--:|--:|
-| Kept after triage, with a fix version | 1,011 | 175 |
-| Fix resolves | 468 | 102 |
-| **Fix blocked** | **543 (54%)** | **73 (42%)** |
+| With a fix version | 175 | 1,011 |
+| Upgrade resolves | 102 | 468 |
+| **Upgrade blocked** | **73 (42%)** | **543** |
 
-Of the 73 blocked upgrades, 62 conflict with another dependency's pin, 9 need a Python
-version newer than the oldest the project still supports, and 2 fall inside the project's
-own `exclude-newer` cooldown. None failed for network or build reasons. Blocked does not
-mean unfixable: it means bumping that one package is not enough, and someone has to change
-another pin first. The study ran in a disposable VM, for the reason below.
+What blocks the 73, read from uv's messages: 45 are the project's own pin on that same
+package (`posthog requires aiohttp==3.13.5`), 15 another dependency's pin, 9 a Python
+version newer than the project's oldest supported one, 2 the project's own `exclude-newer`
+cooldown, and 2 could not be told from the stored message. None failed for network or
+build reasons. Blocked does not mean unfixable: something else has to change first.
+
+543 is an upper bound for alerts: some of them also have an older fix (a backport such as
+0.3.81 next to 1.2.22) that the run did not check on its own. depquiet now does: an alert
+whose package upgrade is blocked gets an answer for its own nearest fix.
+
+For each block, `--check-fixes` now says what to do next. A pin in your own pyproject is
+named, with the requirement to widen. Another package's pin is retried with that package
+upgraded in the same step (up to two rounds); if that resolves, the command to run is
+printed (`uv lock --upgrade-package a==1.2 --upgrade-package b`), and if it does not, the
+pin that holds the blocker is named. A Python floor or a cooldown is reported as such.
+The study ran in a disposable VM, for the reason below.
 
 `uv lock` can run code: when a package (your project included) computes its metadata with a
 `setup.py` or another build hook, uv executes it to find its dependencies. `--check-fixes`

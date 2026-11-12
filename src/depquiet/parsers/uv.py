@@ -30,7 +30,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from depquiet.models import Severity, Vulnerability
+from depquiet.models import Severity, Vulnerability, nearest_fix
 
 
 def is_uv_audit(audit_json: dict[str, Any]) -> bool:
@@ -101,7 +101,7 @@ class UvAuditParser:
                     severity=Severity.MODERATE,
                     title=summary[:120] if isinstance(summary, str) and summary else advisory,
                     url=link if isinstance(link, str) else "",
-                    fix_version=fixes[0] if fixes else "",
+                    fix_version=nearest_fix(version, fixes),
                     is_direct=True,
                 )
             )
