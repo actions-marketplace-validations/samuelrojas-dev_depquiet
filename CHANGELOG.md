@@ -19,8 +19,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `.depquiet-ignore`: an `expires` date with a trailing comment, slashes or a
   typo was read as no expiry, making a temporary suppression permanent. Comments
   are stripped, and an unreadable date now counts as expired, with a warning.
-
-### Fixed
 - `--fail-on high` (or `critical`) passed every pip-audit and uv audit alert:
   those scanners report no severity, and the placeholder `moderate` was compared
   as if measured. Alerts without a severity now count as meeting the threshold,
