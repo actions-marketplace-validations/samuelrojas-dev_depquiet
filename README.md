@@ -107,7 +107,9 @@ depquiet would rather let a false positive through than dismiss a real vulnerabi
 - **Declared but never imported is not proof.** Frameworks load packages your code never
   imports: Django its database driver, `transformers` the `accelerate` you declared,
   Sequelize the `pg` named by its dialect. No lockfile records those edges, so a production
-  dependency your code does not import goes to review instead of being dismissed.
+  dependency your code does not import goes to review instead of being dismissed, and so
+  does everything it brings in: `uvicorn` started from the command line is never imported,
+  yet `h11` parses every request.
 - **Production paths override development labels.** A package listed in `devDependencies`
   is still kept when a production dependency also pulls it in. A transitive package
   imported by the application is kept even when its declared parent is unused.
