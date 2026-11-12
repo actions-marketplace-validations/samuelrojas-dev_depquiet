@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **EPSS no longer filters or downgrades alerts by default.** EPSS is a
+  probability over the whole internet, not a statement about your project, so
+  a low score is no reason to hide an alert. It now orders the report: known
+  exploited (KEV) first, then highest EPSS, then severity. To filter, pass
+  `--epss-threshold`, set `epss_threshold` in `.depquiet.yaml`, or the Action's
+  `epss-threshold` input (now empty by default). The old rule that turned an
+  alert with EPSS below 30% into REVIEW is gone.
+- EPSS lookups use the advisory's CVE alias. Before, pip-audit, uv audit and
+  npm audit findings (named by PYSEC or GHSA ids) never got a score.
+
 ### Fixed
 Found by installing 0.41.0 from PyPI in a clean environment and using it on uv,
 requirements.txt and npm projects:

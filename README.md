@@ -89,7 +89,7 @@ depquiet applies five deterministic filters to separate signal from noise:
 | **Reachability** | A transitive package that no source file imports, pulled in only by direct dependencies that no source file imports either. A *production* dependency you declare but never import is shown for review, not filtered: another library may load it at runtime |
 | **Test-only use** | The package is imported, but only from test files (`tests/`, `e2e/`, `*.test.*`, `*.spec.*`, test-runner configs), it is not run as a project command, and no application file names it |
 | **Dev dependencies** | Every known dependency path is for development, with no production parent. For npm, also when every locked copy inside the advisory's range is one the lockfile marks as development-only |
-| **EPSS scoring** | The CVE's probability of exploitation is below the threshold (default 10%) |
+| **EPSS scoring** | Off by default: EPSS only orders the report (known exploited first, then highest EPSS). With `--epss-threshold`, alerts scoring below it are filtered. The lookup uses the advisory's CVE alias, so it works for pip-audit, uv audit and npm audit |
 | **Community templates** | Dismiss a listed CVE only when the package and everything that brings it in are unused |
 
 See [benchmarks](#benchmarks) for measured results on a real project.
@@ -447,7 +447,7 @@ depquiet --sbom sbom.spdx.json               # SPDX 2.3 JSON
 # JSON output for scripting
 depquiet --json
 
-# Custom EPSS threshold
+# Also filter alerts with EPSS below 5% (off by default)
 depquiet --epss-threshold 0.05
 
 # Use a custom config file
@@ -1079,7 +1079,6 @@ with ratings) to gate on it.
   uses: samuelrojas-dev/depquiet@v0
   with:
     sarif: results.sarif
-    epss-threshold: "0.1"
     policy: .depquiet-policy.yaml
     sbom: sbom.cdx.json
 ```
@@ -1188,7 +1187,7 @@ Every key is optional — add only what you need:
 ```yaml
 # Triage tuning
 project_id: team/service     # stable explicit scope for instance baselines/diffs
-epss_threshold: 0.05          # EPSS score cutoff (default: 0.1)
+epss_threshold: 0.05          # filter EPSS below this (default: off, EPSS only orders)
 offline: false                # skip EPSS API (default: false)
 always_flag:                  # packages that must never be filtered
   - lodash

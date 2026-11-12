@@ -61,7 +61,7 @@ class TestConfigParseErrors:
         # Mock read_text to raise OSError
         with patch.object(Path, "read_text", side_effect=OSError("Permission denied")):
             cfg = _parse_config(config_path, tmp_path)
-        assert cfg.epss_threshold == 0.1  # default (error path)
+        assert cfg.epss_threshold is None  # default (error path)
 
     def test_invalid_yaml_config(self, tmp_path: Path) -> None:
         """config.py:102-104 — broken YAML → warning + empty Config."""
@@ -72,7 +72,7 @@ class TestConfigParseErrors:
         # Mock the YAML parser to raise
         with patch("depquiet.config._parse_yaml_simple", side_effect=ValueError("bad yaml")):
             cfg = _parse_config(config_path, tmp_path)
-        assert cfg.epss_threshold == 0.1  # default (error path)
+        assert cfg.epss_threshold is None  # default (error path)
 
 
 # ── reachability.py lines 106-107, 147, 184-185 ─────────────────────

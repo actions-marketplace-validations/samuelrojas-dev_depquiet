@@ -174,6 +174,11 @@ class Vulnerability:
         return self.severity.value if self.severity_known else "unknown"
 
     @property
+    def cve_id(self) -> str:
+        """The CVE id of the advisory, its own or an alias; empty if it has none."""
+        return next((i for i in self.ids if i.upper().startswith("CVE-")), "")
+
+    @property
     def ids(self) -> list[str]:
         """The advisory id first, then its aliases, without duplicates."""
         return list(dict.fromkeys([i for i in (self.cve, *self.aliases) if i]))
