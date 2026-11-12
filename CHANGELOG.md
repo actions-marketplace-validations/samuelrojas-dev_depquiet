@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.40.6] - 2026-11-12
+
 ### Fixed
 - A transitive package reached only through production dependencies the project
   declares but never imports was filtered as unreachable, while those direct
@@ -900,7 +902,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.5...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.6...HEAD
+[0.40.6]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.5...v0.40.6
 [0.40.5]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.4...v0.40.5
 [0.40.4]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.3...v0.40.4
 [0.40.3]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.2...v0.40.3
