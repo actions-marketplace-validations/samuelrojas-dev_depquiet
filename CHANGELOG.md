@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.40.0] - 2026-11-12
+
 ### Added
+- Fix-check study rerun with per-alert checks: uv's resolver rejects the nearest
+  fix for 502 of 991 kept alerts (51%); 58 of the 72 blocked package upgrades come
+  down to the project's own pin. The study table counts fixes that resolve only
+  with another package upgraded.
 - GitHub Action input `check-fixes`: runs `--check-fixes` (installing uv if
   needed) and the Job Summary gains a "Can the fixes be installed?" table with the
   command for each upgrade that resolves and the next step for each that is blocked.
@@ -798,7 +804,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.39.0...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.0...HEAD
+[0.40.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.39.0...v0.40.0
 [0.39.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.38.0...v0.39.0
 [0.38.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.37.0...v0.38.0
 [0.37.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.36.1...v0.37.0

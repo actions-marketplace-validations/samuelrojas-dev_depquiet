@@ -7,7 +7,10 @@ project, audits its `uv.lock` with pip-audit through depquiet, and asks uv's res
 - `results.json`: one row per project, with every resolver message.
 - `summary.md`: the table and the list of blocked fixes.
 
-Run on 2026-11-11, at each project's head (commits in the table), Ubuntu 26.04 VM.
+Run on 2026-11-12, at each project's head (commits in the table), Ubuntu 26.04 VM, with
+depquiet 0.39.0: each kept alert checked against its own nearest fix, and each package
+against its highest fix. A first run on 2026-11-11 checked only the highest fix per package;
+its numbers are in the git history of this folder.
 
 `uv lock` can execute the cloned projects' build hooks, so run it only in a disposable
 virtual machine with no shared folders: `vm.sh` installs what it needs there and runs the
