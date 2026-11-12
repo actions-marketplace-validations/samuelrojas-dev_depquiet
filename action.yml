@@ -426,7 +426,7 @@ runs:
       run: |
         COMMENT=$(depquiet diff "$INPUT_DIFF_BASE" "$SCAN_FILE" --markdown)
         # Delete previous depquiet comment if any
-        EXISTING=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" --jq '.[] | select(.body | startswith("## 🔍 depquiet")) | .id' 2>/dev/null || true)
+        EXISTING=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("## 🔍 depquiet"))) | .id' 2>/dev/null || true)
         if [ -n "$EXISTING" ]; then
           for CID in $EXISTING; do
             gh api -X DELETE "repos/$GITHUB_REPOSITORY/issues/comments/$CID" 2>/dev/null || true

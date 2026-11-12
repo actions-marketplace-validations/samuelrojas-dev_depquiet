@@ -769,7 +769,9 @@ def main(argv: list[str] | None = None) -> int:
     # Compute license data before serializing so --json emits one document.
     license_report = None
     if merged.license or args.license_scan:
-        license_report = scan_licenses(args.path, package_manager=result.package_manager)
+        license_report = scan_licenses(
+            args.path, package_manager=result.package_manager, offline=merged.offline
+        )
 
     # Output
     if args.json_output:

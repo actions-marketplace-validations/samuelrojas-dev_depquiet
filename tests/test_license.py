@@ -296,39 +296,119 @@ class TestPrintLicenseReport:
         assert "No dependencies" in captured.err
 
 
-class TestGetPipLicense:
-    """Regression: packages whose metadata has no License field."""
+class TestLicenseOf:
+    def test_classifier_when_no_license_field(self):
+        from depquiet.license import _license_of
 
-    def _fake_meta(self, headers: list[tuple[str, str]]):
-        from email.message import Message
+        assert _license_of(None, None, ["License :: OSI Approved :: MIT License"]) == "MIT"
 
-        msg = Message()
-        for k, v in headers:
-            msg[k] = v
-        return msg
+    def test_nothing_is_unknown(self):
+        from depquiet.license import _license_of
 
-    def test_missing_license_falls_back_to_classifier(self, monkeypatch):
-        import importlib.metadata
+        assert _license_of(None, "", []) == "UNKNOWN"
 
-        from depquiet.license import _get_pip_license
+    def test_license_field_used_when_short(self):
+        from depquiet.license import _license_of
 
-        meta = self._fake_meta([("Classifier", "License :: OSI Approved :: MIT License")])
-        monkeypatch.setattr(importlib.metadata, "metadata", lambda _name: meta)
-        assert _get_pip_license("pkg") == "MIT"
+        assert _license_of(None, " Apache-2.0 ", []) == "Apache-2.0"
 
-    def test_missing_license_and_classifiers_is_unknown(self, monkeypatch):
-        import importlib.metadata
+    def test_pep639_expression_wins(self):
+        from depquiet.license import _license_of
 
-        from depquiet.license import _get_pip_license
+        assert _license_of("GPL-3.0-only", "MIT", []) == "GPL-3.0-only"
 
-        monkeypatch.setattr(importlib.metadata, "metadata", lambda _name: self._fake_meta([]))
-        assert _get_pip_license("pkg") == "UNKNOWN"
+    def test_full_license_text_is_not_an_id(self):
+        from depquiet.license import _license_of
 
-    def test_license_field_used_when_present(self, monkeypatch):
-        import importlib.metadata
+        text = "Copyright (c) 2020 someone\nPermission is hereby granted..."
+        assert _license_of(None, text, ["License :: OSI Approved :: BSD License"]) == (
+            "BSD-3-Clause"
+        )
 
-        from depquiet.license import _get_pip_license
 
-        meta = self._fake_meta([("License", " Apache-2.0 ")])
-        monkeypatch.setattr(importlib.metadata, "metadata", lambda _name: meta)
-        assert _get_pip_license("pkg") == "Apache-2.0"
+# -- Python: the project's locked packages, never depquiet's own environment --
+
+
+def _uv_lock(tmp_path, *packages):
+    body = (
+        'version = 1\n\n[[package]]\nname = "app"\nversion = "0.1.0"\nsource = { editable = "." }\n'
+    )
+    for name, version in packages:
+        body += f'\n[[package]]\nname = "{name}"\nversion = "{version}"\n'
+    (tmp_path / "uv.lock").write_text(body, encoding="utf-8")
+
+
+def _venv_pkg(tmp_path, name, version, *headers):
+    site = tmp_path / ".venv" / "lib" / "python3.12" / "site-packages"
+    (tmp_path / ".venv").mkdir(exist_ok=True)
+    (tmp_path / ".venv" / "pyvenv.cfg").write_text("home = /usr\n", encoding="utf-8")
+    meta = site / f"{name}-{version}.dist-info"
+    meta.mkdir(parents=True)
+    lines = [f"Name: {name}", f"Version: {version}", *headers]
+    (meta / "METADATA").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+class TestPythonProjectLicenses:
+    def test_reads_locked_packages_from_the_project_venv(self, tmp_path):
+        _uv_lock(tmp_path, ("requests", "2.32.3"), ("gpl-lib", "1.0"))
+        _venv_pkg(tmp_path, "requests", "2.32.3", "License-Expression: Apache-2.0")
+        _venv_pkg(tmp_path, "gpl_lib", "1.0", "License: GPL-3.0-only")
+        report = scan_licenses(tmp_path, package_manager="uv", offline=True)
+        by_name = {p.package: (p.license_id, p.risk.value) for p in report.packages}
+        assert by_name == {"gpl-lib": ("GPL-3.0-only", "high"), "requests": ("Apache-2.0", "low")}
+        assert report.has_issues  # the GPL one
+
+    def test_never_lists_depquiets_own_environment(self, tmp_path):
+        # depquiet and pytest are installed where this test runs; the project
+        # locks neither, so neither may appear.
+        _uv_lock(tmp_path, ("requests", "2.32.3"))
+        report = scan_licenses(tmp_path, package_manager="pip", offline=True)
+        assert [p.package for p in report.packages] == ["requests"]
+
+    def test_offline_and_not_installed_is_unknown_and_fails(self, tmp_path):
+        _uv_lock(tmp_path, ("requests", "2.32.3"))
+        report = scan_licenses(tmp_path, package_manager="uv", offline=True)
+        (pkg,) = report.packages
+        assert pkg.risk.value == "unknown" and "--offline" in pkg.license_raw
+        assert report.has_issues
+
+    def test_pypi_answer_is_used_for_the_exact_version(self, tmp_path, monkeypatch):
+        import depquiet.license as lic
+
+        _uv_lock(tmp_path, ("requests", "2.32.3"))
+        seen = []
+
+        def fake(packages):
+            seen.extend(packages)
+            return {("requests", "2.32.3"): "Apache-2.0"}
+
+        monkeypatch.setattr(lic, "_pypi_licenses", fake)
+        report = scan_licenses(tmp_path, package_manager="uv")
+        assert seen == [("requests", "2.32.3")]
+        assert report.packages[0].license_id == "Apache-2.0"
+        assert not report.has_issues
+
+    def test_venv_with_another_version_is_not_trusted(self, tmp_path, monkeypatch):
+        import depquiet.license as lic
+
+        _uv_lock(tmp_path, ("requests", "2.32.3"))
+        _venv_pkg(tmp_path, "requests", "2.0.0", "License: MIT")
+        monkeypatch.setattr(lic, "_pypi_licenses", lambda pk: {})
+        report = scan_licenses(tmp_path, package_manager="uv")
+        assert report.packages[0].risk.value == "unknown"
+
+    def test_pinned_requirements(self, tmp_path):
+        (tmp_path / "requirements.txt").write_text(
+            "requests==2.32.3\nidna==3.7\n", encoding="utf-8"
+        )
+        report = scan_licenses(tmp_path, package_manager="pip", offline=True)
+        assert sorted(p.package for p in report.packages) == ["idna", "requests"]
+
+    def test_no_lock_is_reported_as_not_checked(self, tmp_path, capsys):
+        from depquiet.license import print_license_report
+
+        (tmp_path / "requirements.txt").write_text("requests>=2\n", encoding="utf-8")
+        report = scan_licenses(tmp_path, package_manager="pip", offline=True)
+        assert report.packages == [] and report.notes and report.has_issues
+        print_license_report(report)
+        assert "NOT CHECKED" in capsys.readouterr().err

@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- `--license` on a Python project listed the packages installed where depquiet
+  runs, not the project's dependencies: on pallets/flask it reported 187
+  packages (playwright, pytest, depquiet itself...), and a GPL dependency of the
+  project that was not installed there was never seen, so the check could PASS.
+  It now lists the project's locked packages (`uv.lock`, `poetry.lock`,
+  `pdm.lock`, pinned requirements) and reads each license from the project's own
+  virtualenv or PyPI for that exact version (78 packages on flask, matching its
+  `uv.lock`). Unread licenses are UNKNOWN and fail; no lockfile is reported as
+  not checked. PEP 639 `License-Expression` is read; `MIT-0` is known.
+- The Action's PR comment step deleted any comment starting with
+  "## 🔍 depquiet", whoever wrote it; it now deletes only the bot's own.
+
+### Fixed
 - An alert without a severity (pip-audit, uv audit) was shown and exported as
   `moderate`, a value no scanner reported: in the terminal, the Job Summary, the
   HTML report, `--json`, GitHub annotations, SARIF and the SBOM's CycloneDX
