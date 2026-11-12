@@ -541,7 +541,8 @@ def main(argv: list[str] | None = None) -> int:
         "--check-fixes",
         action="store_true",
         help="For uv projects: ask uv's resolver (uv lock --dry-run) whether each suggested "
-        "fix can be installed, and what blocks it if not. Needs uv and network access",
+        "fix can be installed, and what blocks it if not. Needs uv and network access. "
+        "Like uv lock, it may run build hooks: use on trusted code only",
     )
     parser.add_argument(
         "--dry-run",
