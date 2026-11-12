@@ -31,7 +31,6 @@ If no rule matches, the engine's default verdict applies.
 
 from __future__ import annotations
 
-import contextlib
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -117,7 +116,21 @@ _ACTION_MAP = {
     "ignore": Verdict.FILTERED,
 }
 
-_SEVERITY_MAP = {s.value: s for s in Severity}
+# ``medium`` is what CVSS and most scanners call ``moderate``; the README uses it.
+_SEVERITY_MAP = {s.value: s for s in Severity} | {"medium": Severity.MODERATE}
+_RULE_KEYS = {
+    "id",
+    "action",
+    "description",
+    "reason",
+    "severity",
+    "packages",
+    "epss_below",
+    "epss_above",
+    "is_dev",
+    "has_fix",
+    "cves",
+}
 
 
 def _parse_severities(raw: str | list[str]) -> list[Severity]:
@@ -214,11 +227,57 @@ def _parse_policy_yaml(text: str) -> list[dict[str, str | list[str]]]:
 
 
 def _parse_yaml_value(v: str) -> str | list[str]:
-    """Parse a YAML value — handles inline lists and scalars."""
+    """Parse a YAML value — handles inline lists and scalars.
+
+    A trailing `` # comment`` is dropped first: left in, it made
+    ``severity: [low]  # noise`` an unknown value, and the rule then matched
+    every severity.
+    """
+    v = _strip_comment(v.strip())
     if v.startswith("[") and v.endswith("]"):
         inner = v[1:-1]
         return [item.strip().strip("'\"") for item in inner.split(",") if item.strip()]
     return v.strip("'\"")
+
+
+_INVALID = float("nan")
+
+
+def _epss_bound(raw: object, name: str, rule_id: str, path: Path) -> float | None:
+    """A 0-1 EPSS bound; ``_INVALID`` (rule skipped, with a warning) if unreadable.
+
+    Ignoring an unreadable bound would widen the rule to every EPSS score.
+    """
+    import sys
+
+    if raw is None:
+        return None
+    try:
+        value = float(str(raw))
+    except (TypeError, ValueError):
+        value = -1.0
+    if 0.0 <= value <= 1.0:
+        return value
+    print(
+        f"Warning: rule '{rule_id}' in {path} skipped: {name} {raw!r} is not a number "
+        "between 0 and 1",
+        file=sys.stderr,
+    )
+    return _INVALID
+
+
+def _strip_comment(value: str) -> str:
+    """Drop a `` # comment`` that is outside quotes."""
+    quote = ""
+    for i, ch in enumerate(value):
+        if quote:
+            if ch == quote:
+                quote = ""
+        elif ch in ("'", '"'):
+            quote = ch
+        elif ch == "#" and (i == 0 or value[i - 1].isspace()):
+            return value[:i].rstrip()
+    return value
 
 
 def _parse_policy(path: Path) -> Policy | None:
@@ -240,6 +299,16 @@ def _parse_policy(path: Path) -> Policy | None:
     rules: list[PolicyRule] = []
     for i, raw in enumerate(raw_rules):
         rule_id = str(raw.get("id", f"rule-{i}"))
+        unknown_keys = sorted(set(raw) - _RULE_KEYS)
+        if unknown_keys:
+            # A misspelled condition (``severty:``) would otherwise be dropped,
+            # widening the rule to every finding.
+            print(
+                f"Warning: rule '{rule_id}' in {path} skipped: unknown key(s) "
+                f"{', '.join(unknown_keys)} (known: {', '.join(sorted(_RULE_KEYS))})",
+                file=sys.stderr,
+            )
+            continue
         action_str = str(raw.get("action", "")).lower()
         action = _ACTION_MAP.get(action_str)
         if action is None:
@@ -253,23 +322,26 @@ def _parse_policy(path: Path) -> Policy | None:
         raw_sev = raw.get("severity")
         if raw_sev is not None:
             severity = _parse_severities(raw_sev)
+            values = [raw_sev] if isinstance(raw_sev, str) else list(raw_sev)
+            unknown = [v for v in values if str(v).strip().lower() not in _SEVERITY_MAP]
+            if unknown or not severity:
+                # Dropping the condition would widen the rule to every severity.
+                print(
+                    f"Warning: rule '{rule_id}' in {path} skipped: unknown severity "
+                    f"{unknown or values} (use {', '.join(_SEVERITY_MAP)})",
+                    file=sys.stderr,
+                )
+                continue
 
         packages = None
         raw_pkg = raw.get("packages")
         if raw_pkg is not None:
             packages = [raw_pkg] if isinstance(raw_pkg, str) else list(raw_pkg)
 
-        epss_below = None
-        raw_eb = raw.get("epss_below")
-        if raw_eb is not None:
-            with contextlib.suppress(TypeError, ValueError):
-                epss_below = float(str(raw_eb))
-
-        epss_above = None
-        raw_ea = raw.get("epss_above")
-        if raw_ea is not None:
-            with contextlib.suppress(TypeError, ValueError):
-                epss_above = float(str(raw_ea))
+        epss_below = _epss_bound(raw.get("epss_below"), "epss_below", rule_id, path)
+        epss_above = _epss_bound(raw.get("epss_above"), "epss_above", rule_id, path)
+        if epss_below is _INVALID or epss_above is _INVALID:
+            continue
 
         is_dev = None
         raw_dev = raw.get("is_dev")
