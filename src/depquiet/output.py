@@ -8,6 +8,7 @@ Colors and symbols make it scannable in <5 seconds.
 from __future__ import annotations
 
 import sys
+from typing import Any
 
 from depquiet.models import FilterReason, ScanResult
 
@@ -116,6 +117,8 @@ def print_scan_result(result: ScanResult) -> None:
 
             if r.vuln.title:
                 print(f"     {_c(_DIM, r.vuln.title[:80])}")
+            if r.fix_check is not None:
+                _print_fix_check(r.fix_check)
 
     # Summary line
     print()
@@ -130,3 +133,12 @@ def print_scan_result(result: ScanResult) -> None:
     print(f"Total: {total} alerts — {' | '.join(parts)}")
     print("Priority reflects dependency triage; product impact remains under investigation.")
     print()
+
+
+def _print_fix_check(check: Any) -> None:
+    if check.status == "resolves":
+        line = f"fix check: resolves ({check.command})"
+        print(f"     {_c(_GREEN, '✓')} {_c(_DIM, line)}")
+    else:
+        label = "blocked" if check.status == "blocked" else "could not check"
+        print(f"     {_c(_YELLOW, '✗')} fix check: {label}: {check.detail[:240]}")

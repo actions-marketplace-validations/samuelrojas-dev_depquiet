@@ -39,6 +39,7 @@ pip install depquiet pip-audit
 cd your-project
 depquiet                                 # npm, pnpm and Python in one run
 depquiet explain GHSA-3jp2-3mrg-2vxc     # why this alert got its verdict
+depquiet --check-fixes                   # uv projects: can each fix actually be installed?
 ```
 
 ```yaml
@@ -475,6 +476,32 @@ depquiet --fail-on high
 # Never fail on findings (informational mode)
 depquiet --fail-on none
 ```
+
+### Can the fix be installed? (`--check-fixes`)
+
+"Update to 1.45.1" is only advice until the rest of your pins allow it. For a project with a
+`uv.lock`, `--check-fixes` asks uv's own resolver, with `uv lock --dry-run --upgrade-package`,
+whether each alert still shown can be fixed, and prints what blocks it if not. Nothing is
+written. On saleor, both alerts that survive triage turn out to be blocked:
+
+```
+$ uv audit --frozen --output-format json | depquiet --stdin --check-fixes
+
+🔴 ACTION REQUIRED: 2 alerts
+   • GHSA-3jp2-3mrg-2vxc  oauthlib  FIX: update to 4.0.1
+     ✗ fix check: blocked: `oauthlib` was filtered by `exclude-newer-package` to only include
+       packages uploaded before 2026-09-28T06:02:00Z. The requested version, v4.0.1, was
+       published at 2026-10-31T09:52:56.206Z. ...
+   • GHSA-xcq7-p3pf-p88h  opentelemetry-api  FIX: update to 1.45.1
+     ✗ fix check: blocked: Because opentelemetry-semantic-conventions==0.58b0 depends on
+       opentelemetry-api==1.37.0 and your project depends on opentelemetry-api==1.45.1, ...
+```
+
+The first is saleor's own supply-chain cooldown; the second needs
+`opentelemetry-semantic-conventions` upgraded in the same step. A fix that resolves prints
+`✓ fix check: resolves (uv lock --upgrade-package pkg==version)`. Each check is one
+resolution against the package index, so it needs uv and network access; the JSON report
+has a `fix_check` object per alert.
 
 ### Auto-remediation (`--fix`)
 

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-11-11
+
+### Added
+- `--check-fixes`: for a project with a `uv.lock`, asks uv's resolver
+  (`uv lock --dry-run --upgrade-package pkg==version`) whether the fix of each
+  alert still shown can be installed, and reports what blocks it if not. On
+  saleor both surviving alerts are blocked: `oauthlib 4.0.1` is newer than the
+  project's `exclude-newer-package` cut-off, and `opentelemetry-api 1.45.1`
+  conflicts with the pinned `opentelemetry-semantic-conventions`. One
+  resolution per package (the highest fix among its alerts); nothing is
+  written. The result is shown under each alert and as `fix_check` in the
+  JSON report.
+
 ## [0.37.0] - 2026-11-11
 
 ### Changed
@@ -756,7 +769,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.37.0...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.38.0...HEAD
+[0.38.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.37.0...v0.38.0
 [0.37.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.36.1...v0.37.0
 [0.36.1]: https://github.com/samuelrojas-dev/depquiet/compare/v0.36.0...v0.36.1
 [0.36.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.35.0...v0.36.0

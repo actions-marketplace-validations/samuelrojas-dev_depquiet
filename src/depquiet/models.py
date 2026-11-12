@@ -271,6 +271,8 @@ class TriageResult:
     introduced_by: list[str] = field(default_factory=list)
     evidence: DependencyEvidence = field(default_factory=DependencyEvidence)
     decision_trace: list[DecisionChange] = field(default_factory=list)
+    # depquiet.fixcheck.FixCheck when --check-fixes asked the resolver.
+    fix_check: Any = None
 
     @property
     def reason_summary(self) -> str:
