@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- An alert without a severity (pip-audit, uv audit) was shown and exported as
+  `moderate`, a value no scanner reported: in the terminal, the Job Summary, the
+  HTML report, `--json`, GitHub annotations, SARIF and the SBOM's CycloneDX
+  ratings. It is now `unknown` everywhere. An ACTION alert without a severity is
+  a SARIF `error` and an annotation `failure`, so code scanning merge protection
+  set to errors no longer lets it through as a warning.
+
 ## [0.40.3] - 2026-11-12
 
 ### Fixed

@@ -139,7 +139,9 @@ def _vulnerabilities_with_assessments(
                 )
                 contexts[context] = {"name": "depquiet:triage", "value": context}
 
-        severity = max((tr.vuln.severity.value for tr in findings), key=severity_order.__getitem__)
+        # CycloneDX has "unknown": never write a placeholder as a rating.
+        known = [tr.vuln.severity.value for tr in findings if tr.vuln.severity_known]
+        severity = max(known, key=severity_order.__getitem__) if known else "unknown"
         vulnerabilities.append(
             {
                 "id": cve,

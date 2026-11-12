@@ -910,7 +910,7 @@ def _print_json(result: ScanResult, *, license_report: LicenseReport | None = No
             "components": [component.to_dict() for component in tr.vuln.components],
             "component_notes": list(tr.vuln.component_notes),
             "component_resolution_complete": tr.vuln.component_resolution_complete,
-            "severity": tr.vuln.severity.value,
+            "severity": tr.vuln.severity_label,
             **({} if tr.vuln.severity_known else {"severity_known": False}),
             **({"aliases": tr.vuln.aliases} if tr.vuln.aliases else {}),
             "title": tr.vuln.title,

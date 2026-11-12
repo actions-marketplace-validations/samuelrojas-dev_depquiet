@@ -999,9 +999,11 @@ depquiet --fail-on none --summary $GITHUB_STEP_SUMMARY
 
 
 **Alerts without a severity.** pip-audit and uv audit report no severity, so their
-alerts carry a placeholder (`moderate`, marked `"severity_known": false` in `--json`).
+alerts show `unknown` (`"severity": "unknown", "severity_known": false` in `--json`;
+`unknown` in SARIF properties, SBOM ratings, the summary and HTML report).
 `--fail-on high` or `critical` counts those as meeting the threshold and says so on
-stderr: a placeholder must never let a critical advisory through. Use `--fail-on none`
+stderr: a placeholder must never let a critical advisory through. For the same reason,
+an ACTION alert without a severity is a SARIF `error` and a GitHub annotation `failure`. Use `--fail-on none`
 to never fail, or a scanner that reports severity (npm audit, Grype, OSV.dev, an SBOM
 with ratings) to gate on it.
 

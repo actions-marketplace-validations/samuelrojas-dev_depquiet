@@ -136,9 +136,10 @@ _SEVERITY_COLORS = {
     "moderate": "#eab308",
     "low": "#22c55e",
     "info": "#94a3b8",
+    "unknown": "#64748b",
 }
 
-_SEVERITY_ORDER = ["critical", "high", "moderate", "low", "info"]
+_SEVERITY_ORDER = ["critical", "high", "moderate", "low", "info", "unknown"]
 
 
 def _esc(text: str) -> str:
@@ -159,7 +160,7 @@ def _build_findings_json(result: ScanResult) -> str:
                 "cve": tr.vuln.cve,
                 "package": tr.vuln.package,
                 "version": tr.vuln.version,
-                "severity": tr.vuln.severity.value,
+                "severity": tr.vuln.severity_label,
                 "title": tr.vuln.title,
                 "url": tr.vuln.url,
                 "verdict": tr.verdict.value,
@@ -211,7 +212,7 @@ def _build_chart_section(result: ScanResult) -> str:
 
     counts: dict[str, int] = {}
     for tr in result.results:
-        sev = tr.vuln.severity.value
+        sev = tr.vuln.severity_label
         counts[sev] = counts.get(sev, 0) + 1
 
     total = len(result.results)
@@ -257,7 +258,7 @@ def _finding_row(tr: TriageResult) -> str:
 
     epss = f"{tr.epss_score:.0%}" if tr.epss_score is not None else "—"
     fix = f"<code>{_esc(tr.vuln.fix_label)}</code>" if tr.vuln.fix_version else "—"
-    sev = tr.vuln.severity.value
+    sev = tr.vuln.severity_label
     sev_color = _SEVERITY_COLORS.get(sev, "#94a3b8")
 
     cve_cell = _esc(tr.vuln.cve)

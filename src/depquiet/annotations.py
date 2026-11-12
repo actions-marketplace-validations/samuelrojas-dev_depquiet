@@ -168,7 +168,12 @@ def _finding_to_annotation(
 ) -> Annotation:
     """Convert a single TriageResult to a GitHub annotation."""
     vuln = tr.vuln
-    level = _LEVEL_MAP.get(vuln.severity.value, "warning")
+    if vuln.severity_known:
+        level = _LEVEL_MAP.get(vuln.severity.value, "warning")
+    else:
+        # No severity from the scanner: an ACTION item must not drop to a
+        # warning that branch protection lets through (same rule as --fail-on).
+        level = "failure" if tr.verdict == Verdict.ACTION else "warning"
 
     # Pick the annotation file: reachable import if available, else manifest
     annotation_path = manifest
@@ -188,7 +193,11 @@ def _finding_to_annotation(
     if vuln.title:
         message_parts.append(vuln.title)
 
-    message_parts.append(f"Severity: {vuln.severity.value.upper()}")
+    message_parts.append(
+        f"Severity: {vuln.severity.value.upper()}"
+        if vuln.severity_known
+        else "Severity: UNKNOWN (the scanner reports none)"
+    )
 
     if vuln.fix_version:
         message_parts.append(f"Fix: upgrade to {vuln.fix_label}")

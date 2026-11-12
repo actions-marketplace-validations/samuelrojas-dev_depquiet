@@ -133,9 +133,9 @@ def compute_stats(
     # Severity counts
     sev_counter: Counter[str] = Counter()
     for tr in results:
-        sev_counter[tr.vuln.severity.value] += 1
+        sev_counter[tr.vuln.severity_label] += 1
     # Ordered by severity level
-    for sev in ("critical", "high", "moderate", "low", "info"):
+    for sev in ("critical", "high", "moderate", "low", "info", "unknown"):
         if sev in sev_counter:
             stats.severity_counts[sev] = sev_counter[sev]
 

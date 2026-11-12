@@ -32,16 +32,15 @@ def to_sarif(result: ScanResult) -> dict[str, Any]:
 
     for tr in actionable:
         vuln = tr.vuln
-        rule_id = vuln.cve or f"{vuln.package}-{vuln.severity.value}"
+        rule_id = vuln.cve or f"{vuln.package}-{vuln.severity_label}"
+        level = _level(tr)
 
         if rule_id not in rule_index:
             rule_index[rule_id] = len(rules)
             rule: dict[str, Any] = {
                 "id": rule_id,
-                "shortDescription": {"text": vuln.title or f"{vuln.package} {vuln.severity.value}"},
-                "defaultConfiguration": {
-                    "level": _severity_to_level(vuln.severity.value),
-                },
+                "shortDescription": {"text": vuln.title or f"{vuln.package} {vuln.severity_label}"},
+                "defaultConfiguration": {"level": level},
             }
             if vuln.url:
                 rule["helpUri"] = vuln.url
@@ -50,7 +49,7 @@ def to_sarif(result: ScanResult) -> dict[str, Any]:
         sarif_result: dict[str, Any] = {
             "ruleId": rule_id,
             "ruleIndex": rule_index[rule_id],
-            "level": _severity_to_level(vuln.severity.value),
+            "level": level,
             "message": {
                 "text": _build_message(tr),
             },
@@ -64,6 +63,8 @@ def to_sarif(result: ScanResult) -> dict[str, Any]:
             },
         }
 
+        if not vuln.severity_known:
+            sarif_result["properties"]["severity"] = "unknown"
         if tr.epss_score is not None:
             sarif_result.setdefault("properties", {})["epss_score"] = tr.epss_score
 
@@ -99,6 +100,17 @@ def write_sarif(result: ScanResult, path: Path) -> None:
     """Write SARIF output to a file."""
     sarif = to_sarif(result)
     path.write_text(json.dumps(sarif, indent=2))
+
+
+def _level(tr: TriageResult) -> str:
+    """SARIF level; with no severity from the scanner, ACTION is an error.
+
+    A placeholder must not turn an ACTION item into a warning that code
+    scanning merge protection lets through (the --fail-on rule).
+    """
+    if tr.vuln.severity_known:
+        return _severity_to_level(tr.vuln.severity.value)
+    return "error" if tr.verdict == Verdict.ACTION else "warning"
 
 
 def _severity_to_level(severity: str) -> str:
