@@ -288,7 +288,15 @@ def apply_ignores(result: ScanResult, ignore_file: IgnoreFile) -> ScanResult:
     for tr in result.results:
         if tr.verdict == Verdict.FILTERED:
             continue
-        entry = ignore_file.matches(tr.vuln.cve, tr.vuln.package)
+        # An entry may name the CVE of an advisory reported as GHSA or PYSEC.
+        entry = next(
+            (
+                m
+                for m in (ignore_file.matches(i, tr.vuln.package) for i in tr.vuln.ids or [""])
+                if m is not None
+            ),
+            None,
+        )
         if entry is not None:
             tr.decision_trace.append(
                 DecisionChange(

@@ -164,6 +164,14 @@ class Vulnerability:
     # (pip-audit and uv audit report none). A severity gate must not treat a
     # placeholder as a measurement: ``--fail-on high`` counts these as meeting it.
     severity_known: bool = True
+    # Other identifiers of the same advisory (``CVE-...`` for a GHSA or PYSEC id).
+    # KEV lists CVE ids only, and uv audit and pip-audit put the CVE here.
+    aliases: list[str] = field(default_factory=list)
+
+    @property
+    def ids(self) -> list[str]:
+        """The advisory id first, then its aliases, without duplicates."""
+        return list(dict.fromkeys([i for i in (self.cve, *self.aliases) if i]))
 
     @property
     def key(self) -> str:

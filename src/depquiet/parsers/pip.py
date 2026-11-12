@@ -93,6 +93,7 @@ class PipAuditParser:
                         fix_version=nearest_fix(pkg_version, fix_versions),
                         is_direct=True,
                         severity_known=False,
+                        aliases=sorted(ids - {cve}),
                     )
                 )
 
