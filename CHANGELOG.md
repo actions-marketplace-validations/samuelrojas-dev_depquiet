@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Documentation
+- Fix-check study on 18 uv projects: uv's resolver rejects the suggested upgrade
+  for 543 of 1,011 kept alerts with a fix (54%). Script, raw results and VM runner
+  in `benchmarks/fixcheck_study/`; numbers in the README.
 - `--check-fixes` runs `uv lock`, which may execute build hooks (`setup.py`):
   documented in the README and the `--help` text, with the advice to use it only
   on trusted checkouts and not on pull requests from outside contributors.
