@@ -425,9 +425,13 @@ def scan(
         # do not declare (Django database drivers, transformers' accelerate,
         # an ORM's dialect package). Without an edge in the lockfile that is
         # invisible, so it is shown for review, never dismissed.
+        # The same holds for what such a dependency brings in: if uvicorn is
+        # started from the command line, h11 parses every request, though
+        # neither is imported. A transitive package reached only through
+        # production dependencies the project never imports is kept too.
         declared_unused = (
             decision.unreachable
-            and decision.dependency_type == "direct"
+            and decision.dependency_type in ("direct", "transitive")
             and FilterReason.DEV_DEPENDENCY not in reasons
         )
         if decision.unreachable and not declared_unused:
@@ -440,6 +444,10 @@ def scan(
                 "Another library may load it at runtime (database drivers, optional "
                 "accelerators, plugins named in settings), which no lockfile records, "
                 "so it is kept for review."
+                if decision.dependency_type == "direct"
+                else "Comes in only through production dependencies the project declares "
+                "but never imports. Those may still run (a server started from the command "
+                "line, a plugin named in settings), so it is kept for review."
             )
             if note not in evidence.observations:
                 evidence.observations.insert(0, note)

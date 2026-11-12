@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- A transitive package reached only through production dependencies the project
+  declares but never imports was filtered as unreachable, while those direct
+  dependencies themselves were (rightly) kept for review. Example: `uvicorn` in
+  an extra, started from the command line, went to review, and `h11`, which
+  parses every request it serves, was filtered. Such packages now go to review
+  too, with a note. Dev-only packages are still filtered. The README benchmark
+  and real-project numbers are unchanged by this.
+
 ## [0.40.5] - 2026-11-12
 
 ### Fixed
