@@ -15,7 +15,7 @@ class TestConfigDefaults:
 
     def test_default_config_values(self) -> None:
         cfg = Config()
-        assert cfg.epss_threshold == 0.1
+        assert cfg.epss_threshold is None
         assert cfg.template_dirs == []
         assert cfg.always_flag == []
         assert cfg.offline is False
@@ -23,7 +23,7 @@ class TestConfigDefaults:
     def test_load_config_no_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             cfg = load_config(Path(tmp))
-            assert cfg.epss_threshold == 0.1
+            assert cfg.epss_threshold is None
             assert cfg.always_flag == []
 
 
@@ -121,7 +121,7 @@ class TestConfigErrors:
             p = Path(tmp)
             (p / ".depquiet.yaml").write_text("epss_threshold: not_a_number\n")
             cfg = load_config(p)
-            assert cfg.epss_threshold == 0.1  # falls back to default
+            assert cfg.epss_threshold is None  # falls back to default
             captured = capsys.readouterr()
             assert "invalid epss_threshold" in captured.err
 
@@ -130,7 +130,7 @@ class TestConfigErrors:
             p = Path(tmp)
             (p / ".depquiet.yaml").write_text("")
             cfg = load_config(p)
-            assert cfg.epss_threshold == 0.1
+            assert cfg.epss_threshold is None
 
     def test_unreadable_file(
         self, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
@@ -145,7 +145,7 @@ class TestConfigErrors:
 
             monkeypatch.setattr(Path, "read_text", unreadable)
             cfg = load_config(p)
-            assert cfg.epss_threshold == 0.1  # fallback
+            assert cfg.epss_threshold is None  # fallback
             captured = capsys.readouterr()
             assert "could not read" in captured.err
 
@@ -291,7 +291,7 @@ def test_trailing_comments_are_not_part_of_values(tmp_path):
 
 @pytest.mark.parametrize("value", ["5", "10", "-0.1", "5%"])
 def test_epss_threshold_outside_0_1_is_rejected(tmp_path, capsys, value):
-    assert _cfg(tmp_path, f"epss_threshold: {value}\n").epss_threshold == 0.1
+    assert _cfg(tmp_path, f"epss_threshold: {value}\n").epss_threshold is None
     assert "between 0 and 1" in capsys.readouterr().err
 
 

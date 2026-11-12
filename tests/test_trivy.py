@@ -325,7 +325,7 @@ class TestTrivyCli:
         from depquiet.config import load_config
 
         config = load_config(tmp_path, config_path=tmp_path / "nope.yaml")
-        assert config.epss_threshold == 0.1  # default
+        assert config.epss_threshold is None  # default
         assert "not found" in capsys.readouterr().err
 
 

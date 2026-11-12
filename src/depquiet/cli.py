@@ -508,9 +508,10 @@ Python projects need pip-audit (pip install pip-audit) or uv; npm projects need 
     parser.add_argument(
         "--epss-threshold",
         type=float,
-        default=0.1,
+        default=None,
         metavar="N",
-        help="EPSS score threshold (default: 0.1 = 10%%)",
+        help="Filter alerts whose EPSS score is below N (0-1, e.g. 0.05). Off by default: "
+        "EPSS only orders the report, since a low score is about the internet, not your app",
     )
     parser.add_argument(
         "--templates",
@@ -654,16 +655,9 @@ Python projects need pip-audit (pip install pip-audit) or uv; npm projects need 
         print(f"Error: invalid project configuration: {exc}", file=sys.stderr)
         return 2
 
-    # CLI flags override config. We detect whether --epss-threshold was
-    # explicitly passed so that "0.1" from the default doesn't clobber a
-    # config-file value.
-    cli_threshold: float | None = None
-    if argv is not None:
-        # When called programmatically, check if threshold differs from default
-        if args.epss_threshold != 0.1:
-            cli_threshold = args.epss_threshold
-    elif "--epss-threshold" in sys.argv:
-        cli_threshold = args.epss_threshold
+    # CLI flags override config; None means not passed (EPSS filtering off
+    # unless the config turns it on).
+    cli_threshold: float | None = args.epss_threshold
     if cli_threshold is not None and not 0.0 <= cli_threshold <= 1.0:
         # EPSS is a probability: 5 would filter every scored alert as low.
         parser.error(

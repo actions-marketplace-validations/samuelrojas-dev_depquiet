@@ -16,9 +16,9 @@ inputs:
     required: false
     default: ""
   epss-threshold:
-    description: "EPSS score threshold (0.0-1.0). CVEs below this are filtered."
+    description: "Filter alerts with an EPSS score below this (0.0-1.0). Empty (default): EPSS only orders the report."
     required: false
-    default: "0.1"
+    default: ""
   offline:
     description: "Skip EPSS API calls"
     required: false
@@ -188,7 +188,11 @@ runs:
       run: |
         SCAN_DIR=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/depquiet.XXXXXX")
         SCAN_FILE="$SCAN_DIR/scan.json"
-        ARGS=(--path "$INPUT_PATH" --epss-threshold "$INPUT_EPSS_THRESHOLD" --json)
+        ARGS=(--path "$INPUT_PATH" --json)
+
+        if [ -n "$INPUT_EPSS_THRESHOLD" ]; then
+          ARGS+=(--epss-threshold "$INPUT_EPSS_THRESHOLD")
+        fi
 
         if [ "$INPUT_OFFLINE" = "true" ]; then
           ARGS+=(--offline)

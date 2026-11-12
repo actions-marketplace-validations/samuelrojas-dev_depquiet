@@ -265,3 +265,19 @@ def test_check_fixes_input_is_declared_and_installs_uv():
     assert "INPUT_CHECK_FIXES: ${{ inputs.check-fixes }}" in block
     assert "pip install --disable-pip-version-check uv" in script
     assert "${{" not in script
+
+
+def test_action_without_epss_input_does_not_filter_by_epss(shell_env):
+    _, env = shell_env
+    env["INPUT_EPSS_THRESHOLD"] = ""
+    _run_step("Run depquiet", shell_env)
+    args = json.loads(Path(env["CALLS"]).read_text(encoding="utf-8").splitlines()[0])
+    assert "--epss-threshold" not in args
+
+
+def test_action_forwards_an_explicit_epss_threshold(shell_env):
+    _, env = shell_env
+    env["INPUT_EPSS_THRESHOLD"] = "0.05"
+    _run_step("Run depquiet", shell_env)
+    args = json.loads(Path(env["CALLS"]).read_text(encoding="utf-8").splitlines()[0])
+    assert args[args.index("--epss-threshold") + 1] == "0.05"

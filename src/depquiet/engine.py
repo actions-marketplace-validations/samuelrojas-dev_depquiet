@@ -199,7 +199,7 @@ def detect_package_manager(project: Path) -> str | None:
 def scan(
     project: Path,
     *,
-    epss_threshold: float = 0.1,
+    epss_threshold: float | None = None,
     skip_epss: bool = False,
     template_dirs: list[Path] | None = None,
     audit_json: dict[str, Any] | None = None,
@@ -211,7 +211,8 @@ def scan(
 
     Args:
         project: Path to the project root.
-        epss_threshold: EPSS score below which CVEs are deprioritized.
+        epss_threshold: Filter alerts whose EPSS score is below this; None (default)
+            keeps every alert and uses EPSS only to order the report.
         skip_epss: Don't query the EPSS API (fully offline mode).
         template_dirs: Extra directories to load community templates from.
         audit_json: Pre-parsed audit JSON (for testing / piped input).
@@ -356,7 +357,7 @@ def scan(
 
     # Step 3: Batch EPSS lookup (one API call for all CVEs)
     if not skip_epss:
-        all_cves = [v.cve for v in vulns if v.cve]
+        all_cves = [v.cve_id for v in vulns if v.cve_id]
         epss_filter.lookup(all_cves)
 
     # Step 4: Triage each vulnerability
@@ -376,7 +377,7 @@ def scan(
         # must protect ``django`` from the scanner, and ``PyYAML`` ``pyyaml``.
         _always = {_flag_key(name) for name in always_flag or []}
         if _flag_key(vuln.package) in _always:
-            _epss = epss_filter.get_score(vuln.cve)
+            _epss = epss_filter.get_score(vuln.cve_id)
             results.append(
                 TriageResult(
                     vuln=vuln,
@@ -453,7 +454,7 @@ def scan(
                 evidence.observations.insert(0, note)
 
         # Filter 3: Low EPSS score
-        epss_data = epss_filter.get_score(vuln.cve)
+        epss_data = epss_filter.get_score(vuln.cve_id)
         if epss_data:
             epss_score, epss_percentile = epss_data
         if epss_filter.check(vuln):
@@ -469,12 +470,7 @@ def scan(
         # Determine verdict
         if reasons:
             verdict = Verdict.FILTERED
-        elif declared_unused:
-            verdict = Verdict.REVIEW
-        elif epss_score is not None and epss_score < 0.3:
-            # Has EPSS but above threshold — worth reviewing
-            verdict = Verdict.REVIEW
-        elif vuln.severity in (Severity.LOW, Severity.INFO):
+        elif declared_unused or vuln.severity in (Severity.LOW, Severity.INFO):
             verdict = Verdict.REVIEW
         else:
             verdict = Verdict.ACTION

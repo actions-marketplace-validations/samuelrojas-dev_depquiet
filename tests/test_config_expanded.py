@@ -45,7 +45,7 @@ class TestConfigDefaults:
 
     def test_original_fields_unchanged(self):
         c = Config()
-        assert c.epss_threshold == 0.1
+        assert c.epss_threshold is None
         assert c.template_dirs == []
         assert c.always_flag == []
         assert c.offline is False

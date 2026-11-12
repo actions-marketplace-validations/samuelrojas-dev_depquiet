@@ -42,8 +42,8 @@ def print_scan_result(result: ScanResult) -> None:
         return
 
     total = len(result.results)
-    action = result.action
-    review = result.review
+    action = sorted(result.action, key=_priority)
+    review = sorted(result.review, key=_priority)
     filtered = result.filtered
 
     # Header
@@ -171,3 +171,17 @@ def _one_line(title: str, width: int = 80) -> str:
         return text
     cut = text[: width - 1].rsplit(" ", 1)[0]
     return cut + "…"
+
+
+_SEVERITY_ORDER = {"critical": 0, "high": 1, "moderate": 2, "low": 3, "info": 4}
+
+
+def _priority(r: Any) -> tuple[int, float, int]:
+    """Most urgent first: known exploited (KEV), then EPSS, then severity.
+
+    EPSS orders the list; by default it never hides an alert.
+    """
+    kev = 0 if getattr(r, "kev_entry", None) is not None else 1
+    epss = -(r.epss_score if r.epss_score is not None else -1.0)
+    severity = _SEVERITY_ORDER.get(r.vuln.severity.value, 2) if r.vuln.severity_known else 2
+    return (kev, epss, severity)
