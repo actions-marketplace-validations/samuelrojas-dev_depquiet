@@ -23,7 +23,7 @@ def test_bundled_templates_are_conditional() -> None:
     assert templates.count == len(
         list((Path(__file__).parents[1] / "templates/dismiss").glob("*.yaml"))
     )
-    assert templates.count >= 21
+    assert templates.count >= 20
     assert all(template.not_imported for template in templates._templates)
 
 
@@ -115,3 +115,22 @@ def test_explicit_custom_dismissal_still_matches(tmp_path: Path) -> None:
     match = TemplateFilter([tmp_path]).find_match("CUSTOM-1", "some-package")
     assert match is not None
     assert match.id == "custom"
+
+
+def test_builtin_template_reasons_state_only_what_is_checked():
+    """A dismissal reason must not make technical claims depquiet never verified.
+
+    Earlier reasons said qs was "mitigated by Express 4.x defaults" and that the
+    node-forge CVEs were a "timing attack"; neither was checked, and both were
+    wrong.
+    """
+    from depquiet.filters.templates import TemplateFilter
+
+    templates = TemplateFilter()
+    for template in templates._templates:
+        assert "That is all depquiet checked" in template.reason, template.id
+        assert template.not_imported, template.id
+    ids = [t.id for t in templates._templates]
+    assert len(ids) == len(set(ids))
+    cves = [(t.package, c) for t in templates._templates for c in t.cves]
+    assert len(cves) == len(set(cves)), "two built-in templates for the same CVE"

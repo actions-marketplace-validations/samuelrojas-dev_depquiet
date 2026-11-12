@@ -1,5 +1,5 @@
 id: yaml-code-execution
-reason: "Code execution in js-yaml only affects yaml.load() with DEFAULT_SCHEMA. The safe API yaml.safeLoad() or yaml.load(input, {schema: SAFE_SCHEMA}) is not vulnerable."
+reason: "No import of js-yaml, or of a direct dependency that brings it in, was found in the project source. That is all depquiet checked: it does not verify how js-yaml is used. Read the advisory before relying on this."
 author: "@depquiet"
 cves:
   - CVE-2013-4660

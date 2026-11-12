@@ -1,5 +1,5 @@
 id: json5-prototype-pollution-parse
-reason: "CVE-2022-46175: json5 prototype pollution requires parsing untrusted JSON5 input. Config-file parsing (e.g. tsconfig, babel) with trusted input is not vulnerable."
+reason: "No import of json5, or of a direct dependency that brings it in, was found in the project source. That is all depquiet checked: it does not verify how json5 is used. Read the advisory before relying on this."
 author: "@depquiet"
 cves:
   - CVE-2022-46175

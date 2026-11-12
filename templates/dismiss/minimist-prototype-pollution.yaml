@@ -1,5 +1,5 @@
 id: minimist-prototype-pollution
-reason: "Prototype pollution in minimist only affects direct argument parsing. If minimist is a transitive dependency and you never parse untrusted argv, you're safe."
+reason: "No import of minimist, or of a direct dependency that brings it in, was found in the project source. That is all depquiet checked: it does not verify how minimist is used. Read the advisory before relying on this."
 author: "@depquiet"
 cves:
   - CVE-2021-44906

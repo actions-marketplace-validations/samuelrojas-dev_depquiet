@@ -1,5 +1,5 @@
 id: certifi-root-ca-removal
-reason: "Certifi CA bundle updates remove distrusted root CAs. This only matters if your server's TLS chain depends on the removed root (e.g. e-Tugra). Most servers use Let's Encrypt or major CAs and are unaffected."
+reason: "No import of certifi, or of a direct dependency that brings it in, was found in the project source. That is all depquiet checked: it does not verify how certifi is used. Read the advisory before relying on this."
 author: "@depquiet"
 cves:
   - CVE-2023-37920

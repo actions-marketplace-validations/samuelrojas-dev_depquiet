@@ -1,5 +1,5 @@
 id: postcss-redos
-reason: "ReDoS in postcss only triggers when parsing attacker-controlled CSS. Build-time usage with trusted stylesheets is not affected."
+reason: "No import of postcss, or of a direct dependency that brings it in, was found in the project source. That is all depquiet checked: it does not verify how postcss is used. Read the advisory before relying on this."
 author: "@depquiet"
 cves:
   - CVE-2023-44270

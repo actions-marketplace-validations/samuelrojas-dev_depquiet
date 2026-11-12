@@ -1,5 +1,5 @@
 id: axios-ssrf-server-only
-reason: "CVE-2023-45857: axios SSRF via X-XSRF-TOKEN header leakage only affects server-side usage where cross-site cookies are forwarded. Browser-only usage is not vulnerable."
+reason: "No import of axios, or of a direct dependency that brings it in, was found in the project source. That is all depquiet checked: it does not verify how axios is used. Read the advisory before relying on this."
 author: "@depquiet"
 cves:
   - CVE-2023-45857
