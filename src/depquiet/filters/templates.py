@@ -52,6 +52,20 @@ class Template:
         return not self.package or self.package == package
 
 
+def strip_comment(line: str) -> str:
+    """Drop a ``#`` comment that starts the line or follows whitespace, outside quotes."""
+    quote = ""
+    for i, ch in enumerate(line):
+        if quote:
+            if ch == quote:
+                quote = ""
+        elif ch in ("'", '"'):
+            quote = ch
+        elif ch == "#" and (i == 0 or line[i - 1].isspace()):
+            return line[:i].rstrip()
+    return line
+
+
 def _parse_yaml_simple(text: str) -> dict[str, object]:
     """Minimal YAML-subset parser for template files.
 
@@ -64,8 +78,10 @@ def _parse_yaml_simple(text: str) -> dict[str, object]:
     in_list = False
 
     for line in text.split("\n"):
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
+        # A trailing comment is not part of the value: left in, ``kev: true  # x``
+        # read as not-true and ``[lodash]  # x`` as a package named that.
+        stripped = strip_comment(line).strip()
+        if not stripped:
             continue
 
         if stripped.startswith("- ") and in_list:

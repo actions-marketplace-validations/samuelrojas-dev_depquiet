@@ -638,6 +638,12 @@ def main(argv: list[str] | None = None) -> int:
             cli_threshold = args.epss_threshold
     elif "--epss-threshold" in sys.argv:
         cli_threshold = args.epss_threshold
+    if cli_threshold is not None and not 0.0 <= cli_threshold <= 1.0:
+        # EPSS is a probability: 5 would filter every scored alert as low.
+        parser.error(
+            f"--epss-threshold {cli_threshold:g}: EPSS is a probability between 0 and 1 "
+            "(0.05 for 5%%)"
+        )
 
     # Detect which CLI flags were explicitly passed (vs argparse defaults)
     _raw = argv if argv is not None else sys.argv[1:]

@@ -147,6 +147,27 @@ class Config:
 _CONFIG_NAMES = (".depquiet.yaml", ".depquiet.yml")
 
 _VALID_FAIL_ON = {"critical", "high", "moderate", "low", "none"}
+_KNOWN_KEYS = {
+    "epss_threshold",
+    "offline",
+    "always_flag",
+    "template_dirs",
+    "fail_on",
+    "kev",
+    "kev_file",
+    "license",
+    "policy",
+    "ignore",
+    "baseline",
+    "sarif",
+    "html",
+    "summary",
+    "sbom",
+    "sbom_format",
+    "vex",
+    "annotations",
+    "project_id",
+}
 _VALID_SBOM_FORMATS = {"json", "xml", "spdx"}
 
 
@@ -190,14 +211,28 @@ def _parse_config(path: Path, project: Path) -> Config:
 
     # --- Triage tuning ---
 
+    unknown = sorted(set(data) - _KNOWN_KEYS)
+    if unknown:
+        print(
+            f"Warning: unknown key(s) in {path} ignored: {', '.join(unknown)} "
+            "(keys use underscores: fail_on, epss_threshold, always_flag, ...)",
+            file=sys.stderr,
+        )
+
     epss_threshold = 0.1
     raw_threshold = data.get("epss_threshold")
     if raw_threshold is not None:
         try:
-            epss_threshold = float(str(raw_threshold))
+            value = float(str(raw_threshold))
         except (TypeError, ValueError):
+            value = -1.0
+        if 0.0 <= value <= 1.0:
+            epss_threshold = value
+        else:
+            # EPSS is a probability: 5 would filter every scored alert as low.
             print(
-                f"Warning: invalid epss_threshold in {path}: {raw_threshold!r}",
+                f"Warning: invalid epss_threshold in {path}: {raw_threshold!r} "
+                "(a probability between 0 and 1, e.g. 0.05 for 5%); using 0.1",
                 file=sys.stderr,
             )
 
@@ -291,11 +326,18 @@ def _parse_config(path: Path, project: Path) -> Config:
 
 
 def _parse_bool(data: dict[str, Any], key: str) -> bool:
-    """Parse a boolean value from config data."""
+    """Parse a boolean value from config data; warn on anything unreadable."""
+    import sys
+
     raw = data.get(key)
     if raw is None:
         return False
-    return str(raw).lower() in ("true", "yes", "1")
+    value = str(raw).lower().strip()
+    if value in ("true", "yes", "1", "on"):
+        return True
+    if value not in ("false", "no", "0", "off"):
+        print(f"Warning: invalid {key}: {raw!r} (expected true or false)", file=sys.stderr)
+    return False
 
 
 def _parse_path(data: dict[str, Any], key: str, project: Path) -> Path | None:

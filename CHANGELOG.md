@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- `.depquiet.yaml` slips weakened the scan in silence: a trailing comment turned
+  `kev: true  # exploited` into KEV off and `always_flag: [lodash]  # core` into
+  an unprotected lodash; `epss_threshold: 5` (meant as 5%) was accepted and
+  filtered every alert with an EPSS score as low. Comments are now stripped, an
+  EPSS threshold outside 0-1 is rejected (config: warning and 0.1; CLI: error),
+  and unknown keys (`fail-on`) and unreadable booleans are reported.
 - `--kev` never matched uv audit findings and rarely pip-audit ones: those name
   an advisory by its GHSA or PYSEC id and give the CVE as an alias, which was
   dropped, while the CISA KEV catalog lists CVE ids only. Aliases are now kept,
