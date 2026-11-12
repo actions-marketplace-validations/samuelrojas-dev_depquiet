@@ -262,3 +262,54 @@ class TestAlwaysFlagIntegration:
             assert len(result_flagged.results) == 1
             assert result_flagged.results[0].verdict == Verdict.ACTION
             assert result_flagged.results[0].reasons == []  # no filter reasons
+
+
+# --- A comment, a typo or a wrong scale must never weaken the configuration --
+
+
+from depquiet.config import load_config as _load_cfg  # noqa: E402
+
+
+def _cfg(tmp_path, text):
+    (tmp_path / ".depquiet.yaml").write_text(text, encoding="utf-8")
+    return _load_cfg(tmp_path)
+
+
+def test_trailing_comments_are_not_part_of_values(tmp_path):
+    cfg = _cfg(
+        tmp_path,
+        "kev: true  # exploited\nfail_on: high # gate\nalways_flag: [lodash] # core\n"
+        "epss_threshold: 0.05 # 5%\n",
+    )
+    assert (cfg.kev, cfg.fail_on, cfg.always_flag, cfg.epss_threshold) == (
+        True,
+        "high",
+        ["lodash"],
+        0.05,
+    )
+
+
+@pytest.mark.parametrize("value", ["5", "10", "-0.1", "5%"])
+def test_epss_threshold_outside_0_1_is_rejected(tmp_path, capsys, value):
+    assert _cfg(tmp_path, f"epss_threshold: {value}\n").epss_threshold == 0.1
+    assert "between 0 and 1" in capsys.readouterr().err
+
+
+def test_unknown_key_warns(tmp_path, capsys):
+    _cfg(tmp_path, "fail-on: high\n")
+    err = capsys.readouterr().err
+    assert "unknown key(s)" in err and "fail-on" in err
+
+
+def test_unreadable_bool_warns(tmp_path, capsys):
+    assert _cfg(tmp_path, "kev: ture\n").kev is False
+    assert "invalid kev" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("value", ["5", "1.5", "-1"])
+def test_cli_rejects_epss_threshold_outside_0_1(tmp_path, value):
+    from depquiet.cli import main
+
+    with pytest.raises(SystemExit) as exc:
+        main(["--path", str(tmp_path), "--epss-threshold", value])
+    assert exc.value.code == 2
