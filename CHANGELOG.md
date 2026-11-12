@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.42.0] - 2026-11-12
+
 ### Changed
 - **EPSS no longer filters or downgrades alerts by default.** EPSS is a
   probability over the whole internet, not a statement about your project, so
@@ -945,7 +947,8 @@ requirements.txt and npm projects:
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.41.0...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.42.0...HEAD
+[0.42.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.41.0...v0.42.0
 [0.41.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.6...v0.41.0
 [0.40.6]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.5...v0.40.6
 [0.40.5]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.4...v0.40.5
