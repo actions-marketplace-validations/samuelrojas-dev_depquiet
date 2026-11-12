@@ -82,7 +82,7 @@ class PolicyRule:
             if has != self.has_fix:
                 return False
 
-        return not (self.cves is not None and v.cve not in self.cves)
+        return not (self.cves is not None and not set(v.ids) & set(self.cves))
 
 
 @dataclass

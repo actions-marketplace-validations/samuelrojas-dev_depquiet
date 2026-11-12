@@ -206,7 +206,9 @@ def apply_kev(
         if not tr.vuln.cve:
             continue
         total_checked += 1
-        entry = catalog.lookup(tr.vuln.cve)
+        # KEV is keyed by CVE; uv audit and pip-audit name the advisory by its
+        # GHSA or PYSEC id and give the CVE as an alias.
+        entry = next((e for e in map(catalog.lookup, tr.vuln.ids) if e is not None), None)
         if entry is None:
             continue
 

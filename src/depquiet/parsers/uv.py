@@ -104,6 +104,7 @@ class UvAuditParser:
                     fix_version=nearest_fix(version, fixes),
                     is_direct=True,
                     severity_known=False,
+                    aliases=[a for a in aliases if a != advisory],
                 )
             )
         return vulns

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `--kev` never matched uv audit findings and rarely pip-audit ones: those name
+  an advisory by its GHSA or PYSEC id and give the CVE as an alias, which was
+  dropped, while the CISA KEV catalog lists CVE ids only. Aliases are now kept,
+  KEV matches any of them, and `.depquiet-ignore` entries and policy `cves:`
+  match them too. `--json` rows list `aliases`.
+
 ## [0.40.2] - 2026-11-12
 
 ### Fixed

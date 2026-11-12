@@ -906,6 +906,7 @@ def _print_json(result: ScanResult, *, license_report: LicenseReport | None = No
             "component_resolution_complete": tr.vuln.component_resolution_complete,
             "severity": tr.vuln.severity.value,
             **({} if tr.vuln.severity_known else {"severity_known": False}),
+            **({"aliases": tr.vuln.aliases} if tr.vuln.aliases else {}),
             "title": tr.vuln.title,
             "url": tr.vuln.url,
             "verdict": tr.verdict.value,
