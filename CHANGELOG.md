@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.40.2] - 2026-11-12
+
 ### Fixed
 - `--fail-on high` (or `critical`) passed every pip-audit and uv audit alert:
   those scanners report no severity, and the placeholder `moderate` was compared
@@ -820,7 +822,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.1...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.2...HEAD
+[0.40.2]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.1...v0.40.2
 [0.40.1]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.0...v0.40.1
 [0.40.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.39.0...v0.40.0
 [0.39.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.38.0...v0.39.0
