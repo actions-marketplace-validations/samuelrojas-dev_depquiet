@@ -87,10 +87,41 @@ class TestApplyFixes:
         assert "Would run" in report.fixed[0].message
         assert "npm install lodash@4.17.21" in report.fixed[0].message
 
-    def test_dry_run_pip(self):
+    def test_pip_without_uv_lock_is_left_to_the_user(self, tmp_path):
+        # pip install would change depquiet's own environment and leave the
+        # requirement files as they are: never reported as fixed.
         results = [_tr(_vuln(package="requests", fix_version="2.32.0"), verdict=Verdict.ACTION)]
-        report = apply_fixes(_scan_result(results, pm="pip"), Path("/tmp"), dry_run=True)
-        assert "pip install requests==2.32.0" in report.fixed[0].message
+        with patch("depquiet.fix.subprocess.run") as run:
+            report = apply_fixes(_scan_result(results, pm="pip"), tmp_path)
+        run.assert_not_called()
+        assert report.fixed == []
+        assert report.manual[0].message.startswith("require requests>=2.32.0")
+
+    def test_pip_alert_in_a_uv_project_is_fixed_in_the_lockfile(self, tmp_path):
+        (tmp_path / "uv.lock").write_text("version = 1\n", encoding="utf-8")
+        results = [_tr(_vuln(package="requests", fix_version="2.32.0"), verdict=Verdict.ACTION)]
+        report = apply_fixes(_scan_result(results, pm="pip"), tmp_path, dry_run=True)
+        assert report.fixed[0].message == "Would run: uv lock --upgrade-package requests==2.32.0"
+
+    def test_uv_refusal_says_what_blocks_the_fix(self, tmp_path):
+        import subprocess
+
+        (tmp_path / "uv.lock").write_text("version = 1\n", encoding="utf-8")
+        stderr = (
+            "error: No solution found when resolving dependencies:\n"
+            "  cause: Because posthog depends on aiohttp==3.13.5 and aiohttp==3.14.4, "
+            "we can conclude that posthog's requirements are unsatisfiable.\n"
+        )
+        results = [_tr(_vuln(package="aiohttp", fix_version="3.14.4"), verdict=Verdict.ACTION)]
+        with patch(
+            "depquiet.fix.subprocess.run",
+            return_value=subprocess.CompletedProcess([], 1, "", stderr),
+        ):
+            report = apply_fixes(_scan_result(results, pm="pip"), tmp_path)
+        assert report.fixed == []
+        assert report.failed[0].message == (
+            "blocked: posthog requires aiohttp==3.13.5: widen that requirement to allow 3.14.4."
+        )
 
     def test_no_fixable_returns_empty_report(self):
         results = [_tr(_vuln(fix_version=""), verdict=Verdict.ACTION)]

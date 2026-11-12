@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `--fix` on a Python project with a `uv.lock` updated nothing: a pip-audit alert
+  ran `pip install` into the environment depquiet runs in, left `uv.lock` as it
+  was, and was reported as fixed. It now runs `uv lock --upgrade-package`, and a
+  refusal names what blocks the fix. Python projects without a `uv.lock` are
+  never pip-installed: the requirement to raise is listed and the alert stays open.
+
 ## [0.40.0] - 2026-11-12
 
 ### Added

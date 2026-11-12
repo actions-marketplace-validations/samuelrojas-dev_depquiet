@@ -545,8 +545,13 @@ trust, and not in CI jobs that check out pull requests from outside contributors
 
 ### Auto-remediation (`--fix`)
 
-`depquiet --fix` upgrades packages that have ACTION verdicts **and** a known fix version.
-It runs `npm install <pkg>@<ver>` or `pip install <pkg>==<ver>` under the hood.
+`depquiet --fix` upgrades packages that have ACTION verdicts **and** a known fix version:
+`npm install <pkg>@<ver>` for npm, and for a Python project with a `uv.lock`,
+`uv lock --upgrade-package <pkg>==<ver>` (then `uv sync` installs it). When uv's resolver
+refuses, the report says what blocks the fix, as [`--check-fixes`](#can-the-fix-be-installed---check-fixes)
+does. Other Python projects are not changed: `pip install` would only touch the environment
+depquiet runs in and leave your requirement files as they are, so depquiet lists the
+requirement to raise instead, and the alert still counts as open.
 
 ```
 $ depquiet --fix

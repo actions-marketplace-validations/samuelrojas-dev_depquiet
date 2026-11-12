@@ -812,7 +812,7 @@ def main(argv: list[str] | None = None) -> int:
         fix_report = apply_fixes(result, args.path, dry_run=args.dry_run)
         print_fix_report(fix_report, dry_run=args.dry_run)
         # After fixing, only fail if there are still unfixed ACTION items
-        remaining = len(fix_report.failed) + len(fix_report.skipped)
+        remaining = len(fix_report.failed) + len(fix_report.skipped) + len(fix_report.manual)
         if remaining > 0:
             return 1
         return 0
