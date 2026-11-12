@@ -1,5 +1,5 @@
 name: "depquiet — Vulnerability Alert Triage"
-description: "Cut through npm audit / pip-audit noise. Filter unreachable CVEs, devDependencies, low-EPSS, and known false positives."
+description: "Triage pip-audit, uv audit and npm audit alerts: drop those that only reach dev tooling, and check if each fix installs."
 author: "Samuel Rojas"
 
 branding:
