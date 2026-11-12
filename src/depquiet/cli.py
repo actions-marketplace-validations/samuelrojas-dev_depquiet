@@ -34,6 +34,7 @@ from depquiet.engine import scan
 from depquiet.finding_identity import parse_report, validate_project_id
 from depquiet.fix import apply_fixes, print_fix_report
 from depquiet.fixcheck import check_fixes
+from depquiet.fixplan import FixPlan, build_fix_plan, print_fix_plan
 from depquiet.html_report import write_html
 from depquiet.ignore import apply_ignores, load_ignore, print_ignore_warnings
 from depquiet.kev import KevCatalog, apply_kev, fetch_kev_catalog, load_kev_from_file
@@ -545,6 +546,17 @@ def main(argv: list[str] | None = None) -> int:
         "Like uv lock, it may run build hooks: use on trusted code only",
     )
     parser.add_argument(
+        "--fix-plan",
+        nargs="?",
+        const="-",
+        default=None,
+        metavar="FILE",
+        help="For uv projects: compute the pyproject.toml changes that let the suggested "
+        "fixes install together, verify them with uv's resolver on a copy of the project, "
+        "and print the diff (or write it to FILE, for git apply). Implies --check-fixes. "
+        "Changes nothing in the project. Trusted code only, like --check-fixes",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Show what --fix would do without changing anything",
@@ -755,16 +767,17 @@ def main(argv: list[str] | None = None) -> int:
         elif not args.json_output:
             print("\n⚠️  KEV catalog unavailable (offline with no cache)\n")
 
-    if args.check_fixes:
+    fix_plan = None
+    if args.check_fixes or args.fix_plan is not None:
+        flag = "--fix-plan" if args.fix_plan is not None else "--check-fixes"
         if merged.offline:
-            print(
-                "depquiet: --check-fixes needs network access; skipped (--offline).",
-                file=sys.stderr,
-            )
+            print(f"depquiet: {flag} needs network access; skipped (--offline).", file=sys.stderr)
         else:
-            _checks, check_note = check_fixes(result, args.path)
+            checks, check_note = check_fixes(result, args.path)
             if check_note:
                 print(f"depquiet: {check_note}", file=sys.stderr)
+            elif args.fix_plan is not None:
+                fix_plan = build_fix_plan(result, args.path, checks)
 
     # Compute license data before serializing so --json emits one document.
     license_report = None
@@ -775,9 +788,19 @@ def main(argv: list[str] | None = None) -> int:
 
     # Output
     if args.json_output:
-        _print_json(result, license_report=license_report)
+        _print_json(result, license_report=license_report, fix_plan=fix_plan)
     else:
         print_scan_result(result)
+    if fix_plan is not None:
+        print_fix_plan(fix_plan, sys.stderr)
+        if fix_plan.diff and args.fix_plan != "-":
+            Path(args.fix_plan).write_text(fix_plan.diff, encoding="utf-8")
+            print(
+                f"   Diff written to {args.fix_plan} (apply with: git apply {args.fix_plan})",
+                file=sys.stderr,
+            )
+        elif fix_plan.diff and not args.json_output:
+            print(fix_plan.diff)
 
     if merged.sarif:
         write_sarif(result, merged.sarif)
@@ -881,7 +904,12 @@ def _should_fail(result: ScanResult, fail_on: str | None) -> bool:
     return False
 
 
-def _print_json(result: ScanResult, *, license_report: LicenseReport | None = None) -> None:
+def _print_json(
+    result: ScanResult,
+    *,
+    license_report: LicenseReport | None = None,
+    fix_plan: FixPlan | None = None,
+) -> None:
     """Print machine-readable JSON output."""
     results_list: list[dict[str, Any]] = []
     out: dict[str, Any] = {
@@ -950,6 +978,8 @@ def _print_json(result: ScanResult, *, license_report: LicenseReport | None = No
 
     if license_report is not None:
         out["license"] = _license_json(license_report)
+    if fix_plan is not None:
+        out["fix_plan"] = fix_plan.to_dict()
 
     json.dump(out, sys.stdout, indent=2)
     print()  # trailing newline

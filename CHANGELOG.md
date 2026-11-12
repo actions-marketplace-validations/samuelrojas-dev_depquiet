@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `--fix-plan [FILE]` (uv projects): the `pyproject.toml` changes that let the
+  suggested fixes install together, verified with `uv lock --dry-run` on a
+  temporary copy of the project, as a diff for `git apply` plus the `uv lock`
+  command to run. It widens the project's own blocking requirements just enough,
+  moves a pinned package that holds a fix back to a version uv picks (pinned in
+  the project's style), and when not everything fits, keeps the largest set
+  that resolves as a whole and reports the rest with uv's reason. Major version
+  changes are flagged. Nothing in the project is changed. `--json` adds
+  `fix_plan`.
+
 ## [0.40.6] - 2026-11-12
 
 ### Fixed
