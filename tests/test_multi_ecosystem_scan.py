@@ -161,7 +161,9 @@ def test_fix_uses_each_findings_package_manager(tmp_path: Path, scanners: list[s
     report = apply_fixes(result, tmp_path, dry_run=True)
     commands = {f.package: f.message for f in report.fixed}
     assert "npm install web-lib@2.0.0" in commands["web-lib"]
-    assert "pip install api-lib==2.0.0" in commands["api-lib"]
+    # The Python finding is never pip-installed into depquiet's environment.
+    assert "api-lib" not in commands
+    assert [f.package for f in report.manual] == ["api-lib"]
 
 
 def test_json_report_names_each_findings_package_manager(

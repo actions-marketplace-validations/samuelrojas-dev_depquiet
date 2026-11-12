@@ -5,6 +5,13 @@ the appropriate package manager command to upgrade them. Only touches
 packages where the verdict is ACTION (not REVIEW or FILTERED) and a fix
 is available, so the blast radius is minimal.
 
+Python projects with a ``uv.lock`` are fixed in the lockfile (``uv lock
+--upgrade-package``), whichever scanner found the alert; when uv's resolver
+refuses, the report says what blocks it, as ``--check-fixes`` does. Other
+Python projects are not fixed: ``pip install`` would change whatever
+environment depquiet runs in and leave the requirement files as they are, so
+the alert would come back. They are listed with the requirement to change.
+
 Usage::
 
     depquiet --fix              # scan + auto-fix ACTION items
@@ -18,6 +25,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from depquiet.fixcheck import FixCheck, _classify, _explain
 from depquiet.models import ScanResult, TriageResult, Verdict
 
 
@@ -40,6 +48,8 @@ class FixReport:
     fixed: list[FixResult] = field(default_factory=list)
     skipped: list[FixResult] = field(default_factory=list)
     failed: list[FixResult] = field(default_factory=list)
+    # Fixes depquiet cannot apply itself: the change to make by hand.
+    manual: list[FixResult] = field(default_factory=list)
 
     @property
     def total_fixable(self) -> int:
@@ -91,7 +101,21 @@ def apply_fixes(
         from_ver = tr.vuln.version
         cve = tr.vuln.cve
 
-        manager = tr.vuln.package_manager or pm
+        manager = _manager(tr.vuln.package_manager or pm, project)
+        if manager == "pip":
+            report.manual.append(
+                FixResult(
+                    package=pkg,
+                    from_version=from_ver,
+                    to_version=fix_ver,
+                    cve=cve,
+                    success=False,
+                    message=(
+                        f"require {pkg}>={fix_ver} where the project pins {pkg}, then reinstall"
+                    ),
+                )
+            )
+            continue
         if dry_run:
             cmd_str = _build_command_str(manager, pkg, fix_ver)
             report.fixed.append(
@@ -147,12 +171,17 @@ def apply_fixes(
     return report
 
 
+def _manager(manager: str, project: Path) -> str:
+    """A Python alert in a project with a uv.lock is fixed in the lockfile."""
+    if manager in ("pip", "uv") and (project / "uv.lock").is_file():
+        return "uv"
+    return manager
+
+
 def _build_command_str(pm: str, package: str, fix_version: str) -> str:
     """Build the shell command string for display."""
     if pm == "uv":
         return f"uv lock --upgrade-package {package}=={fix_version}"
-    if pm == "pip":
-        return f"pip install {package}=={fix_version}"
     # Default to npm-style
     return f"npm install {package}@{fix_version}"
 
@@ -168,8 +197,6 @@ def _run_fix(pm: str, package: str, fix_version: str, project: Path) -> _CmdResu
     if pm == "uv":
         # Raise the locked version; pyproject.toml ranges stay as written.
         cmd = ["uv", "lock", "--upgrade-package", f"{package}=={fix_version}"]
-    elif pm == "pip":
-        cmd = [sys.executable, "-m", "pip", "install", f"{package}=={fix_version}"]
     else:
         cmd = ["npm", "install", f"{package}@{fix_version}"]
 
@@ -182,7 +209,15 @@ def _run_fix(pm: str, package: str, fix_version: str, project: Path) -> _CmdResu
             timeout=120,
         )
         if result.returncode == 0:
-            return _CmdResult(success=True, message=f"Updated {package} to {fix_version}")
+            done = "uv.lock updated; run uv sync" if pm == "uv" else "updated"
+            return _CmdResult(success=True, message=f"{package} {fix_version}: {done}")
+        if pm == "uv" and "No solution found" in f"{result.stdout}{result.stderr}":
+            check = FixCheck("blocked", package, fix_version, _explain(result.stderr))
+            _classify(check, result.stderr)
+            return _CmdResult(
+                success=False,
+                message=f"blocked: {check.next_step or check.detail[:200]}",
+            )
         return _CmdResult(
             success=False,
             message=f"Command failed (exit {result.returncode}): {result.stderr.strip()[:200]}",
@@ -209,6 +244,15 @@ def print_fix_report(report: FixReport, *, dry_run: bool = False) -> None:
         print(f"\n{prefix}❌ Failed to fix {len(report.failed)}:", file=sys.stderr)
         for r in report.failed:
             print(f"   {r.cve}  {r.package}: {r.message}", file=sys.stderr)
+
+    if report.manual:
+        print(
+            f"\n{prefix}✋ {len(report.manual)} to fix by hand "
+            "(depquiet edits no requirement files):",
+            file=sys.stderr,
+        )
+        for r in report.manual:
+            print(f"   {r.cve}  {r.package} {r.from_version}: {r.message}", file=sys.stderr)
 
     if report.skipped:
         print(

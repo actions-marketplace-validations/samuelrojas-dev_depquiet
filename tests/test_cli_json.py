@@ -111,9 +111,11 @@ def test_sbom_input_preserves_python_fix_command_in_dry_run(tmp_path):
         patch("depquiet.cli.print_fix_report", wraps=print_fix_report) as printed_report,
     ):
         status = main(["--path", str(tmp_path), "--from-sbom", str(sbom), "--dry-run", "--offline"])
-    assert status == 0
+    # Without a uv.lock there is nothing depquiet can change: the requirement
+    # to raise is listed, and the item still counts as open.
+    assert status == 1
     report = printed_report.call_args.args[0]
-    assert len(report.fixed) == 1
-    assert report.fixed[0].message == "Would run: pip install urllib3==2.0.7"
+    assert report.fixed == []
+    assert report.manual[0].message.startswith("require urllib3>=2.0.7")
     assert (tmp_path / "pyproject.toml").read_text() == manifest
     run_command.assert_not_called()
