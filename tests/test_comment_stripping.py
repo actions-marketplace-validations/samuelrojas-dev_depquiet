@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Comment markers inside strings must not hide imports.
 
 Before this, ``"assets/*"`` in a Rust function opened a block comment that

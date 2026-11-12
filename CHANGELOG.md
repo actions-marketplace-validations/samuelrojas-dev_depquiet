@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Import detection for Rust, Ruby, Go, PHP, Java, C#, Swift and Dart treated
+  comment markers inside strings as comments: `"assets/*"` opened a block
+  comment that swallowed every later `use`/`require` up to the next `*/`, and
+  `"issue #42"` cut the rest of a Ruby or PHP line. A missed import makes a
+  used package look unreachable, so its alerts could be filtered. Comments are
+  now removed by a scanner that keeps strings (and Rust raw strings and char
+  literals); an unterminated string hides at most its own line. Rust (`use`
+  inside functions) and Ruby (`require` anywhere) were the realistic cases.
+- `always_flag` compared names exactly: `Django` or `PyYAML` in the config did
+  not protect `django` or `pyyaml` from the scanner. Names now compare the way
+  package managers do.
+
 ## [0.40.4] - 2026-11-12
 
 ### Fixed
