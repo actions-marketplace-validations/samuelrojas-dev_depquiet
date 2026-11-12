@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "depquiet"
-version = "0.40.3"
+version = "0.40.4"
 description = "Cut through vulnerability alert noise. Tells you which CVEs actually matter."
 readme = "README.md"
 license = "MIT"

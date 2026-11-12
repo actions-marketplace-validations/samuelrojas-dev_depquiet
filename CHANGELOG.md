@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.40.4] - 2026-11-12
+
 ### Fixed
 - `--license` on a Python project listed the packages installed where depquiet
   runs, not the project's dependencies: on pallets/flask it reported 187
@@ -20,7 +22,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The Action's PR comment step deleted any comment starting with
   "## 🔍 depquiet", whoever wrote it; it now deletes only the bot's own.
 
-### Fixed
 - An alert without a severity (pip-audit, uv audit) was shown and exported as
   `moderate`, a value no scanner reported: in the terminal, the Job Summary, the
   HTML report, `--json`, GitHub annotations, SARIF and the SBOM's CycloneDX
@@ -867,7 +868,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.3...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.4...HEAD
+[0.40.4]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.3...v0.40.4
 [0.40.3]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.2...v0.40.3
 [0.40.2]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.1...v0.40.2
 [0.40.1]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.0...v0.40.1
