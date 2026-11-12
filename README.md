@@ -1009,7 +1009,20 @@ The action installs the depquiet version of the tag you reference, plus pip-audi
 
 The action automatically writes a **Job Summary** to the PR checks page with severity badges, EPSS scores, fix versions, and a filtered breakdown.
 
-**Action inputs:** `path`, `epss-threshold`, `offline`, `sarif`, `templates`, `policy`, `sbom`, `sbom-format`, `ignore`, `license`, `baseline`, `kev`, `kev-file`, `html`, `annotations`, `vex`, `fail-on-action`, `fail-on`, `python-version`.
+For a uv project, `check-fixes: true` adds a "Can the fixes be installed?" table to the Job
+Summary: each upgrade uv's resolver accepts, with the command, and each it rejects, with what
+blocks it (your own pin, another package's pin, a Python floor or a cooldown). It installs uv
+if the runner has none. It runs `uv lock`, which can execute build hooks, so enable it on
+pushes and on pull requests from your own branches, not on `pull_request_target` or any job
+that holds secrets while checking out outside contributions.
+
+```yaml
+- uses: samuelrojas-dev/depquiet@v0
+  with:
+    check-fixes: true
+```
+
+**Action inputs:** `path`, `scanner`, `epss-threshold`, `offline`, `sarif`, `templates`, `policy`, `sbom`, `sbom-format`, `from-sbom`, `ignore`, `license`, `baseline`, `kev`, `kev-file`, `html`, `annotations`, `vex`, `diff-base`, `pr-comment`, `check-fixes`, `fail-on-action`, `fail-on`, `python-version`, `install-pip-audit`.
 
 > **Note:** `fail-on` (severity-based) supersedes `fail-on-action` (boolean). When `fail-on` is set, `fail-on-action` is ignored.
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from depquiet.fixcheck import FixCheck
 from depquiet.models import FilterReason, ScanResult
 
 
@@ -67,6 +68,8 @@ def render_summary(result: ScanResult) -> str:
             lines.append(f"| {cve} | `{r.vuln.package}` | {sev} | {epss} | {fix} |")
         lines.append("")
 
+    lines.extend(_fix_checks(result))
+
     # Review items table (collapsed if >5)
     if result.review:
         lines.append("### ⚠️ Review")
@@ -124,6 +127,47 @@ def render_summary(result: ScanResult) -> str:
     )
 
     return "\n".join(lines)
+
+
+def _fix_checks(result: ScanResult) -> list[str]:
+    """``--check-fixes`` answers, one row per upgrade, blocked ones first."""
+    seen: dict[tuple[str, str], FixCheck] = {}
+    for r in result.results:
+        check = r.fix_check
+        if check is not None:
+            seen.setdefault((check.package, check.version), check)
+    if not seen:
+        return []
+    order = {"blocked": 0, "error": 1, "resolves": 2}
+    checks = sorted(seen.values(), key=lambda c: (order.get(c.status, 3), c.package))
+    lines = [
+        "### 🔧 Can the fixes be installed?",
+        "",
+        "| Upgrade | uv's resolver | Next step |",
+        "|---------|---------------|-----------|",
+    ]
+    for c in checks:
+        status, also = c.status, c.also_upgrade
+        if status == "resolves" and also:
+            answer = "✅ with " + ", ".join(f"`{n}`" for n in also)
+            step = f"`{c.command}`"
+        elif status == "resolves":
+            answer, step = "✅ resolves", f"`{c.command}`"
+        elif status == "blocked":
+            answer = "❌ blocked"
+            step = _cell(c.next_step or c.detail)
+        else:
+            answer, step = "⚠️ could not check", _cell(c.detail)
+        upgrade = f"`{c.package}` → `{c.version}`"
+        lines.append(f"| {upgrade} | {answer} | {step} |")
+    lines.append("")
+    return lines
+
+
+def _cell(text: str) -> str:
+    """One Markdown table cell: no pipes or newlines, bounded length."""
+    text = " ".join(text.split()).replace("|", "\\|")
+    return text if len(text) <= 300 else text[:297] + "..."
 
 
 def write_summary(result: ScanResult, path: Path) -> None:

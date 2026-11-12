@@ -99,6 +99,10 @@ inputs:
     description: "Python version to use"
     required: false
     default: "3.13"
+  check-fixes:
+    description: "uv projects: ask uv's resolver whether each fix installs, and what blocks it (true/false). Runs uv lock, which can execute build hooks: only for trusted code, not pull_request_target or forks with secrets."
+    required: false
+    default: "false"
   install-pip-audit:
     description: "Install pip-audit so Python projects are audited (set false if your workflow installs it, or to use uv audit)"
     required: false
@@ -142,6 +146,7 @@ runs:
       shell: bash
       env:
         INPUT_INSTALL_PIP_AUDIT: ${{ inputs.install-pip-audit }}
+        INPUT_CHECK_FIXES: ${{ inputs.check-fixes }}
       # Install the action's own code, so @v0.35.0 runs 0.35.0 and a fresh
       # tag works before PyPI's index lists it. pip-audit is depquiet's
       # scanner for Python projects; without it they fall back to OSV.dev.
@@ -149,6 +154,9 @@ runs:
         python -m pip install --disable-pip-version-check "$GITHUB_ACTION_PATH"
         if [ "$INPUT_INSTALL_PIP_AUDIT" = "true" ]; then
           python -m pip install --disable-pip-version-check pip-audit
+        fi
+        if [ "$INPUT_CHECK_FIXES" = "true" ] && ! command -v uv >/dev/null 2>&1; then
+          python -m pip install --disable-pip-version-check uv
         fi
         depquiet --version
 
@@ -176,6 +184,7 @@ runs:
         INPUT_HTML: ${{ inputs.html }}
         INPUT_ANNOTATIONS: ${{ inputs.annotations }}
         INPUT_VEX: ${{ inputs.vex }}
+        INPUT_CHECK_FIXES: ${{ inputs.check-fixes }}
       run: |
         SCAN_DIR=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/depquiet.XXXXXX")
         SCAN_FILE="$SCAN_DIR/scan.json"
@@ -249,6 +258,10 @@ runs:
 
         if [ -n "$INPUT_VEX" ]; then
           ARGS+=(--vex "$INPUT_VEX")
+        fi
+
+        if [ "$INPUT_CHECK_FIXES" = "true" ]; then
+          ARGS+=(--check-fixes)
         fi
 
         # Job summary — always write when GITHUB_STEP_SUMMARY is available

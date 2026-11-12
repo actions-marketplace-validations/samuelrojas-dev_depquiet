@@ -246,3 +246,22 @@ def test_install_step_uses_the_actions_own_code_and_pip_audit():
     assert "pip install --disable-pip-version-check pip-audit" in script
     assert "INPUT_INSTALL_PIP_AUDIT: ${{ inputs.install-pip-audit }}" in block
     assert "pip install depquiet" not in script
+
+
+@pytest.mark.parametrize(("value", "passed"), [("true", True), ("false", False), ("", False)])
+def test_check_fixes_input_adds_the_flag(shell_env, value, passed):
+    _, env = shell_env
+    env["INPUT_CHECK_FIXES"] = value
+    result = _run_step("Run depquiet", shell_env)
+    assert result.returncode == 1, result.stderr
+    args = json.loads(Path(env["CALLS"]).read_text(encoding="utf-8").splitlines()[0])
+    assert ("--check-fixes" in args) is passed
+
+
+def test_check_fixes_input_is_declared_and_installs_uv():
+    source = ACTION.read_text(encoding="utf-8")
+    assert re.search(r"(?m)^  check-fixes:\n(?:    .*\n)*?    default: \"false\"$", source)
+    block, script = _step("Install depquiet")
+    assert "INPUT_CHECK_FIXES: ${{ inputs.check-fixes }}" in block
+    assert "pip install --disable-pip-version-check uv" in script
+    assert "${{" not in script
