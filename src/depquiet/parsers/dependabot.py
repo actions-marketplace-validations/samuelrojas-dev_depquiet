@@ -17,7 +17,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from depquiet.models import Severity, Vulnerability
+from depquiet.models import Severity, Vulnerability, short_title
 
 # Map GitHub ecosystem names to depquiet package-manager names
 _ECOSYSTEM_MAP: dict[str, str] = {
@@ -95,7 +95,7 @@ class DependabotParser:
                     package=pkg_name,
                     version=vuln_range,
                     severity=severity,
-                    title=summary[:120] if summary else cve_id,
+                    title=short_title(summary) if summary else cve_id,
                     url=url,
                     fix_version=fix_version,
                     is_direct=True,

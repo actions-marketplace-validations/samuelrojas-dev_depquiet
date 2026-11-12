@@ -10,7 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from depquiet.fixcheck import FixCheck
-from depquiet.models import FilterReason, ScanResult
+from depquiet.models import FilterReason, ScanResult, epss_percent
 
 
 def render_summary(result: ScanResult) -> str:
@@ -59,7 +59,7 @@ def render_summary(result: ScanResult) -> str:
         lines.append("| CVE | Package | Severity | EPSS | Fix |")
         lines.append("|-----|---------|----------|------|-----|")
         for r in result.action:
-            epss = f"{r.epss_score:.0%}" if r.epss_score is not None else "—"
+            epss = epss_percent(r.epss_score) if r.epss_score is not None else "—"
             fix = f"`{r.vuln.fix_label}`" if r.vuln.fix_version else "—"
             sev = _severity_badge(r.vuln.severity_label)
             cve = r.vuln.cve
@@ -81,7 +81,7 @@ def render_summary(result: ScanResult) -> str:
         lines.append("| CVE | Package | Severity | EPSS |")
         lines.append("|-----|---------|----------|------|")
         for r in result.review:
-            epss = f"{r.epss_score:.0%}" if r.epss_score is not None else "—"
+            epss = epss_percent(r.epss_score) if r.epss_score is not None else "—"
             sev = _severity_badge(r.vuln.severity_label)
             cve = r.vuln.cve
             if r.vuln.url:

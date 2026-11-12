@@ -22,7 +22,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from depquiet.models import Severity, Vulnerability
+from depquiet.models import Severity, Vulnerability, short_title
 
 # SARIF level → depquiet severity
 _LEVEL_MAP: dict[str, Severity] = {
@@ -291,7 +291,7 @@ class SarifParser:
                     title = desc.get("text", "")
                 if not title and rule:
                     title = rule.get("name", cve)
-                title = title[:200] if title else cve
+                title = short_title(title, 200) if title else cve
 
                 # URL from rule helpUri or result properties
                 url = ""

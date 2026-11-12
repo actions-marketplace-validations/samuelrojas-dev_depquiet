@@ -33,7 +33,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from depquiet.models import Severity, Vulnerability
+from depquiet.models import Severity, Vulnerability, short_title
 
 # Map Grype artifact type / language to depquiet ecosystem names
 _TYPE_MAP: dict[str, str] = {
@@ -90,7 +90,7 @@ class GrypeParser:
             url = urls[0] if urls else vuln_data.get("dataSource", "")
 
             description = vuln_data.get("description", "")
-            title = description[:120] if description else cve
+            title = short_title(description) if description else cve
 
             installed = artifact.get("version", "")
 
