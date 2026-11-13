@@ -82,15 +82,21 @@ alerts, real ones included.
 
 ## How it works
 
-depquiet applies five deterministic filters to separate signal from noise:
+depquiet filters one kind of alert on its own: what only development pulls in. Everything
+else it keeps, and it sorts and explains it:
 
-| Filter | Filters an alert when |
+| Signal | Effect |
 |---|---|
-| **Reachability** | A transitive package that no source file imports, pulled in only by direct dependencies that no source file imports either. A *production* dependency you declare but never import is shown for review, not filtered: another library may load it at runtime |
-| **Test-only use** | The package is imported, but only from test files (`tests/`, `e2e/`, `*.test.*`, `*.spec.*`, test-runner configs), it is not run as a project command, and no application file names it |
-| **Dev dependencies** | Every known dependency path is for development, with no production parent. For npm, also when every locked copy inside the advisory's range is one the lockfile marks as development-only |
-| **EPSS scoring** | The CVE's probability of exploitation is below the threshold (default 10%) |
-| **Community templates** | A matching template's dismissal conditions can be verified against the project |
+| **Dev dependencies** | **Filtered** when every known dependency path is for development, with no production parent. For npm, also when every locked copy inside the advisory's range is one the lockfile marks as development-only (unless `package.json` declares that top-level copy for production: then the lockfile is stale) |
+| **Reachability** | Never filters. A production package that nothing imports, directly or through the production dependencies that bring it in, is shown for **review**: another library may load it at runtime |
+| **Test-only use** | Never filters. A production package imported only from test files is shown for **review**: an ORM loads its database driver from a dialect name (Sequelize, TypeORM, Knex and `pg`), Next.js loads `sharp`, PyJWT loads `cryptography`, and no import names them |
+| **EPSS scoring** | Off by default: EPSS only orders the report (known exploited first, then highest EPSS). With `--epss-threshold`, alerts scoring below it are filtered. The lookup uses the advisory's CVE alias, so it works for pip-audit, uv audit and npm audit |
+| **Community templates** | A built-in template never dismisses on its own: when it matches, its note is added to the review. Custom templates without conditions, `.depquiet-ignore` and policy rules are your explicit dismissals |
+
+**Bundled frontends:** like `npm audit --omit=dev`, depquiet treats `devDependencies` as
+development-only. If your bundler (Vite, webpack, esbuild) ships a package listed there in
+your production JavaScript, move it to `dependencies` or add it to `always_flag`, or depquiet
+will filter its alerts.
 
 See [benchmarks](#benchmarks) for measured results on a real project.
 
@@ -107,7 +113,9 @@ depquiet would rather let a false positive through than dismiss a real vulnerabi
 - **Declared but never imported is not proof.** Frameworks load packages your code never
   imports: Django its database driver, `transformers` the `accelerate` you declared,
   Sequelize the `pg` named by its dialect. No lockfile records those edges, so a production
-  dependency your code does not import goes to review instead of being dismissed.
+  dependency your code does not import goes to review instead of being dismissed, and so
+  does everything it brings in: `uvicorn` started from the command line is never imported,
+  yet `h11` parses every request.
 - **Production paths override development labels.** A package listed in `devDependencies`
   is still kept when a production dependency also pulls it in. A transitive package
   imported by the application is kept even when its declared parent is unused.
@@ -445,7 +453,7 @@ depquiet --sbom sbom.spdx.json               # SPDX 2.3 JSON
 # JSON output for scripting
 depquiet --json
 
-# Custom EPSS threshold
+# Also filter alerts with EPSS below 5% (off by default)
 depquiet --epss-threshold 0.05
 
 # Use a custom config file
@@ -542,6 +550,52 @@ The study ran in a disposable VM, for the reason below.
 `setup.py` or another build hook, uv executes it to find its dependencies. `--check-fixes`
 does nothing `uv lock` would not do in the same checkout, but run it only on code you
 trust, and not in CI jobs that check out pull requests from outside contributors.
+
+### One verified change for all the fixes (`--fix-plan`)
+
+`--check-fixes` says, per package, whether the fix installs and what blocks it. `--fix-plan`
+answers the next question: what do I change so the fixes install, together?
+
+```bash
+depquiet --fix-plan plan.diff     # or --fix-plan alone to print the diff
+git apply plan.diff
+uv lock --upgrade-package ...     # the command it prints
+```
+
+For a uv project it:
+
+1. widens each requirement of yours that blocks a fix, just enough (`==2.31.0` → `==2.33.0`,
+   `<3.7` → `<4`; other clauses, extras and markers stay as written);
+2. when another package holds a fix back and you pin that package, lets uv pick a version of
+   it that allows the fix, and pins that version in your style;
+3. applies everything to a **temporary copy** of the project and runs `uv lock --dry-run` with
+   all the upgrades at once. If they don't fit together, it keeps each fix that still
+   resolves with the ones already kept and reports the rest with uv's reason.
+
+Nothing in the project is changed. What is verified is resolution only: whether your code
+works with the new versions, a major version change above all, is for your tests to say.
+Like `--check-fixes`, it runs `uv lock`, so use it on trusted code.
+
+Real run on a small project pinning `requests==2.31.0` and `botocore==1.29.0` (which caps
+`urllib3` below 2):
+
+```
+🔧 Fix plan
+   ✓ requests 2.31.0 → 2.33.0: widen your requirement
+   ✓ urllib3 1.26.20 → 2.8.0: also move botocore → 1.44.2, which holds it back  (major version change)
+
+   Verified with uv's resolver: all fixes resolve together.
+   Then run: uv lock --upgrade-package requests==2.33.0 --upgrade-package urllib3==2.8.0 --upgrade-package botocore==1.44.2
+```
+```diff
+-    "requests==2.31.0",
+-    "botocore==1.29.0",
++    "requests==2.33.0",
++    "botocore==1.44.2",
+```
+
+After `git apply` and that command, pip-audit reports no known vulnerabilities in the
+project's dependencies. Python-floor and cooldown blocks are reported, not planned.
 
 ### Auto-remediation (`--fix`)
 
@@ -839,16 +893,16 @@ depquiet scan statistics
 
 Total vulnerabilities: 29
 Total dependencies:   14
-Filter rate:          44.8%
+Filter rate:          27.6%
 
 Verdicts:
   🔴 ACTION       13 ( 44.8%) █████████░░░░░░░░░░░
-  🟡 REVIEW        3 ( 10.3%) ██░░░░░░░░░░░░░░░░░░
-  🟢 FILTERED     13 ( 44.8%) █████████░░░░░░░░░░░
+  🟡 REVIEW        8 ( 27.6%) ██████░░░░░░░░░░░░░░
+  🟢 FILTERED      8 ( 27.6%) ██████░░░░░░░░░░░░░░
 
 Filter reasons:
-  unreachable                 13 ( 61.9%)
-  dev dependency               8 ( 38.1%)
+  dev dependency               8 ( 50.0%)
+  unreachable                  8 ( 50.0%)
 ...
 ```
 
@@ -1021,8 +1075,10 @@ with ratings) to gate on it.
 
 - `0` — No ACTION items at or above the `--fail-on` threshold (safe to pass)
 - `1` — ACTION items found at or above the threshold (fail the build)
-- `2` — Nothing was scanned: no supported manifest or lockfile, or a lockfile that needs
-  OSV.dev while `--offline` is set. depquiet never reports an unscanned project as clean.
+- `2` — Nothing was scanned: no supported manifest or lockfile, a lockfile that needs
+  OSV.dev while `--offline` is set, or an input that cannot be read (`--stdin`,
+  `--from-sbom`, `--kev-file`, `--baseline`). depquiet never reports an unscanned project
+  as clean.
 
 ### GitHub Actions (Marketplace)
 
@@ -1031,7 +1087,6 @@ with ratings) to gate on it.
   uses: samuelrojas-dev/depquiet@v0
   with:
     sarif: results.sarif
-    epss-threshold: "0.1"
     policy: .depquiet-policy.yaml
     sbom: sbom.cdx.json
 ```
@@ -1077,44 +1132,50 @@ cause the scanning step to fail; they do not run another scan.
 
 ## Community templates
 
-depquiet ships with **21 built-in templates** and uses [nuclei-style](https://github.com/projectdiscovery/nuclei-templates) YAML to encode community knowledge about known false positives:
+depquiet ships with **20 built-in templates** in [nuclei-style](https://github.com/projectdiscovery/nuclei-templates) YAML.
 
-Built-in templates require readable project source and evidence that the package and
-its dependency ancestors are unused. Absence of a vulnerable function name in application
-code does not prove that an imported library never calls it. Unverifiable conditions
-keep the alert. Custom templates without conditions are explicit unconditional dismissal
-rules, so add `not-imported` conditions when that is not your intention.
+A built-in template matches only when depquiet can read the project source and finds no
+import of the package, or of any direct dependency that brings it in. Since 0.43 a match no
+longer dismisses the alert: that is exactly the case where another library may load the
+package (requests loads `certifi` on every HTTPS call), so the template's note is added to
+the review instead. Custom templates without conditions are explicit unconditional
+dismissal rules, so add `not-imported` conditions when that is not your intention.
 
-| Template | CVE | What it catches |
+Earlier versions gave each template a technical justification ("mitigated by Express 4.x
+defaults", "timing attack") that depquiet never verified, and some were wrong. Since 0.40.5
+the reason states only what was checked.
+
+| Template | Package | CVE |
 |---|---|---|
-| lodash prototype pollution | CVE-2020-8203, CVE-2019-10744 | Only merge/defaultsDeep affected |
-| semver ReDoS | CVE-2022-25883 | Only untrusted input to `semver.clean()` |
-| express open redirect | CVE-2024-29041 | Only unvalidated `res.redirect()` |
-| axios SSRF | CVE-2023-45857 | Server-side only, cookies header |
-| json5 prototype pollution | CVE-2022-46175 | Only `parse()` with `reviver` |
-| webpack-dev-middleware | CVE-2024-29180 | devDependency only |
-| ip SSRF | CVE-2023-42282 | `isPrivate()` bypass, private networks only |
-| requests proxy-auth leak | CVE-2023-32681 | Only proxy + redirect |
-| cryptography null dereference | CVE-2024-0727 | Only PKCS12 loading |
-| minimist prototype pollution | CVE-2021-44906, CVE-2020-7598 | Only direct argv parsing |
-| nth-check ReDoS | CVE-2021-3803 | Only attacker-controlled CSS selectors |
-| postcss ReDoS | CVE-2023-44270 | Only attacker-controlled CSS input |
-| glob-parent ReDoS | CVE-2020-28469 | Only attacker-controlled glob patterns |
-| node-forge timing attack | CVE-2022-24771 | Network-level timing measurement needed |
-| shell-quote injection | CVE-2021-42740 | Only untrusted input to shell-quote |
-| qs prototype pollution | CVE-2022-24999 | Mitigated by Express 4.x defaults |
-| word-wrap ReDoS | CVE-2023-26115 | Only very long strings without spaces |
-| tough-cookie prototype pollution | CVE-2023-26136 | Only attacker-controlled cookie jar |
-| js-yaml code execution | CVE-2013-4660 | Only `yaml.load()` with default schema |
-| certifi root CA removal | CVE-2023-37920 | Only chains through distrusted CAs |
+| lodash prototype pollution | lodash | CVE-2020-8203, CVE-2019-10744, CVE-2018-16487 |
+| semver ReDoS | semver | CVE-2022-25883 |
+| express open redirect | express | CVE-2024-29041 |
+| axios SSRF | axios | CVE-2023-45857 |
+| json5 prototype pollution | json5 | CVE-2022-46175 |
+| webpack-dev-middleware path traversal | webpack-dev-middleware | CVE-2024-29180 |
+| ip SSRF | ip | CVE-2023-42282 |
+| requests proxy-auth leak | requests | CVE-2023-32681 |
+| cryptography null dereference | cryptography | CVE-2024-0727 |
+| minimist prototype pollution | minimist | CVE-2021-44906, CVE-2020-7598 |
+| nth-check ReDoS | nth-check | CVE-2021-3803 |
+| postcss ReDoS | postcss | CVE-2023-44270, CVE-2021-23382, CVE-2021-23368 |
+| glob-parent ReDoS | glob-parent | CVE-2020-28469 |
+| node-forge signature verification | node-forge | CVE-2022-24771, CVE-2022-24772, CVE-2022-24773 |
+| shell-quote injection | shell-quote | CVE-2021-42740 |
+| qs prototype pollution | qs | CVE-2022-24999 |
+| word-wrap ReDoS | word-wrap | CVE-2023-26115 |
+| tough-cookie prototype pollution | tough-cookie | CVE-2023-26136 |
+| js-yaml code execution | js-yaml | CVE-2013-4660 |
+| certifi root CA removal | certifi | CVE-2023-37920, CVE-2024-39689 |
 
 ```yaml
-id: prototype-pollution-lodash
-reason: "Only defaultsDeep/merge are affected. Other lodash functions are safe."
+id: qs-prototype-pollution
+reason: "No import of qs, or of a direct dependency that brings it in, was found in the project source. ..."
+author: "@depquiet"
 cves:
-  - CVE-2020-8203
-  - CVE-2019-10744
-not-imported: ["lodash.defaultsDeep", "lodash.merge"]
+  - CVE-2022-24999
+package: qs
+not-imported: ["qs"]
 ```
 
 ### Contributing a template
@@ -1123,7 +1184,8 @@ not-imported: ["lodash.defaultsDeep", "lodash.merge"]
 2. Add the CVE, affected package, and dismiss conditions
 3. Open a PR — the community reviews and merges
 
-Templates are the growth engine: each contribution helps every depquiet user.
+A template's reason must state only what depquiet checks. Technical arguments about how a
+library is used belong in the PR discussion, with a source, not in the dismissal text.
 
 ## Configuration
 
@@ -1133,7 +1195,7 @@ Every key is optional — add only what you need:
 ```yaml
 # Triage tuning
 project_id: team/service     # stable explicit scope for instance baselines/diffs
-epss_threshold: 0.05          # EPSS score cutoff (default: 0.1)
+epss_threshold: 0.05          # filter EPSS below this (default: off, EPSS only orders)
 offline: false                # skip EPSS API (default: false)
 always_flag:                  # packages that must never be filtered
   - lodash
@@ -1234,22 +1296,23 @@ app pinned to 2022 versions. npm projects are audited with `npm audit`, Python p
 |---|---|---:|---:|---:|---:|
 | [mealie-recipes/mealie](https://github.com/mealie-recipes/mealie) | pip-audit | 229 | 200 | 31 | 170 |
 | [hagopj13/node-express-boilerplate](https://github.com/hagopj13/node-express-boilerplate) | npm audit | 163 | 115 | 29 | 86 |
-| [gothinkster/node-express-realworld-example-app](https://github.com/gothinkster/node-express-realworld-example-app) | npm audit | 95 | 59 | 74 | 16 |
-| Express app, 2022 versions | npm audit | 29 | 26 | 13 | 13 |
+| [gothinkster/node-express-realworld-example-app](https://github.com/gothinkster/node-express-realworld-example-app) | npm audit | 95 | 59 | 41 | 18 |
+| Express app, 2022 versions | npm audit | 29 | 26 | 8 | 18 |
 | [paperless-ngx/paperless-ngx](https://github.com/paperless-ngx/paperless-ngx) | pip-audit | 17 | 17 | 0 | 17 |
 | [sahat/hackathon-starter](https://github.com/sahat/hackathon-starter) | npm audit | 2 | 2 | 2 | 0 |
-| **Total** | | **535** | **419 (78%)** | **149 (28%)** | **302** |
+| **Total** | | **535** | **419 (78%)** | **111 (21%)** | **309** |
 
-0.27 dismissed 302 alerts without evidence. It counted any package the app didn't import
+0.27 dismissed 309 alerts without evidence. It counted any package the app didn't import
 itself as unreachable, which is true of nearly every transitive package, and it compared
 Python distribution names literally, so `Django`, `PyYAML` or `llama-index-core` never matched
 `import django`, `import yaml` or `import llama_index`.
 
-What depquiet filters now is almost entirely packages that only development tooling pulls in
-(jest, eslint, nx, nodemon, pre-commit, mkdocs). On the npm projects those are alerts
-`npm audit --omit=dev` also removes, with one exception: the realworld app declares `axios` under
-`dependencies` but imports it only from its end-to-end tests, so 33 axios and form-data
-alerts that `--omit=dev` keeps are filtered as test-only. On these projects nearly every
+What depquiet filters now is packages that only development tooling pulls in (jest,
+eslint, nx, nodemon, pre-commit, mkdocs). On the npm projects those are the alerts
+`npm audit --omit=dev` also removes. The realworld app declares `axios` under `dependencies`
+but imports it only from its end-to-end tests; until 0.43 its 33 axios and form-data alerts
+were filtered as test-only. They are now kept for review, because depquiet cannot tell that
+case from a database driver a library loads at runtime. On these projects nearly every
 other production dependency is in use, so the useful output is less the filtering than the trace: each kept
 alert names the direct dependency it comes through and where the app uses it.
 
@@ -1341,6 +1404,6 @@ MIT
 
 ## Contributing
 
-depquiet is designed to grow through community templates. Every template you contribute helps thousands of developers skip a false positive.
+depquiet is designed to grow through community templates. Every template you contribute adds context that helps developers decide on an alert faster.
 
 See [CONTRIBUTING.md](https://github.com/samuelrojas-dev/depquiet/blob/main/CONTRIBUTING.md) for guidelines.

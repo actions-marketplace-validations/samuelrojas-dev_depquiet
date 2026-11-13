@@ -30,6 +30,8 @@ from depquiet.models import (
     TriageResult,
     Verdict,
     WorkspaceEvidence,
+    epss_percent,
+    is_prerelease,
 )
 
 # ---------------------------------------------------------------------------
@@ -105,37 +107,64 @@ def explain_triage(tr: TriageResult) -> Explanation:
 
     # 1. EPSS score
     if tr.epss_score is not None:
-        pct = tr.epss_score * 100
+        # EPSS orders the report; it changes the verdict only through an
+        # explicit --epss-threshold, which shows up as the LOW_EPSS reason.
         if FilterReason.LOW_EPSS in tr.reasons:
             effect = "filtered"
-            detail = "Below threshold — low probability of exploitation"
-        elif pct >= 50:
-            effect = "escalated"
-            detail = "High probability of exploitation"
+            detail = "Below the configured EPSS threshold"
         else:
             effect = "neutral"
-            detail = "Above threshold"
+            level = "High" if tr.epss_score >= 0.5 else "Estimated"
+            detail = (
+                f"{level} probability of exploitation in the next 30 days, across the "
+                "internet; it orders the report and does not change the verdict"
+            )
         signals.append(
             Signal(
                 name="EPSS score",
-                value=f"{pct:.1f}%",
+                value=epss_percent(tr.epss_score),
                 effect=effect,
                 detail=detail,
             )
         )
     else:
+        if tr.vuln.cve.upper().startswith("CVE-"):
+            detail = "EPSS lookup was skipped (--offline) or failed"
+        else:
+            cves = [a for a in tr.vuln.aliases if a.upper().startswith("CVE-")]
+            detail = (
+                f"Not looked up: EPSS scores CVE ids, and this advisory is reported as "
+                f"{tr.vuln.cve}" + (f" (alias {cves[0]})" if cves else " with no CVE id")
+            )
         signals.append(
             Signal(
                 name="EPSS score",
                 value="unavailable",
                 effect="not_applicable",
-                detail="EPSS lookup was skipped or failed",
+                detail=detail,
             )
         )
 
     # 2. Reachability
     via = ", ".join(tr.introduced_by)
-    if tr.reachable_imports and FilterReason.TEST_ONLY not in tr.reasons:
+    tested_only = any(
+        o.startswith("Imported only from test code") for o in tr.evidence.observations
+    )
+    if tested_only and FilterReason.TEST_ONLY not in tr.reasons:
+        signals.append(
+            Signal(
+                name="Reachability",
+                value="test_only",
+                effect="review",
+                detail=(
+                    "Imported only from test code ("
+                    + ", ".join(tr.reachable_imports[:5])
+                    + "). Another library may still load it in production, so it is kept "
+                    "for review"
+                ),
+            )
+        )
+    elif tr.reachable_imports and FilterReason.TEST_ONLY not in tr.reasons:
         imports = ", ".join(tr.reachable_imports)
         detail = f"Imported by: {imports}"
         if tr.dependency_type == "transitive" and via:
@@ -504,7 +533,8 @@ def format_explanation(exp: Explanation) -> str:
         lines.append(f"   Evidence: {observation}")
 
     if exp.fix_available:
-        lines.append(f"   Fix: upgrade to {exp.fix_version}")
+        pre = " (pre-release)" if is_prerelease(exp.fix_version.split("@")[-1]) else ""
+        lines.append(f"   Fix: upgrade to {exp.fix_version}{pre}")
 
     lines.append("")
     lines.append("   Signals:")

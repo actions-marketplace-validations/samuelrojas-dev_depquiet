@@ -1,17 +1,17 @@
 """Filter: community templates for known false positives.
 
-Templates are YAML files that encode community knowledge about specific CVEs
-that are commonly flagged but rarely exploitable. The nuclei project proved
-that community-driven templates create a powerful network effect.
+Templates are YAML files naming specific CVEs to dismiss when the project
+shows no use of the package. The reason text states what is checked, never an
+unverified claim about how the library behaves.
 
 Template format:
-    id: CVE-2024-48930-lodash-merge
-    dismiss-if:
-      not-imported: ["lodash.defaultsDeep", "lodash.merge"]
-    reason: "Only defaultsDeep/merge are affected. Other lodash functions are safe."
+    id: qs-prototype-pollution
+    package: qs
+    not-imported: ["qs"]
+    reason: "No import of qs, or of a direct dependency that brings it in, ..."
     author: "@contributor"
     cves:
-      - CVE-2024-48930
+      - CVE-2022-24999
 
 A template matches when ALL conditions in dismiss-if are met.
 Conditions:
@@ -45,8 +45,11 @@ class Template:
     not_imported: list[str] = field(default_factory=list)
     author: str = ""
 
-    def matches_cve(self, cve: str) -> bool:
-        return cve in self.cves
+    def matches_cve(self, cve: str | list[str]) -> bool:
+        """Match the advisory id or any alias (scanners name advisories by
+        PYSEC or GHSA ids and give the CVE as an alias)."""
+        ids = [cve] if isinstance(cve, str) else cve
+        return any(i in self.cves for i in ids)
 
     def matches_package(self, package: str) -> bool:
         return not self.package or self.package == package
@@ -176,7 +179,7 @@ class TemplateFilter:
 
     def find_match(
         self,
-        cve: str,
+        cve: str | list[str],
         package: str,
         *,
         project: Path | None = None,

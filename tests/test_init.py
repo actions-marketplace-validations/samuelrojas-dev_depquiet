@@ -326,3 +326,9 @@ class TestCLIDispatch:
         rc = main(["init", "--path", str(tmp_path), "--yes", "-o", str(out)])
         assert rc == 0
         assert out.is_file()
+
+
+def test_init_refuses_a_missing_project_directory(tmp_path):
+    missing = tmp_path / "typo"
+    assert init_command(missing, yes=True) == 2
+    assert not missing.exists()

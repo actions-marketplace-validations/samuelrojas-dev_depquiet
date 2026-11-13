@@ -34,6 +34,7 @@ from depquiet.engine import scan
 from depquiet.finding_identity import parse_report, validate_project_id
 from depquiet.fix import apply_fixes, print_fix_report
 from depquiet.fixcheck import check_fixes
+from depquiet.fixplan import FixPlan, build_fix_plan, print_fix_plan
 from depquiet.html_report import write_html
 from depquiet.ignore import apply_ignores, load_ignore, print_ignore_warnings
 from depquiet.kev import KevCatalog, apply_kev, fetch_kev_catalog, load_kev_from_file
@@ -441,6 +442,20 @@ def main(argv: list[str] | None = None) -> int:
         description=(
             "Silence the noise. Surface the signal. Triage vulnerability alerts in seconds."
         ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""common runs:
+  depquiet                          scan the project in this directory
+  depquiet --json                   machine-readable report
+  depquiet --check-fixes            uv: can each fix be installed, and what blocks it
+  depquiet --fix-plan plan.diff     uv: one verified pyproject.toml change for all fixes
+  depquiet --fail-on high           fail CI on high or critical ACTION alerts
+
+other commands:
+  depquiet explain <ID>             why one alert got its verdict
+  depquiet diff OLD.json NEW.json   new, fixed and changed findings between two scans
+  depquiet baseline ...             record accepted findings (see depquiet baseline -h)
+
+Python projects need pip-audit (pip install pip-audit) or uv; npm projects need npm.""",
     )
     parser.add_argument("--version", action="version", version=f"depquiet {__version__}")
     parser.add_argument(
@@ -493,9 +508,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--epss-threshold",
         type=float,
-        default=0.1,
+        default=None,
         metavar="N",
-        help="EPSS score threshold (default: 0.1 = 10%%)",
+        help="Filter alerts whose EPSS score is below N (0-1, e.g. 0.05). Off by default: "
+        "EPSS only orders the report, since a low score is about the internet, not your app",
     )
     parser.add_argument(
         "--templates",
@@ -543,6 +559,17 @@ def main(argv: list[str] | None = None) -> int:
         help="For uv projects: ask uv's resolver (uv lock --dry-run) whether each suggested "
         "fix can be installed, and what blocks it if not. Needs uv and network access. "
         "Like uv lock, it may run build hooks: use on trusted code only",
+    )
+    parser.add_argument(
+        "--fix-plan",
+        nargs="?",
+        const="-",
+        default=None,
+        metavar="FILE",
+        help="For uv projects: compute the pyproject.toml changes that let the suggested "
+        "fixes install together, verify them with uv's resolver on a copy of the project, "
+        "and print the diff (or write it to FILE, for git apply). Implies --check-fixes. "
+        "Changes nothing in the project. Trusted code only, like --check-fixes",
     )
     parser.add_argument(
         "--dry-run",
@@ -628,16 +655,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Error: invalid project configuration: {exc}", file=sys.stderr)
         return 2
 
-    # CLI flags override config. We detect whether --epss-threshold was
-    # explicitly passed so that "0.1" from the default doesn't clobber a
-    # config-file value.
-    cli_threshold: float | None = None
-    if argv is not None:
-        # When called programmatically, check if threshold differs from default
-        if args.epss_threshold != 0.1:
-            cli_threshold = args.epss_threshold
-    elif "--epss-threshold" in sys.argv:
-        cli_threshold = args.epss_threshold
+    # CLI flags override config; None means not passed (EPSS filtering off
+    # unless the config turns it on).
+    cli_threshold: float | None = args.epss_threshold
     if cli_threshold is not None and not 0.0 <= cli_threshold <= 1.0:
         # EPSS is a probability: 5 would filter every scored alert as low.
         parser.error(
@@ -680,21 +700,31 @@ def main(argv: list[str] | None = None) -> int:
 
     # Read piped input or SBOM file
     audit_json: dict[str, Any] | None = None
+    # Unreadable input is exit 2, never 1: 1 means "findings", and a CI step
+    # that tolerates findings would pass a scan that never happened.
     if args.from_sbom:
         if not args.from_sbom.is_file():
             print(f"Error: file not found: {args.from_sbom}", file=sys.stderr)
-            return 1
+            return 2
         try:
             audit_json = json.loads(args.from_sbom.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, UnicodeDecodeError):
             print(f"Error: invalid JSON in {args.from_sbom}", file=sys.stderr)
-            return 1
+            return 2
+        if not isinstance(audit_json, dict):
+            print(
+                f"Error: {args.from_sbom} is not an SBOM (expected a JSON object)", file=sys.stderr
+            )
+            return 2
     elif args.stdin:
         try:
             raw = json.load(sys.stdin)
         except json.JSONDecodeError:
             print("Error: invalid JSON on stdin", file=sys.stderr)
-            return 1
+            return 2
+        if not isinstance(raw, (dict, list)):
+            print("Error: stdin is not a scanner report (expected a JSON object)", file=sys.stderr)
+            return 2
         # Dependabot exports are JSON arrays — wrap for the engine
         audit_json = {"alerts": raw} if isinstance(raw, list) else raw
 
@@ -741,7 +771,11 @@ def main(argv: list[str] | None = None) -> int:
     if merged.kev or merged.kev_file:
         kev_catalog: KevCatalog | None
         if merged.kev_file:
-            kev_catalog = load_kev_from_file(merged.kev_file)
+            try:
+                kev_catalog = load_kev_from_file(merged.kev_file)
+            except (OSError, ValueError) as exc:
+                print(f"Error: cannot read KEV file {merged.kev_file}: {exc}", file=sys.stderr)
+                return 2
         else:
             kev_catalog = fetch_kev_catalog(offline=merged.offline)
         if kev_catalog is not None:
@@ -752,19 +786,22 @@ def main(argv: list[str] | None = None) -> int:
                 if kev_result.escalated > 0:
                     parts.append(f"{kev_result.escalated} escalated to ACTION")
                 print("\n" + " — ".join(parts) + "\n")
-        elif not args.json_output:
-            print("\n⚠️  KEV catalog unavailable (offline with no cache)\n")
-
-    if args.check_fixes:
-        if merged.offline:
-            print(
-                "depquiet: --check-fixes needs network access; skipped (--offline).",
-                file=sys.stderr,
-            )
         else:
-            _checks, check_note = check_fixes(result, args.path)
+            # stderr, so --json users see that KEV was not checked
+            why = "offline with no cache" if merged.offline else "download failed, no cache"
+            print(f"⚠️  KEV catalog unavailable ({why}); KEV was not checked", file=sys.stderr)
+
+    fix_plan = None
+    if args.check_fixes or args.fix_plan is not None:
+        flag = "--fix-plan" if args.fix_plan is not None else "--check-fixes"
+        if merged.offline:
+            print(f"depquiet: {flag} needs network access; skipped (--offline).", file=sys.stderr)
+        else:
+            checks, check_note = check_fixes(result, args.path)
             if check_note:
-                print(f"depquiet: {check_note}", file=sys.stderr)
+                print(f"depquiet: {check_note.replace('--check-fixes', flag)}", file=sys.stderr)
+            elif args.fix_plan is not None:
+                fix_plan = build_fix_plan(result, args.path, checks)
 
     # Compute license data before serializing so --json emits one document.
     license_report = None
@@ -775,9 +812,19 @@ def main(argv: list[str] | None = None) -> int:
 
     # Output
     if args.json_output:
-        _print_json(result, license_report=license_report)
+        _print_json(result, license_report=license_report, fix_plan=fix_plan)
     else:
         print_scan_result(result)
+    if fix_plan is not None:
+        print_fix_plan(fix_plan, sys.stderr)
+        if fix_plan.diff and args.fix_plan != "-":
+            Path(args.fix_plan).write_text(fix_plan.diff, encoding="utf-8")
+            print(
+                f"   Diff written to {args.fix_plan} (apply with: git apply {args.fix_plan})",
+                file=sys.stderr,
+            )
+        elif fix_plan.diff and not args.json_output:
+            print(fix_plan.diff)
 
     if merged.sarif:
         write_sarif(result, merged.sarif)
@@ -881,7 +928,12 @@ def _should_fail(result: ScanResult, fail_on: str | None) -> bool:
     return False
 
 
-def _print_json(result: ScanResult, *, license_report: LicenseReport | None = None) -> None:
+def _print_json(
+    result: ScanResult,
+    *,
+    license_report: LicenseReport | None = None,
+    fix_plan: FixPlan | None = None,
+) -> None:
     """Print machine-readable JSON output."""
     results_list: list[dict[str, Any]] = []
     out: dict[str, Any] = {
@@ -950,6 +1002,8 @@ def _print_json(result: ScanResult, *, license_report: LicenseReport | None = No
 
     if license_report is not None:
         out["license"] = _license_json(license_report)
+    if fix_plan is not None:
+        out["fix_plan"] = fix_plan.to_dict()
 
     json.dump(out, sys.stdout, indent=2)
     print()  # trailing newline

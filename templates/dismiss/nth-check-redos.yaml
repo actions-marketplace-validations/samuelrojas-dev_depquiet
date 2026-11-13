@@ -1,5 +1,5 @@
 id: nth-check-redos
-reason: "ReDoS in nth-check only triggers with attacker-controlled CSS selectors. If you don't pass untrusted input to CSS selector parsers, this is unexploitable."
+reason: "No import of nth-check, or of a direct dependency that brings it in, was found in the project source. That is all depquiet checked: it does not verify how nth-check is used. Read the advisory before relying on this."
 author: "@depquiet"
 cves:
   - CVE-2021-3803

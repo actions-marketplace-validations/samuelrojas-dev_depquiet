@@ -106,6 +106,10 @@ def _explain(stderr: str) -> str:
         elif stripped.startswith("cause:"):
             current = causes
             current.append(stripped[6:].strip())
+        elif stripped.startswith(("╰─▶", "├─▶")):
+            # uv's graphical report (a terminal, or uv 0.11): the cause tree.
+            current = causes
+            current.append(stripped[3:].strip())
         elif current is not None and line.startswith((" ", "\t")) and stripped:
             current.append(stripped)
         else:

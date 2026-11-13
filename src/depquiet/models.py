@@ -174,6 +174,11 @@ class Vulnerability:
         return self.severity.value if self.severity_known else "unknown"
 
     @property
+    def cve_id(self) -> str:
+        """The CVE id of the advisory, its own or an alias; empty if it has none."""
+        return next((i for i in self.ids if i.upper().startswith("CVE-")), "")
+
+    @property
     def ids(self) -> list[str]:
         """The advisory id first, then its aliases, without duplicates."""
         return list(dict.fromkeys([i for i in (self.cve, *self.aliases) if i]))
@@ -335,6 +340,49 @@ def version_key(version: str) -> tuple[Any, ...]:
     for piece in re.split(r"[.+-]", version):
         parts.append((0, int(piece)) if piece.isdigit() else (1, piece))
     return tuple(parts)
+
+
+_PRERELEASE = re.compile(
+    r"(?i)\d\.?(?:a|b|c|rc|alpha|beta|pre|preview|dev)\.?\d*(?:$|[.+-])"  # PEP 440
+    r"|-[0-9a-z]"  # semver: 2.0.0-beta.1
+)
+
+
+def is_prerelease(version: str) -> bool:
+    """True for alpha, beta, rc and dev versions (``26.10.0rc1``, ``2.0.0-beta.1``).
+
+    Advisories sometimes list only a release candidate as the fix; the
+    report has to say so, since most projects never install one by accident.
+    """
+    return bool(_PRERELEASE.search(version.strip()))
+
+
+def epss_percent(score: float) -> str:
+    """An EPSS score as a percentage that never rounds a real score to 0%.
+
+    Most scores are below 1%; ``0%`` would read as "no chance".
+    """
+    if score >= 0.01:
+        return f"{score:.0%}"
+    if score >= 0.001:
+        return f"{score:.1%}"
+    return "<0.1%"
+
+
+def short_title(text: str, width: int = 120) -> str:
+    """An advisory summary or description as one clean line of at most *width*.
+
+    Markdown is stripped before cutting: cutting the raw text first left
+    titles like "urllib3's streaming API is" once a long link was removed.
+    """
+    text = re.sub(r"(?m)^\s*#{1,6}\s*(Impact|Summary|Description|Details)\b:?", " ", text)
+    text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)  # [text](url) -> text
+    text = re.sub(r"[#*`]+", "", text)
+    text = " ".join(text.split())
+    if len(text) <= width:
+        return text
+    cut = text[: width - 1].rsplit(" ", 1)[0]
+    return cut + "…"
 
 
 def nearest_fix(installed: str, fixes: list[str]) -> str:

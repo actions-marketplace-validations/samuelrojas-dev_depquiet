@@ -9,8 +9,13 @@ of exploits, even when the probability is low.
 The EPSS API is free, public, no auth needed:
   https://api.first.org/data/v1/epss?cve=CVE-2024-XXXXX
 
-This filter marks vulnerabilities as low-risk when their EPSS score is below
-a configurable threshold (default 0.1 = 10%).
+By default EPSS only orders the report: it is a probability over the whole
+internet, not a statement about one project, so a low score is no reason to
+hide an alert. With an explicit threshold (``--epss-threshold`` or
+``epss_threshold`` in the config), alerts scoring below it are filtered.
+
+Lookups use the advisory's CVE id, its own or an alias: pip-audit, uv audit
+and npm audit name advisories by PYSEC or GHSA ids, which EPSS does not cover.
 """
 
 from __future__ import annotations
@@ -23,7 +28,7 @@ from pathlib import Path
 from depquiet.models import FilterReason, Vulnerability
 
 _EPSS_API = "https://api.first.org/data/v1/epss"
-_DEFAULT_THRESHOLD = 0.1  # Remediation-priority threshold, not proof of non-affectedness
+_DEFAULT_THRESHOLD: float | None = None  # off: EPSS orders, it does not filter
 
 
 class EpssFilter:
@@ -31,7 +36,7 @@ class EpssFilter:
 
     reason = FilterReason.LOW_EPSS
 
-    def __init__(self, threshold: float = _DEFAULT_THRESHOLD, cache_dir: Path | None = None):
+    def __init__(self, threshold: float | None = _DEFAULT_THRESHOLD, cache_dir: Path | None = None):
         self._threshold = threshold
         self._cache: dict[str, tuple[float, float]] = {}  # cve -> (score, percentile)
         self._cache_dir = cache_dir
@@ -84,9 +89,9 @@ class EpssFilter:
         Only filters if we successfully got the EPSS score AND it's below threshold.
         No score → don't filter (conservative).
         """
-        if vuln.cve not in self._cache:
+        if self._threshold is None or vuln.cve_id not in self._cache:
             return False
-        score, _ = self._cache[vuln.cve]
+        score, _ = self._cache[vuln.cve_id]
         return score < self._threshold
 
     def get_score(self, cve: str) -> tuple[float, float] | None:

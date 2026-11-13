@@ -7,7 +7,7 @@ the checked-in config.
 Supported keys::
 
     # Triage tuning
-    epss_threshold: 0.05        # EPSS score cutoff (default: 0.1)
+    epss_threshold: 0.05        # filter alerts with EPSS below 5% (default: off)
     offline: false              # skip EPSS API (default: false)
     always_flag:                # packages that must never be filtered
       - lodash
@@ -54,7 +54,7 @@ class Config:
     """Parsed depquiet configuration."""
 
     # Triage tuning
-    epss_threshold: float = 0.1
+    epss_threshold: float | None = None
     template_dirs: list[Path] = field(default_factory=list)
     always_flag: list[str] = field(default_factory=list)
     offline: bool = False
@@ -211,6 +211,15 @@ def _parse_config(path: Path, project: Path) -> Config:
 
     # --- Triage tuning ---
 
+    if not data and any(
+        line.strip() and not line.strip().startswith("#") for line in text.splitlines()
+    ):
+        print(
+            f"Warning: no settings read from {path} (expected 'key: value' lines, "
+            "e.g. 'kev: true'); defaults are used",
+            file=sys.stderr,
+        )
+
     unknown = sorted(set(data) - _KNOWN_KEYS)
     if unknown:
         print(
@@ -219,7 +228,7 @@ def _parse_config(path: Path, project: Path) -> Config:
             file=sys.stderr,
         )
 
-    epss_threshold = 0.1
+    epss_threshold: float | None = None
     raw_threshold = data.get("epss_threshold")
     if raw_threshold is not None:
         try:
@@ -232,7 +241,7 @@ def _parse_config(path: Path, project: Path) -> Config:
             # EPSS is a probability: 5 would filter every scored alert as low.
             print(
                 f"Warning: invalid epss_threshold in {path}: {raw_threshold!r} "
-                "(a probability between 0 and 1, e.g. 0.05 for 5%); using 0.1",
+                "(a probability between 0 and 1, e.g. 0.05 for 5%); EPSS filtering stays off",
                 file=sys.stderr,
             )
 

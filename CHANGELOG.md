@@ -7,6 +7,154 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.43.0] - 2026-11-13
+
+### Changed
+Found by a black-box audit: dozens of small projects where the vulnerable package runs
+in production, each checked for whether depquiet hides it. depquiet now filters on its
+own only what development alone pulls in; everything else is kept and explained.
+- **Test-only use no longer filters.** A production dependency imported only from tests
+  was dismissed, though libraries load packages without any import naming them:
+  Sequelize, TypeORM and Knex load `pg` from a dialect name, Next.js loads `sharp`,
+  PyJWT loads `cryptography`. Adding a test made the alert disappear. It is now kept for
+  review, with a note. On the benchmark, the realworld app's 33 axios and form-data
+  alerts, imported only from its end-to-end tests, move from filtered to review.
+- **Built-in community templates no longer dismiss on their own.** They match only when
+  nothing imports the package, the case depquiet keeps for review because another
+  library may load it: the `certifi` template hid CVE-2024-39689 in projects where
+  `requests` uses certifi on every HTTPS call. A match now adds the template's note to
+  the review. Custom templates without conditions still dismiss.
+
+### Fixed
+- A stale `package-lock.json` that still marked a package `"dev": true` filtered it even
+  after `package.json` moved it to `dependencies` and the app imported it. The manifest
+  now wins for the top-level copy; a nested copy under a dev tool keeps its own scope.
+- Templates match an advisory's aliases, not only its id.
+- `depquiet explain` showed a package imported only from tests as "reachable".
+- README: the filter table said reachability filters transitive packages of unused
+  dependencies; those have been kept for review since 0.41. The benchmark row for the
+  2022 Express app showed its ACTION count (13) as filtered; it filters 8. Totals:
+  111 of 535 alerts filtered (21%), not 149 (28%). The `depquiet stats` example is
+  regenerated from that run. Added a note on devDependencies that a bundler ships.
+
+### Security
+- `action.yml` and the release workflow pin third-party actions to commit SHAs (the
+  same commits their tags pointed to); Dependabot keeps them updated.
+
+## [0.42.2] - 2026-11-12
+
+### Fixed
+Found by running 0.42.1 from PyPI on a real pip-audit project with live EPSS
+scores (EPSS ordering and alias lookup worked as intended):
+- Advisory titles were cut to 120 characters before Markdown was stripped, so
+  a long link left titles like "urllib3's streaming API is". Titles are now
+  cleaned first, then cut at a word, in every parser.
+- EPSS scores below 0.5% showed as `EPSS 0%`, which reads as "no chance". They
+  now show as `0.4%` or `<0.1%` in the terminal, Job Summary, HTML report and
+  `depquiet explain`.
+- `depquiet explain` called an EPSS score of 50%+ "escalated" and any other
+  score "Above threshold", though EPSS no longer changes the verdict and no
+  threshold is set by default. It now says the score orders the report.
+
+## [0.42.1] - 2026-11-12
+
+### Fixed
+Found by reviewing 0.42.0 end to end, every command and input file:
+- `depquiet init` wrote `epss_threshold: 0.1` into new configs, turning EPSS
+  filtering back on. It now leaves it as a commented-out example.
+- A missing, empty or wrong `--kev-file` crashed with a traceback and exit 1,
+  the "findings" code; a CI step that tolerates findings passed without a KEV
+  check. It is now an error with exit 2. A `{}` file no longer reads as "no
+  exploited CVEs". When the KEV catalog cannot be downloaded, the warning goes
+  to stderr, so `--json` users see it too.
+- `--from-sbom` and `--stdin` input that cannot be read is exit 2 (was 1), and a
+  JSON array given as an SBOM no longer crashes.
+- A `--policy`, `--ignore` or `--config` file that yields nothing (wrong shape)
+  was ignored silently; a lost policy can drop `flag` rules. It now warns.
+- A fix that exists only as a pre-release (`26.10.0rc1`) is labeled
+  `(pre-release)` in the terminal and in `depquiet explain`.
+- `depquiet init --path` with a mistyped directory created that directory. It
+  now stops with exit 2.
+
+## [0.42.0] - 2026-11-12
+
+### Changed
+- **EPSS no longer filters or downgrades alerts by default.** EPSS is a
+  probability over the whole internet, not a statement about your project, so
+  a low score is no reason to hide an alert. It now orders the report: known
+  exploited (KEV) first, then highest EPSS, then severity. To filter, pass
+  `--epss-threshold`, set `epss_threshold` in `.depquiet.yaml`, or the Action's
+  `epss-threshold` input (now empty by default). The old rule that turned an
+  alert with EPSS below 30% into REVIEW is gone.
+- EPSS lookups use the advisory's CVE alias. Before, pip-audit, uv audit and
+  npm audit findings (named by PYSEC or GHSA ids) never got a score.
+
+### Fixed
+Found by installing 0.41.0 from PyPI in a clean environment and using it on uv,
+requirements.txt and npm projects:
+- `--check-fixes` showed only the last line of uv's error ("we can conclude that
+  your project's requirements are unsatisfiable") with uv 0.11, which draws the
+  cause tree with `╰─▶` instead of `cause:`. Both formats are read now.
+- `depquiet explain` said "EPSS lookup was skipped or failed" for pip-audit and
+  uv audit findings, whose ids are not CVEs. It now says EPSS scores CVE ids and
+  names the advisory's CVE alias.
+- Advisory titles in the terminal showed raw Markdown (`### Impact`, links) cut
+  mid-word; they are one clean line now.
+- `--fix` on a project without a uv.lock listed one line per advisory; it lists
+  one line per package with the version that clears all of them.
+- `--fix-plan` on a project without a uv.lock reported "--check-fixes works on
+  projects with a uv.lock"; it names `--fix-plan`.
+- The report footer said "product impact remains under investigation"; it now
+  says what verdicts are based on. `depquiet --help` lists common runs and the
+  `explain`, `diff` and `baseline` commands.
+
+## [0.41.0] - 2026-11-12
+
+### Added
+- `--fix-plan [FILE]` (uv projects): the `pyproject.toml` changes that let the
+  suggested fixes install together, verified with `uv lock --dry-run` on a
+  temporary copy of the project, as a diff for `git apply` plus the `uv lock`
+  command to run. It widens the project's own blocking requirements just enough,
+  moves a pinned package that holds a fix back to a version uv picks (pinned in
+  the project's style), and when not everything fits, keeps the largest set
+  that resolves as a whole and reports the rest with uv's reason. Major version
+  changes are flagged. Nothing in the project is changed. `--json` adds
+  `fix_plan`.
+
+## [0.40.6] - 2026-11-12
+
+### Fixed
+- A transitive package reached only through production dependencies the project
+  declares but never imports was filtered as unreachable, while those direct
+  dependencies themselves were (rightly) kept for review. Example: `uvicorn` in
+  an extra, started from the command line, went to review, and `h11`, which
+  parses every request it serves, was filtered. Such packages now go to review
+  too, with a note. Dev-only packages are still filtered. The README benchmark
+  and real-project numbers are unchanged by this.
+
+## [0.40.5] - 2026-11-12
+
+### Fixed
+- Built-in template reasons made technical claims depquiet never verified, shown
+  as the reason an alert was dismissed, and some were wrong: qs CVE-2022-24999
+  "mitigated by default in Express 4.x" (Express 4.x was affected up to 4.17.2),
+  the node-forge CVEs called a "timing attack" (they are signature verification
+  flaws), lodash "only defaultsDeep and merge" (CVE-2020-8203 is zipObjectDeep).
+  Each reason now states only what is checked: no import of the package, or of
+  a direct dependency that brings it in. The matching was already conservative.
+  A duplicate semver template was removed (20 built-in templates).
+- Import detection for Rust, Ruby, Go, PHP, Java, C#, Swift and Dart treated
+  comment markers inside strings as comments: `"assets/*"` opened a block
+  comment that swallowed every later `use`/`require` up to the next `*/`, and
+  `"issue #42"` cut the rest of a Ruby or PHP line. A missed import makes a
+  used package look unreachable, so its alerts could be filtered. Comments are
+  now removed by a scanner that keeps strings (and Rust raw strings and char
+  literals); an unterminated string hides at most its own line. Rust (`use`
+  inside functions) and Ruby (`require` anywhere) were the realistic cases.
+- `always_flag` compared names exactly: `Django` or `PyYAML` in the config did
+  not protect `django` or `pyyaml` from the scanner. Names now compare the way
+  package managers do.
+
 ## [0.40.4] - 2026-11-12
 
 ### Fixed
@@ -868,7 +1016,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.4...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.43.0...HEAD
+[0.43.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.42.2...v0.43.0
+[0.42.2]: https://github.com/samuelrojas-dev/depquiet/compare/v0.42.1...v0.42.2
+[0.42.1]: https://github.com/samuelrojas-dev/depquiet/compare/v0.42.0...v0.42.1
+[0.42.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.41.0...v0.42.0
+[0.41.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.6...v0.41.0
+[0.40.6]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.5...v0.40.6
+[0.40.5]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.4...v0.40.5
 [0.40.4]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.3...v0.40.4
 [0.40.3]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.2...v0.40.3
 [0.40.2]: https://github.com/samuelrojas-dev/depquiet/compare/v0.40.1...v0.40.2

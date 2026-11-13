@@ -10,7 +10,7 @@ from __future__ import annotations
 import sys
 from typing import Any
 
-from depquiet.models import FilterReason, ScanResult
+from depquiet.models import FilterReason, ScanResult, epss_percent, is_prerelease, short_title
 
 # ANSI colors — disabled when not a TTY
 _RED = "\033[91m"
@@ -41,8 +41,8 @@ def print_scan_result(result: ScanResult) -> None:
         return
 
     total = len(result.results)
-    action = result.action
-    review = result.review
+    action = sorted(result.action, key=_priority)
+    review = sorted(result.review, key=_priority)
     filtered = result.filtered
 
     # Header
@@ -85,7 +85,9 @@ def print_scan_result(result: ScanResult) -> None:
         print()
         print(f"{_c(_YELLOW, '⚠️')}  {_c(_BOLD, f'REVIEW: {len(review)} alerts')}")
         for r in review:
-            epss_str = f"EPSS {r.epss_score:.0%}" if r.epss_score is not None else "no EPSS"
+            epss_str = (
+                f"EPSS {epss_percent(r.epss_score)}" if r.epss_score is not None else "no EPSS"
+            )
             print(
                 f"   {r.vuln.cve:20s} {r.vuln.package:25s} {r.vuln.severity_label:10s} {epss_str}"
             )
@@ -95,11 +97,13 @@ def print_scan_result(result: ScanResult) -> None:
         print()
         print(f"{_c(_RED, '🔴')} {_c(_BOLD, f'ACTION REQUIRED: {len(action)} alerts')}")
         for r in action:
-            epss_str = f"EPSS {r.epss_score:.0%}" if r.epss_score is not None else ""
+            epss_str = f"EPSS {epss_percent(r.epss_score)}" if r.epss_score is not None else ""
             fix_str = ""
             if r.vuln.fix_version:
                 target = f"{r.vuln.fix_package} " if r.vuln.fix_package else ""
                 fix_str = f"FIX: update {target}to {r.vuln.fix_version}"
+                if is_prerelease(r.vuln.fix_version):
+                    fix_str += " (pre-release)"
             parts = [r.vuln.cve, r.vuln.package]
             if epss_str:
                 parts.append(epss_str)
@@ -116,7 +120,7 @@ def print_scan_result(result: ScanResult) -> None:
                     print(f"     {_c(_DIM, '→')} {imp}")
 
             if r.vuln.title:
-                print(f"     {_c(_DIM, r.vuln.title[:80])}")
+                print(f"     {_c(_DIM, _one_line(r.vuln.title))}")
             if r.fix_check is not None:
                 _print_fix_check(r.fix_check)
 
@@ -131,7 +135,10 @@ def print_scan_result(result: ScanResult) -> None:
         parts.append(_c(_GREEN, f"{len(filtered)} filtered"))
 
     print(f"Total: {total} alerts — {' | '.join(parts)}")
-    print("Priority reflects dependency triage; product impact remains under investigation.")
+    print(
+        "Verdicts come from how each package is used (imports, dependency type, lockfile), "
+        "not from whether your code calls the vulnerable function."
+    )
     print()
 
 
@@ -151,3 +158,22 @@ def _print_fix_check(check: Any) -> None:
     print(f"     {_c(_YELLOW, '✗')} fix check: {label}: {check.detail[:240]}")
     if next_step:
         print(f"       → {next_step}")
+
+
+def _one_line(title: str, width: int = 80) -> str:
+    """An advisory title or description as one readable line."""
+    return short_title(title, width)
+
+
+_SEVERITY_ORDER = {"critical": 0, "high": 1, "moderate": 2, "low": 3, "info": 4}
+
+
+def _priority(r: Any) -> tuple[int, float, int]:
+    """Most urgent first: known exploited (KEV), then EPSS, then severity.
+
+    EPSS orders the list; by default it never hides an alert.
+    """
+    kev = 0 if getattr(r, "kev_entry", None) is not None else 1
+    epss = -(r.epss_score if r.epss_score is not None else -1.0)
+    severity = _SEVERITY_ORDER.get(r.vuln.severity.value, 2) if r.vuln.severity_known else 2
+    return (kev, epss, severity)

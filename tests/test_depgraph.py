@@ -185,11 +185,18 @@ class TestEngineIntegration:
         # Import site points at where the app imports express.
         assert any(s.endswith("app.js") for s in tr.reachable_imports)
 
-    def test_scan_filters_when_parent_unused(self, tmp_path: Path) -> None:
+    def test_scan_reviews_when_production_parent_is_declared_but_unused(
+        self, tmp_path: Path
+    ) -> None:
+        # express is a production dependency the code never imports. That is not
+        # proof it never runs (a server can be started from the command line),
+        # so what it brings in is kept for review, like express itself.
         project = _express_app(tmp_path, import_express=False)
         result = scan(project, skip_epss=True, audit_json=self._audit())
         [tr] = result.results
-        assert FilterReason.UNREACHABLE in tr.reasons
+        assert FilterReason.UNREACHABLE not in tr.reasons
+        assert tr.verdict == Verdict.REVIEW
+        assert any("never imports" in note for note in tr.evidence.observations)
 
 
 # ---------------------------------------------------------------------------

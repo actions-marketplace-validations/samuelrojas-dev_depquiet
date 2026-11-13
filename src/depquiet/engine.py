@@ -199,7 +199,7 @@ def detect_package_manager(project: Path) -> str | None:
 def scan(
     project: Path,
     *,
-    epss_threshold: float = 0.1,
+    epss_threshold: float | None = None,
     skip_epss: bool = False,
     template_dirs: list[Path] | None = None,
     audit_json: dict[str, Any] | None = None,
@@ -211,7 +211,8 @@ def scan(
 
     Args:
         project: Path to the project root.
-        epss_threshold: EPSS score below which CVEs are deprioritized.
+        epss_threshold: Filter alerts whose EPSS score is below this; None (default)
+            keeps every alert and uses EPSS only to order the report.
         skip_epss: Don't query the EPSS API (fully offline mode).
         template_dirs: Extra directories to load community templates from.
         audit_json: Pre-parsed audit JSON (for testing / piped input).
@@ -356,7 +357,7 @@ def scan(
 
     # Step 3: Batch EPSS lookup (one API call for all CVEs)
     if not skip_epss:
-        all_cves = [v.cve for v in vulns if v.cve]
+        all_cves = [v.cve_id for v in vulns if v.cve_id]
         epss_filter.lookup(all_cves)
 
     # Step 4: Triage each vulnerability
@@ -372,9 +373,11 @@ def scan(
         evidence = evaluation.evidence
 
         # Skip all filters if package is in always_flag
-        _always = set(always_flag) if always_flag else set()
-        if vuln.package in _always:
-            _epss = epss_filter.get_score(vuln.cve)
+        # Names compare the way package managers do: ``Django`` in the config
+        # must protect ``django`` from the scanner, and ``PyYAML`` ``pyyaml``.
+        _always = {_flag_key(name) for name in always_flag or []}
+        if _flag_key(vuln.package) in _always:
+            _epss = epss_filter.get_score(vuln.cve_id)
             results.append(
                 TriageResult(
                     vuln=vuln,
@@ -406,7 +409,7 @@ def scan(
         # dependency. Every known root must be dev-only before suppressing it.
         if evaluation.dev_only:
             reasons.append(FilterReason.DEV_DEPENDENCY)
-        elif _locked_for_development_only(vuln):
+        elif _locked_for_development_only(vuln) and not _stale_dev_lock(vuln, graph):
             reasons.append(FilterReason.DEV_DEPENDENCY)
             note = (
                 "The scanner reports every affected installed version as reached "
@@ -423,27 +426,52 @@ def scan(
         # do not declare (Django database drivers, transformers' accelerate,
         # an ORM's dialect package). Without an edge in the lockfile that is
         # invisible, so it is shown for review, never dismissed.
+        # The same holds for what such a dependency brings in: if uvicorn is
+        # started from the command line, h11 parses every request, though
+        # neither is imported. A transitive package reached only through
+        # production dependencies the project never imports is kept too.
         declared_unused = (
             decision.unreachable
-            and decision.dependency_type == "direct"
+            and decision.dependency_type in ("direct", "transitive")
+            and FilterReason.DEV_DEPENDENCY not in reasons
+        )
+        # Imported only from tests is not proof that production never loads it:
+        # an ORM loads its database driver from a dialect name (Sequelize,
+        # TypeORM, Knex -> pg), Next.js loads sharp, PyJWT loads cryptography.
+        # Without a test the same package is kept for review, so adding a test
+        # must not hide it. Shown for review, never dismissed.
+        tested_only = (
+            decision.test_only
+            and not decision.unreachable
             and FilterReason.DEV_DEPENDENCY not in reasons
         )
         if decision.unreachable and not declared_unused:
             reasons.append(FilterReason.UNREACHABLE)
-        elif decision.test_only:
-            reasons.append(FilterReason.TEST_ONLY)
+        if tested_only:
+            note = (
+                "Imported only from test code. A production dependency can still be "
+                "loaded at runtime by another library (an ORM's database driver, an image "
+                "processor, a crypto backend) without any import naming it, so it is kept "
+                "for review."
+            )
+            if note not in evidence.observations:
+                evidence.observations.insert(0, note)
         if declared_unused:
             note = (
                 "Declared as a production dependency but never imported by the project. "
                 "Another library may load it at runtime (database drivers, optional "
                 "accelerators, plugins named in settings), which no lockfile records, "
                 "so it is kept for review."
+                if decision.dependency_type == "direct"
+                else "Comes in only through production dependencies the project declares "
+                "but never imports. Those may still run (a server started from the command "
+                "line, a plugin named in settings), so it is kept for review."
             )
             if note not in evidence.observations:
                 evidence.observations.insert(0, note)
 
         # Filter 3: Low EPSS score
-        epss_data = epss_filter.get_score(vuln.cve)
+        epss_data = epss_filter.get_score(vuln.cve_id)
         if epss_data:
             epss_score, epss_percentile = epss_data
         if epss_filter.check(vuln):
@@ -451,7 +479,15 @@ def scan(
 
         # Filter 4: Community template match
         tmpl = _find_context_template(template_filter, vuln, evaluation, graph)
-        if tmpl:
+        if tmpl and tmpl.not_imported and (declared_unused or tested_only):
+            # A conditional template matches only when nothing imports the
+            # package: the case kept above because another library may load
+            # it (requests loads certifi on every HTTPS call). Its note is
+            # context for the review, not a dismissal.
+            note = f"Community template {tmpl.id}: {tmpl.reason}"
+            if note not in evidence.observations:
+                evidence.observations.append(note)
+        elif tmpl:
             reasons.append(FilterReason.COMMUNITY_TEMPLATE)
             template_id = tmpl.id
             template_reason = tmpl.reason
@@ -459,12 +495,7 @@ def scan(
         # Determine verdict
         if reasons:
             verdict = Verdict.FILTERED
-        elif declared_unused:
-            verdict = Verdict.REVIEW
-        elif epss_score is not None and epss_score < 0.3:
-            # Has EPSS but above threshold — worth reviewing
-            verdict = Verdict.REVIEW
-        elif vuln.severity in (Severity.LOW, Severity.INFO):
+        elif declared_unused or tested_only or vuln.severity in (Severity.LOW, Severity.INFO):
             verdict = Verdict.REVIEW
         else:
             verdict = Verdict.ACTION
@@ -606,6 +637,24 @@ def _locked_for_development_only(vuln: Vulnerability) -> bool:
     return bool(affected) and all(c.lock_scope == "development" for c in affected)
 
 
+def _stale_dev_lock(vuln: Vulnerability, graph: DependencyGraph) -> bool:
+    """The lockfile marks the top-level copy dev-only, but a manifest declares
+    the package for production: the lockfile predates the manifest.
+
+    A nested copy (``node_modules/jest/node_modules/uuid``) is a different
+    install and keeps its own scope.
+    """
+    if vuln.scanner_dev_only or not graph.declared_for_production(vuln.package):
+        return False
+    top = f"node_modules/{vuln.package}"
+    return any(
+        c.range_match != "not_matched"
+        and c.location.replace("\\", "/").endswith(top)
+        and c.location.replace("\\", "/").count("node_modules/") == 1
+        for c in vuln.components
+    )
+
+
 def _import_sites(
     reachability: ReachabilityFilter, vuln: Vulnerability, decision: ReachabilityDecision
 ) -> list[str]:
@@ -723,6 +772,11 @@ def _project_contexts(project: Path, graph: DependencyGraph) -> list[_ProjectCon
             _ProjectContext(scope, root, local, ReachabilityFilter(root, exclude_roots=excluded))
         )
     return contexts
+
+
+def _flag_key(name: str) -> str:
+    """Case- and separator-insensitive package name (PEP 503; npm names are lowercase)."""
+    return re.sub(r"[-_.]+", "-", name.strip()).lower()
 
 
 def _evaluate_dependency(
@@ -847,9 +901,9 @@ def _find_context_template(
     first = evaluation.contexts[0].context
     if not graph.workspace_graphs:
         return templates.find_match(
-            vuln.cve, vuln.package, project=first.project, graph=graph, reachability=first.source
+            vuln.ids, vuln.package, project=first.project, graph=graph, reachability=first.source
         )
-    explicit = templates.find_match(vuln.cve, vuln.package, allow_conditional=False)
+    explicit = templates.find_match(vuln.ids, vuln.package, allow_conditional=False)
     if explicit is not None:
         return explicit
     selected = [item for item in evaluation.contexts if item.relevance != "not_declared"]
@@ -861,7 +915,7 @@ def _find_context_template(
         return None
     matches = [
         templates.find_match(
-            vuln.cve,
+            vuln.ids,
             vuln.package,
             project=item.context.project,
             graph=item.context.graph,

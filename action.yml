@@ -16,9 +16,9 @@ inputs:
     required: false
     default: ""
   epss-threshold:
-    description: "EPSS score threshold (0.0-1.0). CVEs below this are filtered."
+    description: "Filter alerts with an EPSS score below this (0.0-1.0). Empty (default): EPSS only orders the report."
     required: false
-    default: "0.1"
+    default: ""
   offline:
     description: "Skip EPSS API calls"
     required: false
@@ -138,7 +138,7 @@ runs:
   using: "composite"
   steps:
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
       with:
         python-version: ${{ inputs.python-version }}
 
@@ -188,7 +188,11 @@ runs:
       run: |
         SCAN_DIR=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/depquiet.XXXXXX")
         SCAN_FILE="$SCAN_DIR/scan.json"
-        ARGS=(--path "$INPUT_PATH" --epss-threshold "$INPUT_EPSS_THRESHOLD" --json)
+        ARGS=(--path "$INPUT_PATH" --json)
+
+        if [ -n "$INPUT_EPSS_THRESHOLD" ]; then
+          ARGS+=(--epss-threshold "$INPUT_EPSS_THRESHOLD")
+        fi
 
         if [ "$INPUT_OFFLINE" = "true" ]; then
           ARGS+=(--offline)
@@ -436,21 +440,21 @@ runs:
 
     - name: Upload SARIF to GitHub
       if: inputs.sarif != '' && always()
-      uses: github/codeql-action/upload-sarif@v3
+      uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
       with:
         sarif_file: ${{ inputs.sarif }}
         category: depquiet
 
     - name: Upload SBOM artifact
       if: inputs.sbom != '' && always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: depquiet-sbom
         path: ${{ inputs.sbom }}
 
     - name: Upload VEX artifact
       if: inputs.vex != '' && always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: depquiet-vex
         path: ${{ inputs.vex }}

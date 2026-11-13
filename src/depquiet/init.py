@@ -119,12 +119,6 @@ def detect_project(project: Path) -> ProjectInfo:
 # ---------------------------------------------------------------------------
 
 
-def _pick_threshold(info: ProjectInfo) -> float:
-    """Choose a sensible EPSS threshold based on ecosystem."""
-    # Default 0.1 (10%) is good for most projects.
-    return 0.1
-
-
 def _pick_fail_on(info: ProjectInfo) -> str:
     """Pick a default fail_on severity for CI gating."""
     # Start conservative — only block on high+ by default.
@@ -146,9 +140,10 @@ def generate_config(
     lines.append("# Docs: https://github.com/samuelrojas-dev/depquiet#configuration")
     lines.append("")
 
-    # Triage tuning
-    threshold = _pick_threshold(info)
-    lines.append(f"epss_threshold: {threshold}")
+    # Triage tuning: EPSS orders the report; filtering by it is opt-in
+    lines.append("# EPSS orders alerts by exploit probability. To also hide alerts")
+    lines.append("# scoring below a cutoff, uncomment (0-1, e.g. 0.05 for 5%):")
+    lines.append("# epss_threshold: 0.05")
     lines.append("")
 
     # CI gate
@@ -247,6 +242,10 @@ def init_command(
         Write to a custom path instead of ``<project>/.depquiet.yaml``.
     """
     dest = output or (project / ".depquiet.yaml")
+    if not project.is_dir():
+        # A mistyped --path must not create a new folder with a config in it.
+        print(f"Error: project directory not found: {project}", file=sys.stderr)
+        return 2
 
     # Detect project
     info = detect_project(project)

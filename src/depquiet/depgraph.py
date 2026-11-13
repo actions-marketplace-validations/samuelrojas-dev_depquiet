@@ -202,6 +202,14 @@ class DependencyGraph:
         keys = [_keys(n) for n in names]
         return bool(keys) and all(k & self.direct and not k & self.prod_direct for k in keys)
 
+    def declared_for_production(self, package: str) -> bool:
+        """True when a manifest declares ``package`` as a production dependency.
+
+        A lockfile can disagree (a stale ``"dev": true`` after the package
+        moved to ``dependencies``); the manifest is what the next install uses.
+        """
+        return bool(_keys(package) & self.prod_direct)
+
     def direct_ancestors(self, package: str) -> set[str]:
         """Direct dependencies whose dependency closure contains ``package``.
 

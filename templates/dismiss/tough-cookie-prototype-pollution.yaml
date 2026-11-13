@@ -1,5 +1,5 @@
 id: tough-cookie-prototype-pollution
-reason: "Prototype pollution in tough-cookie requires attacker-controlled cookie jar input. Server-side HTTP clients setting their own cookies are not affected."
+reason: "No import of tough-cookie, or of a direct dependency that brings it in, was found in the project source. That is all depquiet checked: it does not verify how tough-cookie is used. Read the advisory before relying on this."
 author: "@depquiet"
 cves:
   - CVE-2023-26136

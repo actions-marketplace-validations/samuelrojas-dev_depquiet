@@ -412,8 +412,8 @@ class TestEngineBranches:
         ).encode()
         return mock_response
 
-    def test_scan_with_epss_lookup_review(self):
-        """EPSS between threshold and 0.3 → REVIEW."""
+    def test_scan_with_epss_lookup_keeps_action(self):
+        """A low EPSS score is shown but never downgrades an alert by default."""
         audit_json = self._make_npm_audit("CVE-2024-1111", "pkg-epss")
         mock_response = self._mock_epss_response("CVE-2024-1111", 0.25, 0.80)
 
@@ -428,7 +428,7 @@ class TestEngineBranches:
 
         pkg = [r for r in result.results if r.vuln.package == "pkg-epss"]
         assert len(pkg) == 1
-        assert pkg[0].verdict == Verdict.REVIEW
+        assert pkg[0].verdict == Verdict.ACTION
         assert pkg[0].epss_score == 0.25
         assert pkg[0].epss_percentile == 0.80
 
@@ -917,7 +917,7 @@ class TestCliEdgeCases:
             code = main(["--stdin"])
         finally:
             sys.stdin = old_stdin
-        assert code == 1
+        assert code == 2  # an input error, not findings
         captured = capsys.readouterr()
         assert "invalid JSON" in captured.err
 

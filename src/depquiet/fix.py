@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from depquiet.fixcheck import FixCheck, _classify, _explain
-from depquiet.models import ScanResult, TriageResult, Verdict
+from depquiet.models import ScanResult, TriageResult, Verdict, version_key
 
 
 @dataclass
@@ -247,12 +247,13 @@ def print_fix_report(report: FixReport, *, dry_run: bool = False) -> None:
 
     if report.manual:
         print(
-            f"\n{prefix}✋ {len(report.manual)} to fix by hand "
+            f"\n{prefix}✋ {len(report.manual)} advisories in "
+            f"{len({m.package for m in report.manual})} packages to fix by hand "
             "(depquiet edits no requirement files):",
             file=sys.stderr,
         )
-        for r in report.manual:
-            print(f"   {r.cve}  {r.package} {r.from_version}: {r.message}", file=sys.stderr)
+        for line in _manual_lines(report.manual):
+            print(f"   {line}", file=sys.stderr)
 
     if report.skipped:
         print(
@@ -261,3 +262,20 @@ def print_fix_report(report: FixReport, *, dry_run: bool = False) -> None:
         )
         for r in report.skipped:
             print(f"   {r.cve}  {r.package} {r.from_version}", file=sys.stderr)
+
+
+def _manual_lines(items: list[FixResult]) -> list[str]:
+    """One line per package: the version that clears all of its listed advisories."""
+    by_package: dict[str, list[FixResult]] = {}
+    for item in items:
+        by_package.setdefault(item.package, []).append(item)
+    lines = []
+    for package, group in by_package.items():
+        target = max((g.to_version for g in group), key=version_key)
+        ids = ", ".join(g.cve for g in group)
+        count = f"{len(group)} advisories" if len(group) > 1 else "1 advisory"
+        lines.append(
+            f"{package} {group[0].from_version}: require {package}>={target} where the project "
+            f"pins {package}, then reinstall ({count}: {ids})"
+        )
+    return lines

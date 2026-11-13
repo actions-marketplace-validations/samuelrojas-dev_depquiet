@@ -1,5 +1,5 @@
 id: qs-prototype-pollution
-reason: "Prototype pollution in qs is mitigated by default in Express 4.x+ which limits parsing depth. Only exploitable with custom qs config that increases depth or disables prototype filtering."
+reason: "No import of qs, or of a direct dependency that brings it in, was found in the project source. That is all depquiet checked: it does not verify how qs is used. Read the advisory before relying on this."
 author: "@depquiet"
 cves:
   - CVE-2022-24999
