@@ -13,7 +13,7 @@ jobs:
     name: Lint & Type Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
@@ -41,7 +41,7 @@ jobs:
           - os: windows-latest
             python-version: "3.13"
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
@@ -82,11 +82,11 @@ jobs:
             repository: paperless-ngx/paperless-ngx
             commit: 09d70ed7da7f56b9c197a57518fd363a1fddc3ff
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
         with:
           path: depquiet
           persist-credentials: false
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
         with:
           repository: ${{ matrix.repository }}
           ref: ${{ matrix.commit }}
@@ -124,7 +124,7 @@ jobs:
     needs: lint
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
       - name: npm project
@@ -161,7 +161,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [test, reviewed-reference, action]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
