@@ -147,7 +147,24 @@ def explain_triage(tr: TriageResult) -> Explanation:
 
     # 2. Reachability
     via = ", ".join(tr.introduced_by)
-    if tr.reachable_imports and FilterReason.TEST_ONLY not in tr.reasons:
+    tested_only = any(
+        o.startswith("Imported only from test code") for o in tr.evidence.observations
+    )
+    if tested_only and FilterReason.TEST_ONLY not in tr.reasons:
+        signals.append(
+            Signal(
+                name="Reachability",
+                value="test_only",
+                effect="review",
+                detail=(
+                    "Imported only from test code ("
+                    + ", ".join(tr.reachable_imports[:5])
+                    + "). Another library may still load it in production, so it is kept "
+                    "for review"
+                ),
+            )
+        )
+    elif tr.reachable_imports and FilterReason.TEST_ONLY not in tr.reasons:
         imports = ", ".join(tr.reachable_imports)
         detail = f"Imported by: {imports}"
         if tr.dependency_type == "transitive" and via:
