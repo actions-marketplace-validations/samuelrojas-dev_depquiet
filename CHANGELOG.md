@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+Found by a black-box audit: dozens of small projects where the vulnerable package runs
+in production, each checked for whether depquiet hides it. depquiet now filters on its
+own only what development alone pulls in; everything else is kept and explained.
+- **Test-only use no longer filters.** A production dependency imported only from tests
+  was dismissed, though libraries load packages without any import naming them:
+  Sequelize, TypeORM and Knex load `pg` from a dialect name, Next.js loads `sharp`,
+  PyJWT loads `cryptography`. Adding a test made the alert disappear. It is now kept for
+  review, with a note. On the benchmark, the realworld app's 33 axios and form-data
+  alerts, imported only from its end-to-end tests, move from filtered to review.
+- **Built-in community templates no longer dismiss on their own.** They match only when
+  nothing imports the package, the case depquiet keeps for review because another
+  library may load it: the `certifi` template hid CVE-2024-39689 in projects where
+  `requests` uses certifi on every HTTPS call. A match now adds the template's note to
+  the review. Custom templates without conditions still dismiss.
+
+### Fixed
+- A stale `package-lock.json` that still marked a package `"dev": true` filtered it even
+  after `package.json` moved it to `dependencies` and the app imported it. The manifest
+  now wins for the top-level copy; a nested copy under a dev tool keeps its own scope.
+- Templates match an advisory's aliases, not only its id.
+- `depquiet explain` showed a package imported only from tests as "reachable".
+- README: the filter table said reachability filters transitive packages of unused
+  dependencies; those have been kept for review since 0.41. The benchmark row for the
+  2022 Express app showed its ACTION count (13) as filtered; it filters 8. Totals:
+  111 of 535 alerts filtered (21%), not 149 (28%). The `depquiet stats` example is
+  regenerated from that run. Added a note on devDependencies that a bundler ships.
+
+### Security
+- `action.yml` and the release workflow pin third-party actions to commit SHAs (the
+  same commits their tags pointed to); Dependabot keeps them updated.
+
 ## [0.42.2] - 2026-11-12
 
 ### Fixed

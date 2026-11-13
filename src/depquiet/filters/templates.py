@@ -45,8 +45,11 @@ class Template:
     not_imported: list[str] = field(default_factory=list)
     author: str = ""
 
-    def matches_cve(self, cve: str) -> bool:
-        return cve in self.cves
+    def matches_cve(self, cve: str | list[str]) -> bool:
+        """Match the advisory id or any alias (scanners name advisories by
+        PYSEC or GHSA ids and give the CVE as an alias)."""
+        ids = [cve] if isinstance(cve, str) else cve
+        return any(i in self.cves for i in ids)
 
     def matches_package(self, package: str) -> bool:
         return not self.package or self.package == package
@@ -176,7 +179,7 @@ class TemplateFilter:
 
     def find_match(
         self,
-        cve: str,
+        cve: str | list[str],
         package: str,
         *,
         project: Path | None = None,

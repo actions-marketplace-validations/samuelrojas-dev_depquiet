@@ -16,7 +16,7 @@ from depquiet.depgraph import DependencyGraph
 from depquiet.engine import scan
 from depquiet.explain import explain_triage
 from depquiet.filters.reachability import ReachabilityFilter, is_test_path
-from depquiet.models import FilterReason, Severity, Verdict, Vulnerability
+from depquiet.models import Severity, Verdict, Vulnerability
 
 
 def _vuln(package: str) -> Vulnerability:
@@ -164,12 +164,16 @@ class TestScan:
             },
         }
 
-    def test_scan_filters_test_only_and_keeps_application_use(self, tmp_path: Path) -> None:
+    def test_scan_keeps_test_only_for_review_and_application_use_as_action(
+        self, tmp_path: Path
+    ) -> None:
+        # Imported only from tests is no proof production never loads it (an
+        # ORM loads its driver by dialect name), so it is reviewed, not hidden.
         result = scan(project=_project(tmp_path), skip_epss=True, audit_json=self._audit())
         by = {r.vuln.package: r for r in result.results}
-        assert by["axios"].verdict == Verdict.FILTERED
-        assert by["axios"].reasons == [FilterReason.TEST_ONLY]
-        assert by["follow-redirects"].reasons == [FilterReason.TEST_ONLY]
+        assert by["axios"].verdict == Verdict.REVIEW
+        assert by["axios"].reasons == []
+        assert by["follow-redirects"].verdict == Verdict.REVIEW
         assert by["express"].verdict == Verdict.ACTION
         assert any("test code" in note for note in by["axios"].evidence.observations)
 
@@ -178,6 +182,7 @@ class TestScan:
         axios = next(r for r in result.results if r.vuln.package == "axios")
         signal = next(s for s in explain_triage(axios).signals if s.name == "Reachability")
         assert signal.value == "test_only"
+        assert signal.effect == "review"
         assert "server.spec.ts" in signal.detail
 
 

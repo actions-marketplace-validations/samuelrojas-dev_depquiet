@@ -409,7 +409,7 @@ def scan(
         # dependency. Every known root must be dev-only before suppressing it.
         if evaluation.dev_only:
             reasons.append(FilterReason.DEV_DEPENDENCY)
-        elif _locked_for_development_only(vuln):
+        elif _locked_for_development_only(vuln) and not _stale_dev_lock(vuln, graph):
             reasons.append(FilterReason.DEV_DEPENDENCY)
             note = (
                 "The scanner reports every affected installed version as reached "
@@ -435,10 +435,27 @@ def scan(
             and decision.dependency_type in ("direct", "transitive")
             and FilterReason.DEV_DEPENDENCY not in reasons
         )
+        # Imported only from tests is not proof that production never loads it:
+        # an ORM loads its database driver from a dialect name (Sequelize,
+        # TypeORM, Knex -> pg), Next.js loads sharp, PyJWT loads cryptography.
+        # Without a test the same package is kept for review, so adding a test
+        # must not hide it. Shown for review, never dismissed.
+        tested_only = (
+            decision.test_only
+            and not decision.unreachable
+            and FilterReason.DEV_DEPENDENCY not in reasons
+        )
         if decision.unreachable and not declared_unused:
             reasons.append(FilterReason.UNREACHABLE)
-        elif decision.test_only:
-            reasons.append(FilterReason.TEST_ONLY)
+        if tested_only:
+            note = (
+                "Imported only from test code. A production dependency can still be "
+                "loaded at runtime by another library (an ORM's database driver, an image "
+                "processor, a crypto backend) without any import naming it, so it is kept "
+                "for review."
+            )
+            if note not in evidence.observations:
+                evidence.observations.insert(0, note)
         if declared_unused:
             note = (
                 "Declared as a production dependency but never imported by the project. "
@@ -462,7 +479,15 @@ def scan(
 
         # Filter 4: Community template match
         tmpl = _find_context_template(template_filter, vuln, evaluation, graph)
-        if tmpl:
+        if tmpl and tmpl.not_imported and (declared_unused or tested_only):
+            # A conditional template matches only when nothing imports the
+            # package: the case kept above because another library may load
+            # it (requests loads certifi on every HTTPS call). Its note is
+            # context for the review, not a dismissal.
+            note = f"Community template {tmpl.id}: {tmpl.reason}"
+            if note not in evidence.observations:
+                evidence.observations.append(note)
+        elif tmpl:
             reasons.append(FilterReason.COMMUNITY_TEMPLATE)
             template_id = tmpl.id
             template_reason = tmpl.reason
@@ -470,7 +495,7 @@ def scan(
         # Determine verdict
         if reasons:
             verdict = Verdict.FILTERED
-        elif declared_unused or vuln.severity in (Severity.LOW, Severity.INFO):
+        elif declared_unused or tested_only or vuln.severity in (Severity.LOW, Severity.INFO):
             verdict = Verdict.REVIEW
         else:
             verdict = Verdict.ACTION
@@ -610,6 +635,24 @@ def _locked_for_development_only(vuln: Vulnerability) -> bool:
         return False
     affected = [c for c in vuln.components if c.range_match != "not_matched"]
     return bool(affected) and all(c.lock_scope == "development" for c in affected)
+
+
+def _stale_dev_lock(vuln: Vulnerability, graph: DependencyGraph) -> bool:
+    """The lockfile marks the top-level copy dev-only, but a manifest declares
+    the package for production: the lockfile predates the manifest.
+
+    A nested copy (``node_modules/jest/node_modules/uuid``) is a different
+    install and keeps its own scope.
+    """
+    if vuln.scanner_dev_only or not graph.declared_for_production(vuln.package):
+        return False
+    top = f"node_modules/{vuln.package}"
+    return any(
+        c.range_match != "not_matched"
+        and c.location.replace("\\", "/").endswith(top)
+        and c.location.replace("\\", "/").count("node_modules/") == 1
+        for c in vuln.components
+    )
 
 
 def _import_sites(
@@ -858,9 +901,9 @@ def _find_context_template(
     first = evaluation.contexts[0].context
     if not graph.workspace_graphs:
         return templates.find_match(
-            vuln.cve, vuln.package, project=first.project, graph=graph, reachability=first.source
+            vuln.ids, vuln.package, project=first.project, graph=graph, reachability=first.source
         )
-    explicit = templates.find_match(vuln.cve, vuln.package, allow_conditional=False)
+    explicit = templates.find_match(vuln.ids, vuln.package, allow_conditional=False)
     if explicit is not None:
         return explicit
     selected = [item for item in evaluation.contexts if item.relevance != "not_declared"]
@@ -872,7 +915,7 @@ def _find_context_template(
         return None
     matches = [
         templates.find_match(
-            vuln.cve,
+            vuln.ids,
             vuln.package,
             project=item.context.project,
             graph=item.context.graph,

@@ -82,15 +82,21 @@ alerts, real ones included.
 
 ## How it works
 
-depquiet applies five deterministic filters to separate signal from noise:
+depquiet filters one kind of alert on its own: what only development pulls in. Everything
+else it keeps, and it sorts and explains it:
 
-| Filter | Filters an alert when |
+| Signal | Effect |
 |---|---|
-| **Reachability** | A transitive package that no source file imports, pulled in only by direct dependencies that no source file imports either. A *production* dependency you declare but never import is shown for review, not filtered: another library may load it at runtime |
-| **Test-only use** | The package is imported, but only from test files (`tests/`, `e2e/`, `*.test.*`, `*.spec.*`, test-runner configs), it is not run as a project command, and no application file names it |
-| **Dev dependencies** | Every known dependency path is for development, with no production parent. For npm, also when every locked copy inside the advisory's range is one the lockfile marks as development-only |
+| **Dev dependencies** | **Filtered** when every known dependency path is for development, with no production parent. For npm, also when every locked copy inside the advisory's range is one the lockfile marks as development-only (unless `package.json` declares that top-level copy for production: then the lockfile is stale) |
+| **Reachability** | Never filters. A production package that nothing imports, directly or through the production dependencies that bring it in, is shown for **review**: another library may load it at runtime |
+| **Test-only use** | Never filters. A production package imported only from test files is shown for **review**: an ORM loads its database driver from a dialect name (Sequelize, TypeORM, Knex and `pg`), Next.js loads `sharp`, PyJWT loads `cryptography`, and no import names them |
 | **EPSS scoring** | Off by default: EPSS only orders the report (known exploited first, then highest EPSS). With `--epss-threshold`, alerts scoring below it are filtered. The lookup uses the advisory's CVE alias, so it works for pip-audit, uv audit and npm audit |
-| **Community templates** | Dismiss a listed CVE only when the package and everything that brings it in are unused |
+| **Community templates** | A built-in template never dismisses on its own: when it matches, its note is added to the review. Custom templates without conditions, `.depquiet-ignore` and policy rules are your explicit dismissals |
+
+**Bundled frontends:** like `npm audit --omit=dev`, depquiet treats `devDependencies` as
+development-only. If your bundler (Vite, webpack, esbuild) ships a package listed there in
+your production JavaScript, move it to `dependencies` or add it to `always_flag`, or depquiet
+will filter its alerts.
 
 See [benchmarks](#benchmarks) for measured results on a real project.
 
@@ -887,16 +893,16 @@ depquiet scan statistics
 
 Total vulnerabilities: 29
 Total dependencies:   14
-Filter rate:          44.8%
+Filter rate:          27.6%
 
 Verdicts:
   🔴 ACTION       13 ( 44.8%) █████████░░░░░░░░░░░
-  🟡 REVIEW        3 ( 10.3%) ██░░░░░░░░░░░░░░░░░░
-  🟢 FILTERED     13 ( 44.8%) █████████░░░░░░░░░░░
+  🟡 REVIEW        8 ( 27.6%) ██████░░░░░░░░░░░░░░
+  🟢 FILTERED      8 ( 27.6%) ██████░░░░░░░░░░░░░░
 
 Filter reasons:
-  unreachable                 13 ( 61.9%)
-  dev dependency               8 ( 38.1%)
+  dev dependency               8 ( 50.0%)
+  unreachable                  8 ( 50.0%)
 ...
 ```
 
@@ -1128,11 +1134,11 @@ cause the scanning step to fail; they do not run another scan.
 
 depquiet ships with **20 built-in templates** in [nuclei-style](https://github.com/projectdiscovery/nuclei-templates) YAML.
 
-A built-in template dismisses an alert only when depquiet can read the project source and
-finds no import of the package, or of any direct dependency that brings it in. That is the
-only thing it checks: it does not verify how a library is used, and absence of a function
-name in your code does not prove an imported library never calls it. Anything it cannot
-verify keeps the alert. Custom templates without conditions are explicit unconditional
+A built-in template matches only when depquiet can read the project source and finds no
+import of the package, or of any direct dependency that brings it in. Since 0.43 a match no
+longer dismisses the alert: that is exactly the case where another library may load the
+package (requests loads `certifi` on every HTTPS call), so the template's note is added to
+the review instead. Custom templates without conditions are explicit unconditional
 dismissal rules, so add `not-imported` conditions when that is not your intention.
 
 Earlier versions gave each template a technical justification ("mitigated by Express 4.x
@@ -1290,22 +1296,23 @@ app pinned to 2022 versions. npm projects are audited with `npm audit`, Python p
 |---|---|---:|---:|---:|---:|
 | [mealie-recipes/mealie](https://github.com/mealie-recipes/mealie) | pip-audit | 229 | 200 | 31 | 170 |
 | [hagopj13/node-express-boilerplate](https://github.com/hagopj13/node-express-boilerplate) | npm audit | 163 | 115 | 29 | 86 |
-| [gothinkster/node-express-realworld-example-app](https://github.com/gothinkster/node-express-realworld-example-app) | npm audit | 95 | 59 | 74 | 16 |
-| Express app, 2022 versions | npm audit | 29 | 26 | 13 | 13 |
+| [gothinkster/node-express-realworld-example-app](https://github.com/gothinkster/node-express-realworld-example-app) | npm audit | 95 | 59 | 41 | 18 |
+| Express app, 2022 versions | npm audit | 29 | 26 | 8 | 18 |
 | [paperless-ngx/paperless-ngx](https://github.com/paperless-ngx/paperless-ngx) | pip-audit | 17 | 17 | 0 | 17 |
 | [sahat/hackathon-starter](https://github.com/sahat/hackathon-starter) | npm audit | 2 | 2 | 2 | 0 |
-| **Total** | | **535** | **419 (78%)** | **149 (28%)** | **302** |
+| **Total** | | **535** | **419 (78%)** | **111 (21%)** | **309** |
 
-0.27 dismissed 302 alerts without evidence. It counted any package the app didn't import
+0.27 dismissed 309 alerts without evidence. It counted any package the app didn't import
 itself as unreachable, which is true of nearly every transitive package, and it compared
 Python distribution names literally, so `Django`, `PyYAML` or `llama-index-core` never matched
 `import django`, `import yaml` or `import llama_index`.
 
-What depquiet filters now is almost entirely packages that only development tooling pulls in
-(jest, eslint, nx, nodemon, pre-commit, mkdocs). On the npm projects those are alerts
-`npm audit --omit=dev` also removes, with one exception: the realworld app declares `axios` under
-`dependencies` but imports it only from its end-to-end tests, so 33 axios and form-data
-alerts that `--omit=dev` keeps are filtered as test-only. On these projects nearly every
+What depquiet filters now is packages that only development tooling pulls in (jest,
+eslint, nx, nodemon, pre-commit, mkdocs). On the npm projects those are the alerts
+`npm audit --omit=dev` also removes. The realworld app declares `axios` under `dependencies`
+but imports it only from its end-to-end tests; until 0.43 its 33 axios and form-data alerts
+were filtered as test-only. They are now kept for review, because depquiet cannot tell that
+case from a database driver a library loads at runtime. On these projects nearly every
 other production dependency is in use, so the useful output is less the filtering than the trace: each kept
 alert names the direct dependency it comes through and where the app uses it.
 
@@ -1397,6 +1404,6 @@ MIT
 
 ## Contributing
 
-depquiet is designed to grow through community templates. Every template you contribute helps thousands of developers skip a false positive.
+depquiet is designed to grow through community templates. Every template you contribute adds context that helps developers decide on an alert faster.
 
 See [CONTRIBUTING.md](https://github.com/samuelrojas-dev/depquiet/blob/main/CONTRIBUTING.md) for guidelines.
