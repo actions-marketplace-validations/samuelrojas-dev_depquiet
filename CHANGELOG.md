@@ -7,6 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- The README's headline table said it was measured with depquiet 0.40.0; the study that
+  produced it records 0.39.0 (0.40.0 was only the version bumped in the same commit).
+
+### Added
+- `benchmarks/fixcheck_study/remeasure.sh`: re-measures the headline table with the latest
+  release in a disposable VM. One pip-audit run per project, given to both 0.39.0 and the
+  latest release, so differences come from depquiet and not from new advisories.
+
+## [0.44.1] - 2026-11-13
+
+### Fixed
+Found by using depquiet as a first-time user: PyPI page, quick start in a clean
+environment, the Action docs.
+- README "Direct vs. transitive" still said an unused direct dependency, and a
+  transitive one whose parents are unused, are **filtered**. Both have gone to review
+  since 0.41; the section now says development-only paths are the only rule that filters.
+- `depquiet explain` said an advisory's EPSS score was "not looked up" because it is
+  reported by a PYSEC or GHSA id. Since 0.42 the lookup uses the CVE alias, so a missing
+  score means the lookup was skipped or failed, and that is what it says now.
+- `--check-fixes` on a project without `uv.lock` said "needs uv on PATH" when uv was
+  missing too; it now says first that it works on projects with a `uv.lock`.
+- The PyPI summary ("Tells you which CVEs actually matter") promised more than depquiet
+  checks; it now matches the repository description.
+- Nine README links to `docs/` and `benchmarks/` were relative and broken on PyPI; they
+  point to GitHub now. The Action's outputs are documented, with an example.
+
+### Fixed
+- `SECURITY.md` said depquiet "never runs code from scanned projects", that its only
+  network call was EPSS, and that 0.1.x was the supported version. None of that was true:
+  some modes start pip-audit, uv or npm, which can run build code or install scripts, and
+  KEV, OSV.dev and PyPI are also reached. It now lists, per mode, what runs and whether it
+  can execute project code, what is sent where, which project files can dismiss alerts,
+  and that only the latest release gets fixes.
+
+## [0.44.0] - 2026-11-13
+
+### Added
+- **`--fix-plan` plans fixes hidden by your `exclude-newer` cooldown.** Instead of
+  switching the cooldown off, it writes an `exclude-newer-package` cut-off for that
+  package only, one second after the fix was published, verified with uv's resolver:
+  the package moves to the fix and no further, and the rest of the project keeps the
+  cooldown. Existing exemptions are kept; the entry goes to `pyproject.toml` or `uv.toml`,
+  wherever `exclude-newer` is set. This is the narrow exemption uv's maintainers suggest
+  instead of a blanket bypass (astral-sh/uv#18995). Verified end to end with uv 0.11.32.
+- **Every scan warns about stale `exclude-newer-package` entries**: a per-package date
+  older than the project's own cut-off holds that package on old releases (with a
+  rolling `"7 days"` cooldown, uv moved requests back from 2.34.2 to 2.32.4 in a real
+  run). With a rolling cooldown, `--fix-plan` prints the date after which to remove the
+  entry it writes (`remove_after` in JSON). Package names with a dot are quoted and
+  Windows line endings are kept when the entry is written.
+
 ## [0.43.0] - 2026-11-13
 
 ### Changed
@@ -1016,7 +1068,9 @@ requirements.txt and npm projects:
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.43.0...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.44.1...HEAD
+[0.44.1]: https://github.com/samuelrojas-dev/depquiet/compare/v0.44.0...v0.44.1
+[0.44.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.43.0...v0.44.0
 [0.43.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.42.2...v0.43.0
 [0.42.2]: https://github.com/samuelrojas-dev/depquiet/compare/v0.42.1...v0.42.2
 [0.42.1]: https://github.com/samuelrojas-dev/depquiet/compare/v0.42.0...v0.42.1
