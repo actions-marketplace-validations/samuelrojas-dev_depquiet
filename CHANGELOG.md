@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+Found by using `fix-pr` as a new user, on a real repository and real uv:
+- On a project without `uv.lock`, the Action's fix pull request step said "no fix that
+  uv's resolver confirms", which reads as "nothing to fix". It now warns that `fix-pr`
+  works on uv projects.
+- The README's opening never mentioned `--fix-plan` or `fix-pr`; it does now. The
+  `fix-pr` section says to set `fail-on-action: "false"` (otherwise the job fails after
+  opening the pull request) and that a closed pull request is opened again on the next
+  run. `depquiet --help` lists `--fix-plan --apply`.
+
 ## [0.45.0] - 2026-11-14
 
 ### Added

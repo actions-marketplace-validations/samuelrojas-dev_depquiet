@@ -35,6 +35,13 @@ projects, uv's resolver rejects the nearest fix for 502 of 991 kept alerts (51%)
 the 17 projects with alerts; in 81% of the blocked upgrades, the project's own pin is what
 is in the way. See [`--check-fixes`](#can-the-fix-be-installed---check-fixes).
 
+For uv projects depquiet goes one step further: [`--fix-plan`](#one-verified-change-for-all-the-fixes---fix-plan)
+computes the requirement changes that let the fixes install together and verifies them
+with uv's resolver, and the GitHub Action's
+[`fix-pr`](#one-pull-request-with-every-fix-that-installs-fix-pr) opens one pull request
+with them. That includes the case Dependabot reports as `update_not_possible`: a parent
+package that must move before a vulnerable dependency can.
+
 On npm, `npm audit --omit=dev` already does this: depquiet matches it row for row on the
 projects measured, and adds which direct dependency brings each kept alert in.
 
@@ -659,6 +666,12 @@ What to know before you turn it on:
   holds a token with write access.
 - depquiet checks that the versions resolve, not that your code works with them. Fixes it
   cannot verify are listed in the pull request as not included, with the reason.
+- Set `fail-on-action: "false"` in this workflow, as above: otherwise the job shows as
+  failed even after it opens the pull request, because the alerts are still on your
+  branch until you merge it.
+- Each run updates the open pull request. If you close it without merging, the next run
+  opens it again while the fixes remain available; unlike Dependabot, depquiet does not
+  remember a closed one. Add the advisories to `.depquiet-ignore`, or turn `fix-pr` off.
 
 #### Fixes hidden by your cooldown (`exclude-newer`)
 

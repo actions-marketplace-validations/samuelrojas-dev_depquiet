@@ -482,7 +482,11 @@ runs:
       run: |
         set -euo pipefail
         if [ ! -s "$FIX_REPORT" ]; then
-          echo "depquiet: no fix that uv's resolver confirms; no pull request."
+          if [ ! -f "$INPUT_PATH/uv.lock" ]; then
+            echo "::warning::depquiet: fix-pr works on uv projects, and $INPUT_PATH has no uv.lock; no pull request."
+          else
+            echo "depquiet: no fix that uv's resolver confirms installs; no pull request."
+          fi
           exit 0
         fi
         if [ "${GITHUB_REF_TYPE:-}" != "branch" ] || [ -z "${GITHUB_REF_NAME:-}" ]; then
