@@ -455,6 +455,7 @@ def main(argv: list[str] | None = None) -> int:
   depquiet --json                   machine-readable report
   depquiet --check-fixes            uv: can each fix be installed, and what blocks it
   depquiet --fix-plan plan.diff     uv: one verified pyproject.toml change for all fixes
+  depquiet --fix-plan --apply       uv: apply that change and relock (restored on failure)
   depquiet --fail-on high           fail CI on high or critical ACTION alerts
 
 other commands:

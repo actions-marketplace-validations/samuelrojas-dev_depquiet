@@ -161,3 +161,20 @@ def test_run_step_applies_the_plan_on_a_schedule(shell_env) -> None:  # noqa: F8
 def test_fix_pr_step_is_guarded() -> None:
     block, _ = _step("Open fix pull request")
     assert "inputs.fix-pr == 'true'" in block and "steps.run.outputs.fix_report != ''" in block
+
+
+def test_project_without_uv_lock_says_fix_pr_needs_uv(repo) -> None:
+    _, project, remote, report, shell = repo
+    report.write_text("")
+    (project / "uv.lock").unlink()
+    result = _run_step("Open fix pull request", shell)
+    assert result.returncode == 0
+    assert "fix-pr works on uv projects" in result.stdout
+    assert _git(remote, "branch", "--list") == ""
+
+
+def test_uv_project_with_nothing_to_fix_says_so(repo) -> None:
+    _, _, _, report, shell = repo
+    report.write_text("")
+    result = _run_step("Open fix pull request", shell)
+    assert "no fix that uv's resolver confirms installs" in result.stdout
