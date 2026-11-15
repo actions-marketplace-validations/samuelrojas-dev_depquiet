@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Releasing is one step: merging the release pull request. The release workflow tags the
+  merged commit when `pyproject.toml` carries a version that has no tag yet (and
+  `__init__.py` and the changelog agree), then runs the usual verification and publishes.
+  A tag pushed by hand still works. CI now validates the workflow files with actionlint.
+
 ## [0.45.1] - 2026-11-14
 
 ### Fixed
