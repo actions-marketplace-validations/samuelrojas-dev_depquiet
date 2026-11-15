@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -28,6 +29,18 @@ def _version(exe: str) -> str:
 
 def _checkout(repo: str, commit: str, root: Path) -> Path:
     dest = root / "repos" / repo.replace("/", "__")
+    if dest.exists():
+        # A clone from an earlier run may predate the commit, or be half done.
+        git = ["git", "-C", str(dest)]
+        found = subprocess.run(
+            [*git, "cat-file", "-e", f"{commit}^{{commit}}"],
+            stderr=subprocess.DEVNULL,
+            timeout=60,
+        )
+        if found.returncode != 0:
+            fetched = subprocess.run([*git, "fetch", "-q", "origin", commit], timeout=1800)
+            if fetched.returncode != 0:
+                shutil.rmtree(dest)
     if not dest.exists():
         subprocess.run(
             [
