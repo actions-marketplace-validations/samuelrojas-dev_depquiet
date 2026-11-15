@@ -52,7 +52,7 @@ off every request depquiet makes itself:
 |---|---|---|
 | `api.first.org` (EPSS) | by default | CVE ids |
 | `www.cisa.gov` (KEV catalog) | `--kev` | nothing (the catalog is downloaded) |
-| `api.osv.dev` | lockfiles that depquiet looks up itself | package names and versions |
+| `api.osv.dev` | lockfiles that depquiet looks up itself; advisories reported without a CVE id (npm audit) | package names and versions; advisory ids |
 | `pypi.org` | `--license` | package names and versions |
 
 The scanners depquiet starts (pip-audit, npm, uv, Trivy) reach their own registries and

@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
+from depquiet.cve_aliases import resolve_cve_aliases
 from depquiet.depgraph import DependencyGraph
 from depquiet.filters.devdep import DevDepFilter
 from depquiet.filters.epss import EpssFilter
@@ -356,6 +357,11 @@ def scan(
     template_filter = TemplateFilter(template_dirs=template_dirs)
 
     # Step 3: Batch EPSS lookup (one API call for all CVEs)
+    # npm audit names advisories by GHSA id only: find their CVE ids first, or
+    # EPSS and KEV never apply to npm projects.
+    cve_lookups_failed = 0
+    if not skip_epss:
+        cve_lookups_failed = resolve_cve_aliases(vulns)
     if not skip_epss:
         all_cves = [v.cve_id for v in vulns if v.cve_id]
         epss_filter.lookup(all_cves)
@@ -564,6 +570,7 @@ def scan(
         total_dependencies=len(set(v.package for v in vulns)),
         results=results,
         note=scan_note,
+        cve_lookups_failed=cve_lookups_failed,
     )
 
 
