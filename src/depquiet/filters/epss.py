@@ -40,6 +40,9 @@ class EpssFilter:
         self._threshold = threshold
         self._cache: dict[str, tuple[float, float]] = {}  # cve -> (score, percentile)
         self._cache_dir = cache_dir
+        # CVEs whose lookup failed (network error or an unreadable answer). The
+        # caller reports them: a report silently missing EPSS reads as complete.
+        self.failed = 0
 
     def lookup(self, cves: list[str]) -> dict[str, tuple[float, float]]:
         """Batch-lookup EPSS scores for a list of CVEs.
@@ -73,15 +76,25 @@ class EpssFilter:
             req = urllib.request.Request(url, headers={"Accept": "application/json"})
             with urllib.request.urlopen(req, timeout=10) as resp:
                 data = json.loads(resp.read())
-
-            for entry in data.get("data", []):
-                cve_id = entry.get("cve", "")
+        except (urllib.error.URLError, ValueError, OSError):
+            # Network error: nothing is filtered (conservative), and the caller says so.
+            self.failed += len(cves)
+            return
+        entries = data.get("data") if isinstance(data, dict) else None
+        if not isinstance(entries, list):
+            self.failed += len(cves)
+            return
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            try:
                 score = float(entry.get("epss", 0))
                 percentile = float(entry.get("percentile", 0))
+            except (TypeError, ValueError):
+                continue  # one unreadable entry: that CVE just has no score
+            cve_id = entry.get("cve")
+            if isinstance(cve_id, str) and 0.0 <= score <= 1.0:
                 self._cache[cve_id] = (score, percentile)
-        except (urllib.error.URLError, json.JSONDecodeError, ValueError, OSError):
-            # Network error — don't filter (conservative)
-            pass
 
     def check(self, vuln: Vulnerability) -> bool:
         """Return True if the CVE has a low EPSS score (safe to deprioritize).

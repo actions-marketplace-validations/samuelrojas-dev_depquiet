@@ -407,7 +407,7 @@ def find_cve_in_json(data: dict[str, Any], cve_id: str) -> TriageResult | None:
                 component_notes=list(raw_notes),
                 component_resolution_complete=resolution_complete,
                 is_dev=entry.get("is_dev", "dev_dependency" in entry.get("reasons", [])),
-                is_direct=entry.get("is_direct", True),
+                is_direct=entry.get("is_direct") is not False,
             )
             reasons = [
                 FilterReason(r)

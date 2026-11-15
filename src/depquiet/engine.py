@@ -571,6 +571,7 @@ def scan(
         results=results,
         note=scan_note,
         cve_lookups_failed=cve_lookups_failed,
+        epss_lookups_failed=epss_filter.failed,
     )
 
 
@@ -599,7 +600,7 @@ def _run_scanner(
                 note = " ".join(part for part in (note, adverse_note(report)) if part)
             return parse(report, project), str(pm), note
         except ScanError as e:
-            first = f"{label}: {e}"
+            first = _sentence(f"{label}: {e}")
         # A uv project often has uv and no pip-audit: uv audit reads the same lock.
         if (
             pm == "pip"
@@ -613,7 +614,7 @@ def _run_scanner(
                 note = " ".join(part for part in (note, adverse_note(report)) if part)
                 return UvAuditParser.parse(report, project), "uv", note
             except ScanError as e:
-                first = f"{first} uv audit: {e}"
+                first = _sentence(f"{first} uv audit: {e}")
         if offline or not OsvScanner.detect(project):
             hint = " OSV.dev fallback is disabled by --offline." if offline else ""
             raise ScanError(
@@ -627,6 +628,12 @@ def _run_scanner(
     if pm == "osv":
         return OsvScanner.scan_checked(project), "osv", ""
     raise ScanError(f"no scanner available for {pm or 'this project'}.")
+
+
+def _sentence(text: str) -> str:
+    """``text`` ending with a period, so the next sentence does not run into it."""
+    text = text.rstrip()
+    return text if text.endswith((".", "!", "?")) else text + "."
 
 
 def _locked_for_development_only(vuln: Vulnerability) -> bool:
