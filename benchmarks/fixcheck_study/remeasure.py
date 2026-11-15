@@ -55,6 +55,10 @@ def _checkout(repo: str, commit: str, root: Path) -> Path:
             check=True,
             timeout=1800,
         )
+    # A git killed mid-run (a VM soft lockup, Ctrl+C) leaves index.lock behind,
+    # and every later checkout fails with exit 128. Nothing else uses these
+    # clones, so a leftover lock is stale.
+    (dest / ".git" / "index.lock").unlink(missing_ok=True)
     subprocess.run(["git", "-C", str(dest), "checkout", "-q", commit], check=True, timeout=1800)
     return dest
 
