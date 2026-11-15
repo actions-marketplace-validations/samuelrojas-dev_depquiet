@@ -36,6 +36,7 @@ trusted code.
 from __future__ import annotations
 
 import difflib
+import os
 import re
 import shutil
 import subprocess
@@ -111,6 +112,7 @@ class FixPlan:
     items: list[PlanItem] = field(default_factory=list)
     diff: str = ""
     note: str = ""
+    tool: str = "uv"  # the resolver that verified it: "uv" or "poetry"
 
     @property
     def included(self) -> list[PlanItem]:
@@ -122,6 +124,13 @@ class FixPlan:
 
     @property
     def command(self) -> str:
+        if self.tool == "poetry":
+            names: list[str] = []
+            for item in self.included:
+                for name in [item.package, *[s.split("==")[0] for s in item.also_upgrade]]:
+                    if name not in names:
+                        names.append(name)
+            return "poetry update --lock " + " ".join(names) if names else ""
         specs: list[str] = []
         for item in self.included:
             specs.append(f"{item.package}=={item.version}")
@@ -131,6 +140,7 @@ class FixPlan:
     def to_dict(self) -> dict[str, Any]:
         return {
             "status": self.status,
+            "tool": self.tool,
             "command": self.command,
             "diff": self.diff,
             "note": self.note,
@@ -281,9 +291,49 @@ def _edits_for(project: Path, package: str, version: str) -> list[PlanEdit]:
     return edits
 
 
+def _set_poetry_constraint(text: str, package: str, old: str, new: str) -> str:
+    """Replace one package's constraint in the ``[tool.poetry...]`` tables.
+
+    Only on that package's own line: another package pinned to the same
+    version string must not change with it.
+    """
+    key = _pep503(package)
+    entry = re.compile(r"^\s*(?P<q>[\"']?)(?P<name>[A-Za-z0-9_.-]+)(?P=q)\s*=\s*(?P<value>.*)$")
+    in_poetry = False
+    lines = text.splitlines(keepends=True)
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith("["):
+            in_poetry = stripped.lstrip("[").strip().startswith("tool.poetry")
+            continue
+        match = entry.match(line.rstrip("\r\n")) if in_poetry else None
+        if match is None or _pep503(match.group("name")) != key:
+            continue
+        for quote in ('"', "'"):
+            if f"{quote}{old}{quote}" in match.group("value"):
+                value = match.group("value").replace(
+                    f"{quote}{old}{quote}", f"{quote}{new}{quote}", 1
+                )
+                lines[i] = line[: match.start("value")] + value + line[len(line.rstrip("\r\n")) :]
+                break
+    return "".join(lines)
+
+
+def unique_edits(edits: list[PlanEdit]) -> list[PlanEdit]:
+    """Edits without repeats: two fixes can ask for the same change to a shared holder."""
+    seen: list[PlanEdit] = []
+    for edit in edits:
+        key = (edit.file, edit.package, edit.old, edit.kind)
+        if all((e.file, e.package, e.old, e.kind) != key for e in seen):
+            seen.append(edit)
+    return seen
+
+
 def _edit_text(text: str, edit: PlanEdit) -> str:
     if edit.kind == "cooldown":
         return _set_cooldown(text, edit.file, edit.package, edit.new)
+    if edit.kind == "poetry":
+        return _set_poetry_constraint(text, edit.package, edit.old, edit.new)
     for quote in ('"', "'"):
         text = text.replace(f"{quote}{edit.old}{quote}", f"{quote}{edit.new}{quote}")
     return text
@@ -796,27 +846,34 @@ def apply_fix_plan(plan: FixPlan, project: Path, *, timeout: int = 900) -> str:
     """Apply a verified plan to the project itself: edit the files, then relock.
 
     Returns "" on success, or what went wrong. On any failure every file is
-    put back exactly as it was, ``uv.lock`` included, so a failed apply never
+    put back exactly as it was, the lock file included, so a failed apply never
     leaves the project half-changed.
     """
-    executable = shutil.which("uv")
+    tool = plan.tool
+    lockfile = "poetry.lock" if tool == "poetry" else "uv.lock"
+    executable = shutil.which(tool)
     if executable is None:
-        return "uv is not on PATH."
+        return f"{tool} is not on PATH."
     if not plan.included:
         return "the plan has no fix to apply."
     edits = [e for item in plan.included for e in item.edits]
-    touched = sorted({e.file for e in edits} | {"uv.lock"})
+    seen = unique_edits(edits)
+    touched = sorted({e.file for e in seen} | {lockfile})
     before = {name: (project / name).read_bytes() for name in touched if (project / name).is_file()}
 
     def restore() -> None:
         for name, data in before.items():
             (project / name).write_bytes(data)
 
+    env = dict(os.environ)
+    if tool == "poetry":
+        # Only the lock file changes: never create or touch a virtualenv.
+        env.update(POETRY_VIRTUALENVS_CREATE="false", NO_COLOR="1")
+        cmd = [executable, *plan.command.split()[1:], "--no-interaction", "--no-ansi"]
+    else:
+        cmd = [executable, "lock", *plan.command.split()[2:]]
     try:
-        _apply(project, edits)
-        cmd = [executable, "lock"]
-        for spec in plan.command.split()[2:]:
-            cmd.append(spec)
+        _apply(project, seen)
         r = subprocess.run(
             cmd,
             cwd=project,
@@ -825,17 +882,18 @@ def apply_fix_plan(plan: FixPlan, project: Path, *, timeout: int = 900) -> str:
             encoding="utf-8",
             errors="replace",
             timeout=timeout,
+            env=env,
         )
     except subprocess.TimeoutExpired:
         restore()
-        return f"uv lock timed out after {timeout} s; nothing was changed."
+        return f"{tool} timed out after {timeout} s; nothing was changed."
     except OSError as e:
         restore()
         return f"could not apply the plan ({e}); nothing was changed."
     if r.returncode != 0:
         restore()
         tail = " ".join((r.stderr or r.stdout).split())[-300:]
-        return f"uv lock failed, nothing was changed: {tail}"
+        return f"{tool} lock failed, nothing was changed: {tail}"
     return ""
 
 
@@ -868,12 +926,17 @@ def fix_plan_markdown(plan: FixPlan, result: ScanResult, version: str = "") -> s
             if r.vuln.cve not in known:
                 known.append(r.vuln.cve)
     n = len(plan.included)
+    resolver = "Poetry's" if plan.tool == "poetry" else "uv's"
+    files = (
+        "`pyproject.toml` requirements and `poetry.lock`"
+        if plan.tool == "poetry"
+        else "`pyproject.toml`/`uv.toml` requirements and `uv.lock`"
+    )
     confirmed = "this fix installs" if n == 1 else f"these {n} fixes install together"
     lines = [
         "## Security fixes verified by depquiet",
         "",
-        f"uv's resolver confirmed that {confirmed}. This pull request changes only "
-        "`pyproject.toml`/`uv.toml` requirements and `uv.lock`.",
+        f"{resolver} resolver confirmed that {confirmed}. This pull request changes only {files}.",
         "",
         "| Package | From | To | Advisories | How |",
         "|---|---|---|---|---|",
@@ -940,6 +1003,7 @@ def print_fix_plan(plan: FixPlan, file: Any) -> None:
             if plan.status == "verified"
             else (f"{len(plan.included)} of {len(plan.items)} fixes resolve together")
         )
-        print(f"\n   Verified with uv's resolver: {verdict}.", file=file)
+        resolver = "Poetry's" if plan.tool == "poetry" else "uv's"
+        print(f"\n   Verified with {resolver} resolver: {verdict}.", file=file)
         print(f"   Then run: {plan.command}", file=file)
         print(f"   {plan.note}", file=file)

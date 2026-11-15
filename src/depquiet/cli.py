@@ -48,6 +48,7 @@ from depquiet.kev import KevCatalog, apply_kev, fetch_kev_catalog, load_kev_from
 from depquiet.license import LicenseReport, print_license_report, scan_licenses
 from depquiet.models import ScanResult
 from depquiet.output import print_scan_result
+from depquiet.poetryplan import build_poetry_plan, is_poetry_project
 from depquiet.policy import load_policy
 from depquiet.sarif import write_sarif
 from depquiet.sbom import write_sbom
@@ -454,8 +455,8 @@ def main(argv: list[str] | None = None) -> int:
   depquiet                          scan the project in this directory
   depquiet --json                   machine-readable report
   depquiet --check-fixes            uv: can each fix be installed, and what blocks it
-  depquiet --fix-plan plan.diff     uv: one verified pyproject.toml change for all fixes
-  depquiet --fix-plan --apply       uv: apply that change and relock (restored on failure)
+  depquiet --fix-plan plan.diff     uv, Poetry: one verified pyproject.toml change for all fixes
+  depquiet --fix-plan --apply       uv, Poetry: apply that change and relock (restored on failure)
   depquiet --fail-on high           fail CI on high or critical ACTION alerts
 
 other commands:
@@ -842,6 +843,16 @@ Python projects need pip-audit (pip install pip-audit) or uv; npm projects need 
         flag = "--fix-plan" if args.fix_plan is not None else "--check-fixes"
         if merged.offline:
             print(f"depquiet: {flag} needs network access; skipped (--offline).", file=sys.stderr)
+        elif is_poetry_project(args.path):
+            # Poetry has no per-fix dry run to report on: the plan is the check.
+            if args.fix_plan is not None:
+                fix_plan = build_poetry_plan(result, args.path)
+            else:
+                print(
+                    "depquiet: --check-fixes works on uv projects; for a Poetry project use "
+                    "--fix-plan, which verifies the fixes with Poetry's resolver.",
+                    file=sys.stderr,
+                )
         else:
             checks, check_note = check_fixes(result, args.path)
             if check_note:
@@ -876,12 +887,13 @@ Python projects need pip-audit (pip install pip-audit) or uv; npm projects need 
                 fix_plan_markdown(fix_plan, result, __version__), encoding="utf-8"
             )
         if args.apply and fix_plan.included:
+            lockfile = "poetry.lock" if fix_plan.tool == "poetry" else "uv.lock"
             problem = apply_fix_plan(fix_plan, args.path)
             if problem:
                 print(f"Error: --apply: {problem}", file=sys.stderr)
                 return 2
             print(
-                "   Applied: the files above are edited and uv.lock is updated. "
+                f"   Applied: the files above are edited and {lockfile} is updated. "
                 "Run your tests before you commit.",
                 file=sys.stderr,
             )

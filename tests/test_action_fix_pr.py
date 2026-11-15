@@ -169,7 +169,7 @@ def test_project_without_uv_lock_says_fix_pr_needs_uv(repo) -> None:
     (project / "uv.lock").unlink()
     result = _run_step("Open fix pull request", shell)
     assert result.returncode == 0
-    assert "fix-pr works on uv projects" in result.stdout
+    assert "fix-pr works on uv and Poetry projects" in result.stdout
     assert _git(remote, "branch", "--list") == ""
 
 
@@ -177,4 +177,21 @@ def test_uv_project_with_nothing_to_fix_says_so(repo) -> None:
     _, _, _, report, shell = repo
     report.write_text("")
     result = _run_step("Open fix pull request", shell)
-    assert "no fix that uv's resolver confirms installs" in result.stdout
+    assert "no fix that the resolver confirms installs" in result.stdout
+
+
+def test_poetry_project_commits_poetry_lock(repo) -> None:
+    work, project, remote, _, shell = repo
+    (project / "uv.lock").unlink()
+    (project / "poetry.lock").write_text('name = "requests"\nversion = "2.31.0"\n')
+    _git(work, "add", "-A")
+    _git(work, "commit", "-q", "-m", "poetry project")
+    (project / "pyproject.toml").write_text('dependencies = ["requests==2.33.0"]\n')
+    (project / "poetry.lock").write_text('name = "requests"\nversion = "2.33.0"\n')
+    result = _run_step("Open fix pull request", shell)
+    assert result.returncode == 0, result.stderr
+    pushed = _git(remote, "show", "--name-only", "--format=%s", "depquiet/security-fixes")
+    assert sorted(pushed.splitlines()[2:]) == [
+        "apps/client portal/poetry.lock",
+        "apps/client portal/pyproject.toml",
+    ]
