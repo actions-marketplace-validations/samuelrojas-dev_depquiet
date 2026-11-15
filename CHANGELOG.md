@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.45.2] - 2026-11-14
+
 ### Changed
 - Releasing is one step: merging the release pull request. The release workflow tags the
   merged commit when `pyproject.toml` carries a version that has no tag yet (and
@@ -1110,7 +1112,8 @@ requirements.txt and npm projects:
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.45.1...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.45.2...HEAD
+[0.45.2]: https://github.com/samuelrojas-dev/depquiet/compare/v0.45.1...v0.45.2
 [0.45.1]: https://github.com/samuelrojas-dev/depquiet/compare/v0.45.0...v0.45.1
 [0.45.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.44.1...v0.45.0
 [0.44.1]: https://github.com/samuelrojas-dev/depquiet/compare/v0.44.0...v0.44.1
