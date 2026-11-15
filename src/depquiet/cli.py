@@ -35,6 +35,9 @@ from depquiet.finding_identity import parse_report, validate_project_id
 from depquiet.fix import apply_fixes, print_fix_report
 from depquiet.fixcheck import check_fixes
 from depquiet.fixplan import (
+    UNSUPPORTED_NOTE as FIX_PLAN_UNSUPPORTED,
+)
+from depquiet.fixplan import (
     FixPlan,
     apply_fix_plan,
     build_fix_plan,
@@ -670,6 +673,15 @@ Python projects need pip-audit (pip install pip-audit) or uv; npm projects need 
 
     args = parser.parse_args(argv)
 
+    # Flag combinations that cannot work are refused before any scan runs.
+    for flag, given in (("--apply", args.apply), ("--fix-plan-report", args.fix_plan_report)):
+        if given and args.fix_plan is None:
+            print(f"Error: {flag} needs --fix-plan.", file=sys.stderr)
+            return 2
+    if not args.path.exists():
+        print(f"Error: --path {args.path}: no such directory.", file=sys.stderr)
+        return 2
+
     # Load project config file
     try:
         config = load_config(args.path, config_path=args.config)
@@ -769,11 +781,16 @@ Python projects need pip-audit (pip install pip-audit) or uv; npm projects need 
         print(f"depquiet: nothing scanned: {result.note}", file=sys.stderr)
         return 2
 
+    # Notes about the scan are printed after the report, so the report's
+    # header comes first: notices to stdout (text output only), warnings to
+    # stderr (seen with --json too). Errors that stop the run print at once.
+    notices: list[str] = []
+    warnings: list[str] = []
+
     # Apply suppressions (from CLI, config, or project default)
     ignore_file = load_ignore(args.path, ignore_path=merged.ignore)
     if ignore_file is not None:
         apply_ignores(result, ignore_file)
-        print_ignore_warnings(ignore_file)
 
     # Apply baseline — demote known findings to FILTERED
     if merged.baseline:
@@ -783,11 +800,10 @@ Python projects need pip-audit (pip install pip-audit) or uv; npm projects need 
         except (OSError, ValueError, TypeError) as exc:
             print(f"Error: cannot apply baseline: {exc}", file=sys.stderr)
             return 2
-        if not args.json_output:
-            print(
-                f"\n📊 Baseline: {bl.known_findings} known findings suppressed, "
-                f"{bl.new_findings} new findings remain\n"
-            )
+        notices.append(
+            f"📊 Baseline: {bl.known_findings} known findings suppressed, "
+            f"{bl.new_findings} new findings remain"
+        )
 
     # Apply KEV escalation — auto-escalate actively exploited CVEs
     if merged.kev or merged.kev_file:
@@ -802,61 +818,67 @@ Python projects need pip-audit (pip install pip-audit) or uv; npm projects need 
             kev_catalog = fetch_kev_catalog(offline=merged.offline)
         if kev_catalog is not None:
             kev_result = apply_kev(result, kev_catalog)
-            if not args.json_output:
-                parts = [f"🛡️  KEV: {kev_result.kev_matches} of {kev_result.total_checked}"]
-                parts[0] += " CVEs on the CISA KEV catalog"
-                if kev_result.escalated > 0:
-                    parts.append(f"{kev_result.escalated} escalated to ACTION")
-                print("\n" + " — ".join(parts) + "\n")
+            parts = [f"🛡️  KEV: {kev_result.kev_matches} of {kev_result.total_checked}"]
+            parts[0] += " CVEs on the CISA KEV catalog"
+            if kev_result.escalated > 0:
+                parts.append(f"{kev_result.escalated} escalated to ACTION")
+            notices.append(" — ".join(parts))
             if kev_result.unchecked:
-                # stderr, so --json users see it too
-                print(
-                    f"⚠️  KEV: {kev_result.unchecked} advisories have no CVE id, and KEV "
-                    "lists CVE ids only: they were not checked against it.",
-                    file=sys.stderr,
+                n = kev_result.unchecked
+                one = n == 1
+                warnings.append(
+                    f"⚠️  KEV: {n} {_plural(n, 'advisory')} {'has' if one else 'have'} no CVE id, "
+                    f"and KEV lists CVE ids only: {'it was' if one else 'they were'} not checked "
+                    "against it."
                 )
         else:
-            # stderr, so --json users see that KEV was not checked
             why = "offline with no cache" if merged.offline else "download failed, no cache"
-            print(f"⚠️  KEV catalog unavailable ({why}); KEV was not checked", file=sys.stderr)
+            warnings.append(f"⚠️  KEV catalog unavailable ({why}); KEV was not checked")
 
     # A per-package cut-off older than the project's own cooldown holds that
     # package back, possibly on a vulnerable release. Checked on every scan:
     # it only reads the project's config.
     for package, entry, cutoff in stale_exemptions(args.path):
-        print(
+        warnings.append(
             f"⚠️  exclude-newer-package holds {package} at releases before {entry}, older "
             f"than your cooldown's cut-off ({cutoff}): uv keeps {package} on old releases. "
-            "Remove the entry.",
-            file=sys.stderr,
+            "Remove the entry."
         )
 
     if result.cve_lookups_failed:
-        print(
-            f"⚠️  Could not look up the CVE id of {result.cve_lookups_failed} advisories "
-            "(OSV.dev unreachable): they have no EPSS score and KEV cannot match them.",
-            file=sys.stderr,
+        n = result.cve_lookups_failed
+        they, them = ("it has", "it") if n == 1 else ("they have", "them")
+        warnings.append(
+            f"⚠️  Could not look up the CVE id of {n} {_plural(n, 'advisory')} "
+            f"(OSV.dev unreachable): {they} no EPSS score and KEV cannot match {them}."
+        )
+    if result.epss_lookups_failed:
+        n = result.epss_lookups_failed
+        warnings.append(
+            f"⚠️  EPSS unavailable for {n} {_plural(n, 'CVE')} (api.first.org unreachable or "
+            "answered with an error): the report is not ordered by their EPSS score."
         )
 
     fix_plan = None
     if args.check_fixes or args.fix_plan is not None:
         flag = "--fix-plan" if args.fix_plan is not None else "--check-fixes"
         if merged.offline:
-            print(f"depquiet: {flag} needs network access; skipped (--offline).", file=sys.stderr)
+            warnings.append(f"depquiet: {flag} needs network access; skipped (--offline).")
         elif is_poetry_project(args.path):
             # Poetry has no per-fix dry run to report on: the plan is the check.
             if args.fix_plan is not None:
                 fix_plan = build_poetry_plan(result, args.path)
             else:
-                print(
+                warnings.append(
                     "depquiet: --check-fixes works on uv projects; for a Poetry project use "
-                    "--fix-plan, which verifies the fixes with Poetry's resolver.",
-                    file=sys.stderr,
+                    "--fix-plan, which verifies the fixes with Poetry's resolver."
                 )
         else:
             checks, check_note = check_fixes(result, args.path)
+            if check_note and args.fix_plan is not None and not (args.path / "uv.lock").exists():
+                check_note = FIX_PLAN_UNSUPPORTED  # --fix-plan also covers Poetry
             if check_note:
-                print(f"depquiet: {check_note.replace('--check-fixes', flag)}", file=sys.stderr)
+                warnings.append(f"depquiet: {check_note.replace('--check-fixes', flag)}")
             elif args.fix_plan is not None:
                 fix_plan = build_fix_plan(result, args.path, checks)
 
@@ -872,6 +894,14 @@ Python projects need pip-audit (pip install pip-audit) or uv; npm projects need 
         _print_json(result, license_report=license_report, fix_plan=fix_plan)
     else:
         print_scan_result(result)
+        for notice in notices:
+            print(f"\n{notice}")
+    if warnings:
+        print("", file=sys.stderr)
+        for warning in warnings:
+            print(warning, file=sys.stderr)
+    if ignore_file is not None:
+        print_ignore_warnings(ignore_file)
     if fix_plan is not None:
         print_fix_plan(fix_plan, sys.stderr)
         if fix_plan.diff and args.fix_plan != "-":
@@ -894,13 +924,11 @@ Python projects need pip-audit (pip install pip-audit) or uv; npm projects need 
                 return 2
             print(
                 f"   Applied: the files above are edited and {lockfile} is updated. "
-                "Run your tests before you commit.",
+                "Run your tests before you commit.\n"
+                "   The exit code reports the alerts found before the plan was applied; "
+                "scan again to see what is left.",
                 file=sys.stderr,
             )
-    if args.apply and args.fix_plan is None:
-        print("Error: --apply needs --fix-plan.", file=sys.stderr)
-        return 2
-
     if merged.sarif:
         write_sarif(result, merged.sarif)
 
@@ -952,6 +980,27 @@ Python projects need pip-audit (pip install pip-audit) or uv; npm projects need 
     if _should_fail(result, merged.fail_on):
         return 1
     return 0
+
+
+# Scanners whose report says whether a package is a direct dependency. The
+# others (pip-audit, uv audit, OSV, Grype, Dependabot) leave a placeholder.
+_SCANNERS_KNOWING_DIRECT = frozenset({"npm", "pnpm"})
+
+
+def _is_direct(tr: Any, package_manager: str) -> bool | None:
+    """Direct dependency or not, from the dependency graph first; None when unknown."""
+    if tr.dependency_type in ("direct", "transitive"):
+        return bool(tr.dependency_type == "direct")
+    if (tr.vuln.package_manager or package_manager) in _SCANNERS_KNOWING_DIRECT:
+        return bool(tr.vuln.is_direct)
+    return None
+
+
+def _plural(n: int, word: str) -> str:
+    """``word`` or its plural for a count: 1 advisory, 2 advisories."""
+    if n == 1:
+        return word
+    return word[:-1] + "ies" if word.endswith("y") else word + "s"
 
 
 # Severity ordering: critical > high > moderate > low > info
@@ -1049,7 +1098,7 @@ def _print_json(
             "epss_score": tr.epss_score,
             "epss_percentile": tr.epss_percentile,
             "is_dev": tr.vuln.is_dev,
-            "is_direct": tr.vuln.is_direct,
+            "is_direct": _is_direct(tr, result.package_manager),
             "fix_version": tr.vuln.fix_version,
             "fix_package": tr.vuln.fix_package,
             "reachable_imports": tr.reachable_imports,

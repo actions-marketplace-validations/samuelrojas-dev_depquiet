@@ -33,6 +33,7 @@ from depquiet.fixplan import (
     _CLAUSE,
     _COPY_IGNORE,
     _REQUIREMENT,
+    NOTHING_TO_FIX,
     FixPlan,
     PlanEdit,
     PlanItem,
@@ -341,6 +342,8 @@ def _plan_one(
 
 def build_poetry_plan(result: ScanResult, project: Path, *, timeout: int = 600) -> FixPlan:
     """A verified fix plan for a Poetry project (see the module docstring)."""
+    if not fix_targets(result):
+        return FixPlan("none", note=NOTHING_TO_FIX, tool="poetry")
     executable = shutil.which("poetry")
     if executable is None:
         return FixPlan(
@@ -355,7 +358,7 @@ def build_poetry_plan(result: ScanResult, project: Path, *, timeout: int = 600) 
         if _pep503(package) in lock and not _reaches(lock, package, version)
     }
     if not targets:
-        return FixPlan("none", note="No shown alert has a fix to plan.", tool="poetry")
+        return FixPlan("none", note=NOTHING_TO_FIX, tool="poetry")
 
     items = [
         PlanItem(package=p, version=v, installed=str(lock[_pep503(p)]["version"]))

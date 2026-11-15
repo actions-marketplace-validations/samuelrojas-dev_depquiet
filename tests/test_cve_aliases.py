@@ -207,8 +207,8 @@ def test_scan_says_when_cve_lookups_failed_and_kev_could_not_check(
     monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(AUDIT)))
     main(["--path", str(_project(tmp_path)), "--stdin", "--kev-file", str(kev)])
     out = capsys.readouterr()
-    assert "Could not look up the CVE id of 1 advisories" in out.err
-    assert "1 advisories have no CVE id" in out.err
+    assert "Could not look up the CVE id of 1 advisory (OSV.dev unreachable): it has" in out.err
+    assert "1 advisory has no CVE id" in out.err and "it was not checked" in out.err
     assert "0 of 0 CVEs" in out.out  # not "0 of 1": nothing could be checked
 
 

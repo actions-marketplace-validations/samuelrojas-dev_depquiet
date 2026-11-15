@@ -22,6 +22,11 @@ _RESET = "\033[0m"
 _CYAN = "\033[96m"
 
 
+def _count(n: int, noun: str) -> str:
+    """``1 alert``, ``3 alerts``: the noun agrees with the count."""
+    return f"{n} {noun}" if n == 1 else f"{n} {noun}s"
+
+
 def _c(code: str, text: str) -> str:
     """Wrap text in ANSI color if stdout is a TTY."""
     if not sys.stdout.isatty():
@@ -49,14 +54,15 @@ def print_scan_result(result: ScanResult) -> None:
     print()
     print(
         f"{_c(_BOLD, 'depquiet')} scan — {result.package_manager} "
-        f"({result.total_dependencies} vulnerable packages)"
+        f"({_count(result.total_dependencies, 'vulnerable package')})"
     )
     print()
 
     # Filtered summary
     if filtered:
         pct = result.filter_rate
-        print(f"{_c(_GREEN, '✅')} {_c(_BOLD, f'FILTERED: {len(filtered)} alerts')} ({pct:.0f}%)")
+        heading = "FILTERED: " + _count(len(filtered), "alert")
+        print(f"{_c(_GREEN, '✅')} {_c(_BOLD, heading)} ({pct:.0f}%)")
 
         # Group by reason
         by_reason: dict[FilterReason, int] = {}
@@ -83,7 +89,7 @@ def print_scan_result(result: ScanResult) -> None:
     # Review
     if review:
         print()
-        print(f"{_c(_YELLOW, '⚠️')}  {_c(_BOLD, f'REVIEW: {len(review)} alerts')}")
+        print(f"{_c(_YELLOW, '⚠️')}  {_c(_BOLD, 'REVIEW: ' + _count(len(review), 'alert'))}")
         for r in review:
             epss_str = (
                 f"EPSS {epss_percent(r.epss_score)}" if r.epss_score is not None else "no EPSS"
@@ -95,7 +101,7 @@ def print_scan_result(result: ScanResult) -> None:
     # Action required
     if action:
         print()
-        print(f"{_c(_RED, '🔴')} {_c(_BOLD, f'ACTION REQUIRED: {len(action)} alerts')}")
+        print(f"{_c(_RED, '🔴')} {_c(_BOLD, 'ACTION REQUIRED: ' + _count(len(action), 'alert'))}")
         for r in action:
             epss_str = f"EPSS {epss_percent(r.epss_score)}" if r.epss_score is not None else ""
             fix_str = ""
@@ -134,7 +140,7 @@ def print_scan_result(result: ScanResult) -> None:
     if filtered:
         parts.append(_c(_GREEN, f"{len(filtered)} filtered"))
 
-    print(f"Total: {total} alerts — {' | '.join(parts)}")
+    print(f"Total: {_count(total, 'alert')} — {' | '.join(parts)}")
     print(
         "Verdicts come from how each package is used (imports, dependency type, lockfile), "
         "not from whether your code calls the vulnerable function."
