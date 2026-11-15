@@ -35,9 +35,9 @@ projects, uv's resolver rejects the nearest fix for 502 of 991 kept alerts (51%)
 the 17 projects with alerts; in 81% of the blocked upgrades, the project's own pin is what
 is in the way. See [`--check-fixes`](#can-the-fix-be-installed---check-fixes).
 
-For uv projects depquiet goes one step further: [`--fix-plan`](#one-verified-change-for-all-the-fixes---fix-plan)
+For uv and Poetry projects depquiet goes one step further: [`--fix-plan`](#one-verified-change-for-all-the-fixes---fix-plan)
 computes the requirement changes that let the fixes install together and verifies them
-with uv's resolver, and the GitHub Action's
+with the project's own resolver, and the GitHub Action's
 [`fix-pr`](#one-pull-request-with-every-fix-that-installs-fix-pr) opens one pull request
 with them. That includes the case Dependabot reports as `update_not_possible`: a parent
 package that must move before a vulnerable dependency can.
@@ -610,6 +610,43 @@ Real run on a small project pinning `requests==2.31.0` and `botocore==1.29.0` (w
 After `git apply` and that command, pip-audit reports no known vulnerabilities in the
 project's dependencies. Python-floor blocks are reported, not planned.
 
+#### Poetry projects
+
+`--fix-plan`, `--apply` and `fix-pr` work on Poetry projects too (a `poetry.lock` and no
+`uv.lock`), verified with Poetry's own resolver, for both `[tool.poetry.dependencies]` and
+`[project]` requirements. Real run with Poetry 2.5.1 on the same case, `requests = "2.31.0"`
+and `botocore = "1.29.0"`:
+
+```
+🔧 Fix plan
+   ✓ requests 2.31.0 → 2.33.0: widen your requirement
+   ✓ urllib3 1.26.20 → 2.8.0: also move botocore → 1.44.3, which holds it back  (major version change)
+
+   Verified with Poetry's resolver: all fixes resolve together.
+   Then run: poetry update --lock requests urllib3 botocore
+```
+```diff
+ [tool.poetry.dependencies]
+ python = "^3.11"
+-requests = "2.31.0"
+-botocore = "1.29.0"
++requests = "2.33.0"
++botocore = "1.44.3"
+```
+
+10 alerts before, 0 after. What differs from uv:
+
+- `poetry update --lock urllib3` does not fail when botocore holds urllib3 back: it
+  resolves and leaves urllib3 where it was. depquiet reads the holders from `poetry.lock`,
+  lets Poetry move them, and checks the new lock.
+- Poetry has no "upgrade to exactly this version": `poetry update` moves a package to the
+  newest version your constraints allow, so a range such as `^2.31` can land above the
+  fix. An exact pin stays exact, at the fix version. The plan shows where each package ends.
+- `--check-fixes` on its own is for uv projects. For Poetry the plan is the check.
+- Constraints with `||` and git or path dependencies are not rewritten: that fix is listed
+  as left out, with the reason.
+- No `exclude-newer` handling: that is a uv setting.
+
 #### One pull request with every fix that installs (`fix-pr`)
 
 `--fix-plan --apply` applies the verified plan to the project: it edits the requirements
@@ -653,10 +690,11 @@ open as of November 2026): the alert ends in `update_not_possible`.
 
 What to know before you turn it on:
 
-- **uv projects only**, like `--fix-plan`.
+- **uv and Poetry projects**, like `--fix-plan`. The Action installs Poetry when it finds
+  a `poetry.lock` and Poetry is not already on the runner.
 - The branch (`depquiet/security-fixes`, or `fix-pr-branch`) is **force-pushed on every
   run**: it is always your branch plus one commit. Do not commit to it by hand.
-- The commit holds only `pyproject.toml`, `uv.toml` and `uv.lock` changes.
+- The commit holds only `pyproject.toml`, `uv.toml`, `uv.lock` and `poetry.lock` changes.
 - **Your CI does not start on a pull request opened with the default `GITHUB_TOKEN`**:
   that is how GitHub works. Pass a personal access token or GitHub App token as
   `fix-pr-token` to have your tests run on it.
