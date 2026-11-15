@@ -316,6 +316,9 @@ class ScanResult:
     scanned: bool = True
     note: str = ""
     project_id: str = ""
+    # Advisories whose CVE id could not be looked up (network failure). EPSS
+    # and KEV are keyed by CVE, so those advisories went unchecked.
+    cve_lookups_failed: int = 0
 
     @property
     def action(self) -> list[TriageResult]:

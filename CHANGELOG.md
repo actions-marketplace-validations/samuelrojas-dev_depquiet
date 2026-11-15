@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+Found by running depquiet on a new npm project with a real `npm audit`: none of its 72
+alerts carried a CVE id.
+- **EPSS and KEV never applied to `npm audit` scans.** npm reports only GitHub advisory
+  (GHSA) ids, and both are keyed by CVE id. depquiet now looks up each advisory's CVE on
+  OSV.dev (in parallel, cached under `~/.cache/depquiet`; never with `--offline`). The
+  README claimed EPSS worked for npm audit; it does now.
+- **`--kev` reported "0 of 72 CVEs on the CISA KEV catalog" when it could check none of
+  them.** Advisories with no CVE id are no longer counted as checked, and a warning says
+  how many could not be checked. A failed CVE lookup is reported too.
+
 ## [0.45.1] - 2026-11-14
 
 ### Fixed

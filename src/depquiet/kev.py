@@ -190,9 +190,10 @@ def load_kev_from_file(path: Path) -> KevCatalog:
 class KevResult:
     """Summary of KEV matching against scan results."""
 
-    total_checked: int
+    total_checked: int  # advisories with a CVE id: the only ones KEV can match
     kev_matches: int
     escalated: int  # Findings promoted from REVIEW/FILTERED to ACTION
+    unchecked: int = 0  # advisories with no CVE id or alias
 
 
 def apply_kev(
@@ -218,13 +219,19 @@ def apply_kev(
     kev_matches = 0
     escalated = 0
 
+    unchecked = 0
     for tr in result.results:
         if not tr.vuln.cve:
             continue
-        total_checked += 1
         # KEV is keyed by CVE; uv audit and pip-audit name the advisory by its
         # GHSA or PYSEC id and give the CVE as an alias.
         entry = next((e for e in map(catalog.lookup, tr.vuln.ids) if e is not None), None)
+        if entry is None and not tr.vuln.cve_id:
+            # No CVE id to look up: counting this one as "checked" would
+            # report a clean result for an advisory nobody could match.
+            unchecked += 1
+            continue
+        total_checked += 1
         if entry is None:
             continue
 
@@ -250,4 +257,5 @@ def apply_kev(
         total_checked=total_checked,
         kev_matches=kev_matches,
         escalated=escalated,
+        unchecked=unchecked,
     )

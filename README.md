@@ -98,7 +98,7 @@ else it keeps, and it sorts and explains it:
 | **Dev dependencies** | **Filtered** when every known dependency path is for development, with no production parent. For npm, also when every locked copy inside the advisory's range is one the lockfile marks as development-only (unless `package.json` declares that top-level copy for production: then the lockfile is stale) |
 | **Reachability** | Never filters. A production package that nothing imports, directly or through the production dependencies that bring it in, is shown for **review**: another library may load it at runtime |
 | **Test-only use** | Never filters. A production package imported only from test files is shown for **review**: an ORM loads its database driver from a dialect name (Sequelize, TypeORM, Knex and `pg`), Next.js loads `sharp`, PyJWT loads `cryptography`, and no import names them |
-| **EPSS scoring** | Off by default: EPSS only orders the report (known exploited first, then highest EPSS). With `--epss-threshold`, alerts scoring below it are filtered. The lookup uses the advisory's CVE alias, so it works for pip-audit, uv audit and npm audit |
+| **EPSS scoring** | Off by default: EPSS only orders the report (known exploited first, then highest EPSS). With `--epss-threshold`, alerts scoring below it are filtered. EPSS is keyed by CVE id: pip-audit and uv audit give it as an alias, and for `npm audit`, which reports only GitHub advisory ids, depquiet looks the CVE up on OSV.dev (cached) |
 | **Community templates** | A built-in template never dismisses on its own: when it matches, its note is added to the review. Custom templates without conditions, `.depquiet-ignore` and policy rules are your explicit dismissals |
 
 **Bundled frontends:** like `npm audit --omit=dev`, depquiet treats `devDependencies` as
@@ -1040,6 +1040,8 @@ depquiet --kev-file /path/to/known_exploited_vulnerabilities.json
 How it works: KEV-listed CVEs are **auto-escalated to ACTION** regardless of other filters.
 The match uses every identifier of the advisory: uv audit names advisories by GHSA id and
 pip-audit by PYSEC or GHSA id, with the CVE as an alias, and KEV lists CVEs only.
+`npm audit` gives no CVE at all, so depquiet looks it up on OSV.dev; an advisory whose CVE
+cannot be found is reported as not checked, never as clean.
 `.depquiet-ignore` entries and policy `cves:` match aliases the same way. A low-EPSS, devDependency, or unreachable vulnerability that's on the KEV catalog gets promoted to ACTION because active exploitation trumps all other signals.
 
 The KEV feed is cached locally for 24 hours. On network failure, depquiet falls back to the expired cache. In `--offline` mode, only the cache is used.

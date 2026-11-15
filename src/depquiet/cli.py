@@ -807,6 +807,13 @@ Python projects need pip-audit (pip install pip-audit) or uv; npm projects need 
                 if kev_result.escalated > 0:
                     parts.append(f"{kev_result.escalated} escalated to ACTION")
                 print("\n" + " — ".join(parts) + "\n")
+            if kev_result.unchecked:
+                # stderr, so --json users see it too
+                print(
+                    f"⚠️  KEV: {kev_result.unchecked} advisories have no CVE id, and KEV "
+                    "lists CVE ids only: they were not checked against it.",
+                    file=sys.stderr,
+                )
         else:
             # stderr, so --json users see that KEV was not checked
             why = "offline with no cache" if merged.offline else "download failed, no cache"
@@ -820,6 +827,13 @@ Python projects need pip-audit (pip install pip-audit) or uv; npm projects need 
             f"⚠️  exclude-newer-package holds {package} at releases before {entry}, older "
             f"than your cooldown's cut-off ({cutoff}): uv keeps {package} on old releases. "
             "Remove the entry.",
+            file=sys.stderr,
+        )
+
+    if result.cve_lookups_failed:
+        print(
+            f"⚠️  Could not look up the CVE id of {result.cve_lookups_failed} advisories "
+            "(OSV.dev unreachable): they have no EPSS score and KEV cannot match them.",
             file=sys.stderr,
         )
 
