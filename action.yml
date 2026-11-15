@@ -167,18 +167,22 @@ runs:
       # Install the action's own code, so @v0.35.0 runs 0.35.0 and a fresh
       # tag works before PyPI's index lists it. pip-audit is depquiet's
       # scanner for Python projects; without it they fall back to OSV.dev.
+      # The tools are pinned: this job can hold a token that pushes (fix-pr),
+      # so a new release of one of them must not run in it unreviewed. These
+      # are the versions depquiet's fix plans were verified with; tests check
+      # the pins (tests/test_action_fix_pr.py).
       run: |
         python -m pip install --disable-pip-version-check "$GITHUB_ACTION_PATH"
         if [ "$INPUT_INSTALL_PIP_AUDIT" = "true" ]; then
-          python -m pip install --disable-pip-version-check pip-audit
+          python -m pip install --disable-pip-version-check pip-audit==2.10.1
         fi
         if { [ "$INPUT_CHECK_FIXES" = "true" ] || [ "$INPUT_FIX_PR" = "true" ]; } && ! command -v uv >/dev/null 2>&1; then
-          python -m pip install --disable-pip-version-check uv
+          python -m pip install --disable-pip-version-check uv==0.13.8
         fi
         # A Poetry project's fixes are verified with Poetry's own resolver.
         if [ "$INPUT_FIX_PR" = "true" ] && [ -f "$INPUT_PATH/poetry.lock" ] && [ ! -f "$INPUT_PATH/uv.lock" ] \
           && ! command -v poetry >/dev/null 2>&1; then
-          python -m pip install --disable-pip-version-check poetry
+          python -m pip install --disable-pip-version-check poetry==2.5.1
         fi
         depquiet --version
 

@@ -725,6 +725,16 @@ def _edits_matching(project: Path, package: str) -> list[PlanEdit]:
     return found
 
 
+# Shown when the project has no lockfile --fix-plan can work with.
+UNSUPPORTED_NOTE = (
+    "--fix-plan works on uv projects (uv.lock) and Poetry projects (poetry.lock). "
+    "On npm, --fix installs the fixes."
+)
+# No alert left to act on has a fixed version: there is nothing to plan, which
+# is not the same as a plan that failed.
+NOTHING_TO_FIX = "Nothing to fix: no Python alert left to act on has a fixed version."
+
+
 def build_fix_plan(
     result: ScanResult,
     project: Path,
@@ -732,13 +742,17 @@ def build_fix_plan(
     *,
     timeout: int = 300,
 ) -> FixPlan:
+    # The project first: fix_targets counts Python alerts only, so on an npm
+    # project "nothing to fix" would be false.
+    if not (project / "uv.lock").is_file():
+        return FixPlan("unsupported", note=UNSUPPORTED_NOTE)
+    targets = fix_targets(result)
+    if not targets:
+        return FixPlan("none", note=NOTHING_TO_FIX)
     found = shutil.which("uv")
     if found is None:
         return FixPlan("unsupported", note="--fix-plan needs uv on PATH.")
     executable = found
-    if not (project / "uv.lock").is_file():
-        return FixPlan("unsupported", note="--fix-plan works on projects with a uv.lock.")
-    targets = fix_targets(result)
     installed = _locked_versions(project)
     items: list[PlanItem] = []
     for package, version in sorted(targets.items()):

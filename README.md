@@ -39,8 +39,9 @@ For uv and Poetry projects depquiet goes one step further: [`--fix-plan`](#one-v
 computes the requirement changes that let the fixes install together and verifies them
 with the project's own resolver, and the GitHub Action's
 [`fix-pr`](#one-pull-request-with-every-fix-that-installs-fix-pr) opens one pull request
-with them. That includes the case Dependabot reports as `update_not_possible`: a parent
-package that must move before a vulnerable dependency can.
+with them. That includes the case where Dependabot reports that it "cannot update" the
+dependency "to a non-vulnerable version": a parent package that must move before a
+vulnerable dependency can.
 
 On npm, `npm audit --omit=dev` already does this: depquiet matches it row for row on the
 projects measured, and adds which direct dependency brings each kept alert in.
@@ -686,7 +687,8 @@ urllib3 below 1.27: 10 alerts before, 0 after, and this description on the pull 
 That second row is the case other tools leave open today. Dependabot cannot raise a parent
 to fix a vulnerable transitive dependency in Python projects
 ([dependabot-core#16337](https://github.com/dependabot/dependabot-core/issues/16337),
-open as of November 2026): the alert ends in `update_not_possible`.
+open as of November 2026): Dependabot reports that it cannot update the dependency to a
+non-vulnerable version ([its error reference](https://docs.github.com/en/code-security/reference/supply-chain-security/troubleshoot-dependabot/dependabot-errors)).
 
 What to know before you turn it on:
 
@@ -1250,7 +1252,7 @@ with ratings) to gate on it.
     sbom: sbom.cdx.json
 ```
 
-The action installs the depquiet version of the tag you reference, plus pip-audit for Python projects (`install-pip-audit: false` to skip), runs it, uploads SARIF to GitHub Code Scanning, uploads the SBOM as a build artifact, and fails the build if ACTION items are found. A repository with npm and Python dependencies is scanned for both; `scanner: uv` (or `npm`, `pnpm`, `pip`) limits it to one.
+The action installs the depquiet version of the tag you reference, plus pip-audit for Python projects (`install-pip-audit: false` to skip; uv and Poetry when `check-fixes` or `fix-pr` need them, all three at pinned versions: pip-audit 2.10.1, uv 0.13.8, Poetry 2.5.1, unless the runner already has uv or Poetry), runs it, uploads SARIF to GitHub Code Scanning, uploads the SBOM as a build artifact, and fails the build if ACTION items are found. A repository with npm and Python dependencies is scanned for both; `scanner: uv` (or `npm`, `pnpm`, `pip`) limits it to one.
 
 The action automatically writes a **Job Summary** to the PR checks page with severity badges, EPSS scores, fix versions, and a filtered breakdown.
 

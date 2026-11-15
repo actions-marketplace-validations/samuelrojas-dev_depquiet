@@ -124,6 +124,15 @@ class ComponentEvidence:
         return component
 
 
+# C0 controls except tab and newline, DEL and C1 controls: what terminals act on.
+_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
+
+
+def strip_control(text: str) -> str:
+    """``text`` without the control characters a terminal would interpret."""
+    return _CONTROL.sub("", text)
+
+
 @dataclass
 class Vulnerability:
     """A single vulnerability finding from a scanner."""
@@ -167,6 +176,15 @@ class Vulnerability:
     # Other identifiers of the same advisory (``CVE-...`` for a GHSA or PYSEC id).
     # KEV lists CVE ids only, and uv audit and pip-audit put the CVE here.
     aliases: list[str] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        # Scanner reports are text from outside: an escape sequence in a title
+        # would reach the terminal (clear the screen, rewrite earlier lines).
+        for name in ("cve", "package", "version", "title", "url", "fix_version", "fix_package"):
+            value = getattr(self, name)
+            if isinstance(value, str):
+                setattr(self, name, strip_control(value))
+        self.aliases = [strip_control(a) if isinstance(a, str) else a for a in self.aliases]
 
     @property
     def severity_label(self) -> str:
@@ -319,6 +337,9 @@ class ScanResult:
     # Advisories whose CVE id could not be looked up (network failure). EPSS
     # and KEV are keyed by CVE, so those advisories went unchecked.
     cve_lookups_failed: int = 0
+    # CVEs whose EPSS score could not be fetched (network failure or an
+    # unreadable answer): the report is not ordered by their score.
+    epss_lookups_failed: int = 0
 
     @property
     def action(self) -> list[TriageResult]:

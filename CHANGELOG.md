@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **A failed EPSS lookup is reported.** When api.first.org could not be reached, or answered
+  with something unreadable, the report silently had no EPSS scores. depquiet now warns how
+  many CVEs went without one, like it already did for KEV and CVE lookups. An unreadable
+  answer no longer stops the scan.
+- **Escape sequences from scanner reports never reach the terminal.** A title with control
+  characters (from any report piped to `--stdin`) could clear the screen or rewrite earlier
+  lines. They are removed when an advisory is read.
+- `is_direct` in `--json` comes from the dependency graph. pip-audit, uv audit, OSV, Grype
+  and Dependabot cannot tell direct from transitive, so the field was a placeholder `true`,
+  even next to `"dependency_type": "unknown"`. It is now `null` when no file says.
+- `--apply` and `--fix-plan-report` without `--fix-plan`, and a `--path` that does not
+  exist, are refused before the scan runs, with an error that says what is wrong.
+- `--fix-plan` on a project with nothing to fix says so instead of "No fix could be
+  planned", and on a project without `uv.lock` it names Poetry and, for npm, `--fix`.
+- Notes about the scan (KEV, baseline, failed lookups) print after the report's header,
+  not before it.
+- Counts agree in number ("1 alert", "1 vulnerable package"), and a scanner error no
+  longer runs into the next sentence.
+- `--fix-plan --apply` says that its exit code reports the alerts found before the plan
+  was applied. It stays 1 on purpose: the Action applies the plan on a separate branch,
+  so the scanned branch still has those alerts.
+
+### Changed
+- The Action installs pip-audit 2.10.1, uv 0.13.8 and Poetry 2.5.1, pinned, instead of
+  the latest release of each: its fix-pr job holds a token that can push. `--fix-plan
+  --apply` was verified end to end with uv 0.13.8 and with Poetry 2.5.1.
+- Python 3.14 is tested in CI and declared.
+
+### Documentation
+- The README described Dependabot's result as `update_not_possible`, an internal
+  dependabot-core name that GitHub's documentation does not use. It now quotes the message
+  GitHub documents: it "cannot update" the dependency "to a non-vulnerable version". The
+  0.45.0 entry below used the same name.
+
 ## [0.46.0] - 2026-11-14
 
 ### Added
