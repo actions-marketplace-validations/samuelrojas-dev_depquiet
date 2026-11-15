@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`--fix-plan`, `--apply` and `fix-pr` for Poetry projects**, verified with Poetry's
+  resolver, for `[tool.poetry.dependencies]` and `[project]` requirements. Because
+  `poetry update --lock` never fails when another package holds a fix back, depquiet reads
+  the holders from `poetry.lock`, lets Poetry move them, and checks the resulting lock.
+  Exact pins stay exact; `^`, `~` and ranges keep their style. Verified with Poetry 2.5.1
+  and pip-audit on two projects where botocore holds urllib3 below its fix: 10 alerts
+  → 0 (legacy table, exact pins) and 16 → 1 (PEP 621 ranges; the one left is a filtered
+  dev-only alert). Dependabot cannot make this change in Python projects
+  (dependabot-core#16337), and Renovate's maintainers say security fixes for transitive
+  packages in `poetry.lock` are not supported (renovate discussion #28776).
+
 ## [0.45.2] - 2026-11-14
 
 ### Changed

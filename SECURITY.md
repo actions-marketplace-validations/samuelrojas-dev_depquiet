@@ -36,6 +36,7 @@ from the project or its dependencies:
 | npm scan | `npm audit --json` | No |
 | `--check-fixes`, `--fix-plan` | `uv lock --dry-run` (on a temporary copy for `--fix-plan`) | Yes: uv can run build hooks |
 | `--fix-plan --apply`, the Action's `fix-pr` | `uv lock --upgrade-package` on the project | Yes: uv can run build hooks |
+| `--fix-plan` on a Poetry project (also with `--apply`, `fix-pr`) | `poetry update --lock`, on temporary copies and then on the project | Yes: Poetry can build a package to read its metadata |
 | `--fix` | `uv lock --upgrade-package`, or `npm install pkg@version` | Yes: npm runs install scripts |
 
 Run those modes on code you trust, as you would `pip install` or `npm install`. In CI,
