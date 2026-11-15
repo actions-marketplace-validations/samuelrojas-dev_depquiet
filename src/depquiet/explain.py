@@ -31,6 +31,7 @@ from depquiet.models import (
     Verdict,
     WorkspaceEvidence,
     epss_percent,
+    first_items,
     is_prerelease,
 )
 
@@ -158,7 +159,7 @@ def explain_triage(tr: TriageResult) -> Explanation:
                 effect="review",
                 detail=(
                     "Imported only from test code ("
-                    + ", ".join(tr.reachable_imports[:5])
+                    + first_items(tr.reachable_imports, 5)
                     + "). Another library may still load it in production, so it is kept "
                     "for review"
                 ),
@@ -197,7 +198,7 @@ def explain_triage(tr: TriageResult) -> Explanation:
                 effect="filtered",
                 detail=(
                     "Imported only from test code or test-runner configuration: "
-                    + ", ".join(tr.reachable_imports[:5])
+                    + first_items(tr.reachable_imports, 5)
                 ),
             )
         )
