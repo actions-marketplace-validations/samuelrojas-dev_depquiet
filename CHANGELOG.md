@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.46.0] - 2026-11-14
+
 ### Added
 - **`--fix-plan`, `--apply` and `fix-pr` for Poetry projects**, verified with Poetry's
   resolver, for `[tool.poetry.dependencies]` and `[project]` requirements. Because
@@ -1124,7 +1126,8 @@ requirements.txt and npm projects:
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.45.2...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.46.0...HEAD
+[0.46.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.45.2...v0.46.0
 [0.45.2]: https://github.com/samuelrojas-dev/depquiet/compare/v0.45.1...v0.45.2
 [0.45.1]: https://github.com/samuelrojas-dev/depquiet/compare/v0.45.0...v0.45.1
 [0.45.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.44.1...v0.45.0
