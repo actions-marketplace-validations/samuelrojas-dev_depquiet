@@ -48,7 +48,7 @@ from pathlib import Path
 from typing import Any
 
 from depquiet.fixcheck import FixCheck, _explain, _pep503, _run_lock, fix_targets
-from depquiet.models import ScanResult, Verdict, version_key
+from depquiet.models import ScanResult, Verdict, clip, first_items, version_key
 
 _REQUIREMENT = re.compile(
     r"^\s*(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)\s*(?P<extras>\[[^\]]*\])?\s*"
@@ -927,6 +927,13 @@ def _how(item: PlanItem) -> str:
     return "lockfile upgrade"
 
 
+def _id_list(ids: list[str], shown: int = 6) -> str:
+    """Up to ``shown`` advisory ids, then how many more: a table row never undercounts."""
+    if not ids:
+        return "-"
+    return first_items(ids, shown)
+
+
 def fix_plan_markdown(plan: FixPlan, result: ScanResult, version: str = "") -> str:
     """The plan as a pull request description."""
 
@@ -956,7 +963,7 @@ def fix_plan_markdown(plan: FixPlan, result: ScanResult, version: str = "") -> s
         "|---|---|---|---|---|",
     ]
     for item in plan.included:
-        ids = ", ".join(advisories.get(_pep503(item.package), [])[:6]) or "-"
+        ids = _id_list(advisories.get(_pep503(item.package), []))
         major = " **(major version change)**" if item.major_jump else ""
         lines.append(
             f"| `{cell(item.package)}` | {cell(item.installed or '?')} "
@@ -965,7 +972,8 @@ def fix_plan_markdown(plan: FixPlan, result: ScanResult, version: str = "") -> s
     if plan.left_out:
         lines += ["", "### Not included", ""]
         lines += [
-            f"- `{cell(i.package)}` → {cell(i.version)}: {cell(i.why[:300])}" for i in plan.left_out
+            f"- `{cell(i.package)}` → {cell(i.version)}: {cell(clip(i.why, 300))}"
+            for i in plan.left_out
         ]
     by = f" {version}" if version else ""
     lines += [
@@ -1010,7 +1018,7 @@ def print_fix_plan(plan: FixPlan, file: Any) -> None:
             file=file,
         )
     for item in plan.left_out:
-        print(f"   ✗ {item.package} → {item.version}: {item.why[:200]}", file=file)
+        print(f"   ✗ {item.package} → {item.version}: {clip(item.why, 200)}", file=file)
     if plan.included:
         verdict = (
             "all fixes resolve together"

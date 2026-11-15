@@ -677,7 +677,11 @@ jobs:
 ```
 
 Real run on a project with `requests==2.31.0` and `botocore==1.29.0`, where botocore holds
-urllib3 below 1.27: 10 alerts before, 0 after, and this description on the pull request:
+urllib3 below 1.27: 10 alerts before, 0 after, and this description on the pull request.
+The project and both pull requests are public:
+[depquiet-fixpr-test](https://github.com/samuelrojas-dev/depquiet-fixpr-test), with
+[the uv pull request](https://github.com/samuelrojas-dev/depquiet-fixpr-test/pull/1) and
+[the Poetry one](https://github.com/samuelrojas-dev/depquiet-fixpr-test/pull/2).
 
 | Package | From | To | Advisories | How |
 |---|---|---|---|---|

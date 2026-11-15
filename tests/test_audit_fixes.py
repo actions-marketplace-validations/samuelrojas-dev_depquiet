@@ -375,3 +375,36 @@ def test_python_314_is_tested_and_declared() -> None:
     assert "Programming Language :: Python :: 3.14" in (ROOT / "pyproject.toml").read_text(
         encoding="utf-8"
     )
+
+
+# Cut lists and texts say so: a table row with 6 of 7 advisories read as all of them.
+
+
+def test_pr_table_says_how_many_advisories_it_leaves_out() -> None:
+    from depquiet.fixplan import _id_list
+
+    ids = [f"PYSEC-2026-{i}" for i in range(7)]
+    assert _id_list(ids) == ", ".join(ids[:6]) + " and 1 more"
+    assert _id_list(ids[:6]) == ", ".join(ids[:6])
+    assert _id_list([]) == "-"
+
+
+def test_clip_marks_a_cut() -> None:
+    from depquiet.models import clip
+
+    assert clip("short", 10) == "short"
+    cut = clip("word " * 20, 12)
+    assert cut.endswith("…") and len(cut) <= 12
+
+
+def test_report_says_how_many_parents_and_imports_are_not_listed(capsys) -> None:
+    tr = TriageResult(vuln=_vuln("urllib3", "2.0"), verdict=Verdict.ACTION)
+    tr.dependency_type = "transitive"
+    tr.introduced_by = ["a", "b", "c", "d", "e"]
+    tr.reachable_imports = [f"m{i}.py" for i in range(5)]
+    result = _result()
+    result.results = [tr]
+    print_scan_result(result)
+    out = capsys.readouterr().out
+    assert "via a, b, c and 2 more" in out
+    assert "and 2 more (depquiet explain shows all)" in out
