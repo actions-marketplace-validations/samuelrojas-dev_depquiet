@@ -35,6 +35,13 @@ projects, uv's resolver rejects the nearest fix for 502 of 991 kept alerts (51%)
 the 17 projects with alerts; in 81% of the blocked upgrades, the project's own pin is what
 is in the way. See [`--check-fixes`](#can-the-fix-be-installed---check-fixes).
 
+For uv projects depquiet goes one step further: [`--fix-plan`](#one-verified-change-for-all-the-fixes---fix-plan)
+computes the requirement changes that let the fixes install together and verifies them
+with uv's resolver, and the GitHub Action's
+[`fix-pr`](#one-pull-request-with-every-fix-that-installs-fix-pr) opens one pull request
+with them. That includes the case Dependabot reports as `update_not_possible`: a parent
+package that must move before a vulnerable dependency can.
+
 On npm, `npm audit --omit=dev` already does this: depquiet matches it row for row on the
 projects measured, and adds which direct dependency brings each kept alert in.
 
@@ -91,7 +98,7 @@ else it keeps, and it sorts and explains it:
 | **Dev dependencies** | **Filtered** when every known dependency path is for development, with no production parent. For npm, also when every locked copy inside the advisory's range is one the lockfile marks as development-only (unless `package.json` declares that top-level copy for production: then the lockfile is stale) |
 | **Reachability** | Never filters. A production package that nothing imports, directly or through the production dependencies that bring it in, is shown for **review**: another library may load it at runtime |
 | **Test-only use** | Never filters. A production package imported only from test files is shown for **review**: an ORM loads its database driver from a dialect name (Sequelize, TypeORM, Knex and `pg`), Next.js loads `sharp`, PyJWT loads `cryptography`, and no import names them |
-| **EPSS scoring** | Off by default: EPSS only orders the report (known exploited first, then highest EPSS). With `--epss-threshold`, alerts scoring below it are filtered. The lookup uses the advisory's CVE alias, so it works for pip-audit, uv audit and npm audit |
+| **EPSS scoring** | Off by default: EPSS only orders the report (known exploited first, then highest EPSS). With `--epss-threshold`, alerts scoring below it are filtered. EPSS is keyed by CVE id: pip-audit and uv audit give it as an alias, and for `npm audit`, which reports only GitHub advisory ids, depquiet looks the CVE up on OSV.dev (cached) |
 | **Community templates** | A built-in template never dismisses on its own: when it matches, its note is added to the review. Custom templates without conditions, `.depquiet-ignore` and policy rules are your explicit dismissals |
 
 **Bundled frontends:** like `npm audit --omit=dev`, depquiet treats `devDependencies` as
@@ -603,6 +610,69 @@ Real run on a small project pinning `requests==2.31.0` and `botocore==1.29.0` (w
 After `git apply` and that command, pip-audit reports no known vulnerabilities in the
 project's dependencies. Python-floor blocks are reported, not planned.
 
+#### One pull request with every fix that installs (`fix-pr`)
+
+`--fix-plan --apply` applies the verified plan to the project: it edits the requirements
+and runs `uv lock`. If `uv lock` fails, every file is put back as it was. The Action's
+`fix-pr` input does that on a schedule and opens **one pull request** with the result, so
+the work left for you is to read it and let your tests run:
+
+```yaml
+name: depquiet fixes
+on:
+  schedule:
+    - cron: "17 6 * * 1"   # Mondays
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: samuelrojas-dev/depquiet@v0
+        with:
+          fix-pr: "true"
+          fail-on-action: "false"
+          # fix-pr-token: ${{ secrets.DEPQUIET_PR_TOKEN }}
+```
+
+Real run on a project with `requests==2.31.0` and `botocore==1.29.0`, where botocore holds
+urllib3 below 1.27: 10 alerts before, 0 after, and this description on the pull request:
+
+| Package | From | To | Advisories | How |
+|---|---|---|---|---|
+| `requests` | 2.31.0 | 2.33.0 | PYSEC-2026-1873, PYSEC-2026-1872, PYSEC-2026-2275 | widens the project's own requirement |
+| `urllib3` | 1.26.20 | 2.8.0 **(major version change)** | PYSEC-2026-1999, PYSEC-2026-1998, … | also moves `botocore` → 1.44.3, which held it back |
+
+That second row is the case other tools leave open today. Dependabot cannot raise a parent
+to fix a vulnerable transitive dependency in Python projects
+([dependabot-core#16337](https://github.com/dependabot/dependabot-core/issues/16337),
+open as of November 2026): the alert ends in `update_not_possible`.
+
+What to know before you turn it on:
+
+- **uv projects only**, like `--fix-plan`.
+- The branch (`depquiet/security-fixes`, or `fix-pr-branch`) is **force-pushed on every
+  run**: it is always your branch plus one commit. Do not commit to it by hand.
+- The commit holds only `pyproject.toml`, `uv.toml` and `uv.lock` changes.
+- **Your CI does not start on a pull request opened with the default `GITHUB_TOKEN`**:
+  that is how GitHub works. Pass a personal access token or GitHub App token as
+  `fix-pr-token` to have your tests run on it.
+- The repository must allow it: Settings → Actions → General → "Allow GitHub Actions to
+  create and approve pull requests".
+- It never runs on `pull_request` events: `uv lock` can execute build hooks, and this step
+  holds a token with write access.
+- depquiet checks that the versions resolve, not that your code works with them. Fixes it
+  cannot verify are listed in the pull request as not included, with the reason.
+- Set `fail-on-action: "false"` in this workflow, as above: otherwise the job shows as
+  failed even after it opens the pull request, because the alerts are still on your
+  branch until you merge it.
+- Each run updates the open pull request. If you close it without merging, the next run
+  opens it again while the fixes remain available; unlike Dependabot, depquiet does not
+  remember a closed one. Add the advisories to `.depquiet-ignore`, or turn `fix-pr` off.
+
 #### Fixes hidden by your cooldown (`exclude-newer`)
 
 A cooldown (`exclude-newer = "7 days"`, or a date) protects you from a malicious release
@@ -970,6 +1040,8 @@ depquiet --kev-file /path/to/known_exploited_vulnerabilities.json
 How it works: KEV-listed CVEs are **auto-escalated to ACTION** regardless of other filters.
 The match uses every identifier of the advisory: uv audit names advisories by GHSA id and
 pip-audit by PYSEC or GHSA id, with the CVE as an alias, and KEV lists CVEs only.
+`npm audit` gives no CVE at all, so depquiet looks it up on OSV.dev; an advisory whose CVE
+cannot be found is reported as not checked, never as clean.
 `.depquiet-ignore` entries and policy `cves:` match aliases the same way. A low-EPSS, devDependency, or unreachable vulnerability that's on the KEV catalog gets promoted to ACTION because active exploitation trumps all other signals.
 
 The KEV feed is cached locally for 24 hours. On network failure, depquiet falls back to the expired cache. In `--offline` mode, only the cache is used.
@@ -1157,10 +1229,11 @@ that holds secrets while checking out outside contributions.
     check-fixes: true
 ```
 
-**Action inputs:** `path`, `scanner`, `epss-threshold`, `offline`, `sarif`, `templates`, `policy`, `sbom`, `sbom-format`, `from-sbom`, `ignore`, `license`, `baseline`, `kev`, `kev-file`, `html`, `annotations`, `vex`, `diff-base`, `pr-comment`, `check-fixes`, `fail-on-action`, `fail-on`, `python-version`, `install-pip-audit`.
+**Action inputs:** `path`, `scanner`, `epss-threshold`, `offline`, `sarif`, `templates`, `policy`, `sbom`, `sbom-format`, `from-sbom`, `ignore`, `license`, `baseline`, `kev`, `kev-file`, `html`, `annotations`, `vex`, `diff-base`, `pr-comment`, `check-fixes`, `fail-on-action`, `fail-on`, `python-version`, `install-pip-audit`, `fix-pr`, `fix-pr-branch`, `fix-pr-token`.
 
 **Action outputs:** `total`, `action`, `review`, `filtered` (alert counts), `sarif-file` and
-`sbom-file` (paths, when generated), `diff-new` and `diff-fixed` (when `diff-base` is set).
+`sbom-file` (paths, when generated), `diff-new` and `diff-fixed` (when `diff-base` is set),
+`fix-pr-url` (when `fix-pr` opened or updated a pull request).
 
 ```yaml
 - uses: samuelrojas-dev/depquiet@v0

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "depquiet"
-version = "0.44.1"
+version = "0.45.2"
 description = "Tells you which dependency alerts never reach production, with proof from your lockfile. pip-audit, uv audit, npm, pnpm, Yarn."
 readme = "README.md"
 license = "MIT"
@@ -83,6 +83,7 @@ addopts = "--strict-markers -v"
 filterwarnings = ["error::DeprecationWarning"]
 markers = [
     "live: requires network access (deselect with '-m not live')",
+    "cve_alias_lookups: let the scan call resolve_cve_aliases (HTTP is faked in the test)",
 ]
 
 [tool.ruff]

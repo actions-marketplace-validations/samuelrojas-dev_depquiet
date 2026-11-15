@@ -27,6 +27,13 @@ jobs:
         run: |
           mypy src/depquiet/ --ignore-missing-imports
           mypy benchmarks/reviews.py --strict
+      # GitHub rejects an invalid workflow file only once it is on the branch,
+      # and a release workflow that no longer parses fails without a run.
+      # (action.yml is exercised by the Action smoke test below.)
+      - name: Workflow files are valid
+        run: |
+          pip install --disable-pip-version-check "actionlint-py==1.7.12.25"
+          actionlint .github/workflows/*.yml
 
   test:
     name: Test (${{ matrix.os }}, Python ${{ matrix.python-version }})

@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.45.2] - 2026-11-14
+
+### Changed
+- Releasing is one step: merging the release pull request. The release workflow tags the
+  merged commit when `pyproject.toml` carries a version that has no tag yet (and
+  `__init__.py` and the changelog agree), then runs the usual verification and publishes.
+  A tag pushed by hand still works. CI now validates the workflow files with actionlint.
+
+### Fixed
+Found by running depquiet on a new npm project with a real `npm audit`: none of its 72
+alerts carried a CVE id.
+- **EPSS and KEV never applied to `npm audit` scans.** npm reports only GitHub advisory
+  (GHSA) ids, and both are keyed by CVE id. depquiet now looks up each advisory's CVE on
+  OSV.dev (in parallel, cached under `~/.cache/depquiet`; never with `--offline`). The
+  README claimed EPSS worked for npm audit; it does now.
+- **`--kev` reported "0 of 72 CVEs on the CISA KEV catalog" when it could check none of
+  them.** Advisories with no CVE id are no longer counted as checked, and a warning says
+  how many could not be checked. A failed CVE lookup is reported too.
+
+## [0.45.1] - 2026-11-14
+
+### Fixed
+Found by using `fix-pr` as a new user, on a real repository and real uv:
+- On a project without `uv.lock`, the Action's fix pull request step said "no fix that
+  uv's resolver confirms", which reads as "nothing to fix". It now warns that `fix-pr`
+  works on uv projects.
+- The README's opening never mentioned `--fix-plan` or `fix-pr`; it does now. The
+  `fix-pr` section says to set `fail-on-action: "false"` (otherwise the job fails after
+  opening the pull request) and that a closed pull request is opened again on the next
+  run. `depquiet --help` lists `--fix-plan --apply`.
+
+## [0.45.0] - 2026-11-14
+
+### Added
+- **`fix-pr`: one pull request with every fix that installs.** `--fix-plan --apply`
+  applies the verified plan to the project (requirement edits, then `uv lock`; if the lock
+  fails, every file is put back). `--fix-plan-report FILE` writes the plan as a pull
+  request description. The Action's `fix-pr` input does both on a schedule and opens or
+  updates one pull request (`fix-pr-branch`, `fix-pr-token`, output `fix-pr-url`). It
+  covers what Dependabot leaves as `update_not_possible` in Python projects: a parent
+  that must move to fix a vulnerable transitive dependency (dependabot-core#16337).
+  Verified with uv 0.11.32 on a project where botocore held urllib3 back: 10 alerts
+  before, 0 after. uv projects only; never runs on pull request events.
+
 ### Fixed
 - The README's headline table said it was measured with depquiet 0.40.0; the study that
   produced it records 0.39.0 (0.40.0 was only the version bumped in the same commit).
@@ -1068,7 +1112,10 @@ requirements.txt and npm projects:
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.44.1...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.45.2...HEAD
+[0.45.2]: https://github.com/samuelrojas-dev/depquiet/compare/v0.45.1...v0.45.2
+[0.45.1]: https://github.com/samuelrojas-dev/depquiet/compare/v0.45.0...v0.45.1
+[0.45.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.44.1...v0.45.0
 [0.44.1]: https://github.com/samuelrojas-dev/depquiet/compare/v0.44.0...v0.44.1
 [0.44.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.43.0...v0.44.0
 [0.43.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.42.2...v0.43.0
