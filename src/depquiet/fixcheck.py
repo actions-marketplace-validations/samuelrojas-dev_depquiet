@@ -27,7 +27,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from depquiet.models import ScanResult, Verdict, version_key
+from depquiet.models import ScanResult, Verdict, clip, version_key
 
 _PYTHON_MANAGERS = {"uv", "pip"}
 
@@ -115,7 +115,7 @@ def _explain(stderr: str) -> str:
         else:
             current = None
     text = " ".join(hints + causes) or (stderr.strip().splitlines() or [""])[-1]
-    return re.sub(r"\s+", " ", text).strip()[:500]
+    return clip(re.sub(r"\s+", " ", text).strip(), 500)
 
 
 _NAME = r"[A-Za-z0-9][A-Za-z0-9_.\-]*"

@@ -133,6 +133,17 @@ def strip_control(text: str) -> str:
     return _CONTROL.sub("", text)
 
 
+def clip(text: str, limit: int) -> str:
+    """``text`` cut to ``limit`` characters, marked with … when cut."""
+    return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
+
+
+def first_items(items: list[str], shown: int) -> str:
+    """The first ``shown`` items, then how many more: a cut list never looks complete."""
+    more = len(items) - shown
+    return ", ".join(items[:shown]) + (f" and {more} more" if more > 0 else "")
+
+
 @dataclass
 class Vulnerability:
     """A single vulnerability finding from a scanner."""

@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from depquiet.fixcheck import FixCheck, _classify, _explain
-from depquiet.models import ScanResult, TriageResult, Verdict, version_key
+from depquiet.models import ScanResult, TriageResult, Verdict, clip, version_key
 
 
 @dataclass
@@ -216,11 +216,13 @@ def _run_fix(pm: str, package: str, fix_version: str, project: Path) -> _CmdResu
             _classify(check, result.stderr)
             return _CmdResult(
                 success=False,
-                message=f"blocked: {check.next_step or check.detail[:200]}",
+                message=f"blocked: {check.next_step or clip(check.detail, 200)}",
             )
         return _CmdResult(
             success=False,
-            message=f"Command failed (exit {result.returncode}): {result.stderr.strip()[:200]}",
+            message=(
+                f"Command failed (exit {result.returncode}): {clip(result.stderr.strip(), 200)}"
+            ),
         )
     except FileNotFoundError:
         return _CmdResult(success=False, message=f"Command not found: {cmd[0]}")

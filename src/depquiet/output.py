@@ -10,7 +10,15 @@ from __future__ import annotations
 import sys
 from typing import Any
 
-from depquiet.models import FilterReason, ScanResult, epss_percent, is_prerelease, short_title
+from depquiet.models import (
+    FilterReason,
+    ScanResult,
+    clip,
+    epss_percent,
+    first_items,
+    is_prerelease,
+    short_title,
+)
 
 # ANSI colors — disabled when not a TTY
 _RED = "\033[91m"
@@ -120,10 +128,13 @@ def print_scan_result(result: ScanResult) -> None:
 
             # Show where it's imported
             if r.dependency_type == "transitive" and r.introduced_by:
-                print(f"     {_c(_DIM, 'via ' + ', '.join(r.introduced_by[:3]))}")
+                print(f"     {_c(_DIM, 'via ' + first_items(r.introduced_by, 3))}")
             if r.reachable_imports:
                 for imp in r.reachable_imports[:3]:
                     print(f"     {_c(_DIM, '→')} {imp}")
+                if len(r.reachable_imports) > 3:
+                    rest = len(r.reachable_imports) - 3
+                    print(f"     {_c(_DIM, f'→ and {rest} more (depquiet explain shows all)')}")
 
             if r.vuln.title:
                 print(f"     {_c(_DIM, _one_line(r.vuln.title))}")
@@ -161,7 +172,7 @@ def _print_fix_check(check: Any) -> None:
             print(f"     {_c(_GREEN, '✓')} {_c(_DIM, line)}")
         return
     label = "blocked" if check.status == "blocked" else "could not check"
-    print(f"     {_c(_YELLOW, '✗')} fix check: {label}: {check.detail[:240]}")
+    print(f"     {_c(_YELLOW, '✗')} fix check: {label}: {clip(check.detail, 240)}")
     if next_step:
         print(f"       → {next_step}")
 

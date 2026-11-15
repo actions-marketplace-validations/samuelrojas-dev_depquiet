@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.47.0] - 2026-11-15
+
 ### Fixed
+- **Cut lists say what they leave out.** The fix pull request listed at most 6 advisories
+  per package without saying so: on the demo project it showed 9 of the 10 alerts it fixes.
+  It now adds "and N more". The same holds for the parents (`via`) and import sites in the
+  text report and in `depquiet explain`, and text cut to fit ends with "…".
 - **A failed EPSS lookup is reported.** When api.first.org could not be reached, or answered
   with something unreadable, the report silently had no EPSS scores. depquiet now warns how
   many CVEs went without one, like it already did for KEV and CVE lookups. An unreadable
@@ -1161,7 +1167,8 @@ requirements.txt and npm projects:
 - CI workflow with lint, typecheck, test matrix (3.11/3.12/3.13), and build
 - Automated release workflow with trusted PyPI publishing
 
-[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.46.0...HEAD
+[Unreleased]: https://github.com/samuelrojas-dev/depquiet/compare/v0.47.0...HEAD
+[0.47.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.46.0...v0.47.0
 [0.46.0]: https://github.com/samuelrojas-dev/depquiet/compare/v0.45.2...v0.46.0
 [0.45.2]: https://github.com/samuelrojas-dev/depquiet/compare/v0.45.1...v0.45.2
 [0.45.1]: https://github.com/samuelrojas-dev/depquiet/compare/v0.45.0...v0.45.1
