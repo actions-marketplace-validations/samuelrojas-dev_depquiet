@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+- The README's headline table is remeasured with 0.47.0 (2026-11-15, same commits, in a
+  disposable VM). Given the same pip-audit report, 0.39.0 and 0.47.0 agree on every verdict
+  in all 18 projects; the alert counts grew because advisories were published.
+
 ## [0.47.0] - 2026-11-15
 
 ### Fixed
