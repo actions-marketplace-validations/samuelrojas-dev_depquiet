@@ -15,23 +15,27 @@ when the lockfile proves it.
 
 ### On real projects
 
-`pip-audit` on popular Python projects at their head, measured on 2026-11-11 and again on 2026-11-12 with depquiet 0.39.0, with the same results:
+`pip-audit` on popular Python projects, at the commits that were their head on 2026-11-11,
+audited again on 2026-11-15 with depquiet 0.47.0:
 
 | Project | pip-audit alerts | Only reach dev tooling | Left to look at |
 |:--|--:|--:|--:|
-| [saleor](https://github.com/saleor/saleor) | 16 | 14 | 2 |
-| [zulip](https://github.com/zulip/zulip) | 43 | 26 | 17 |
-| [mlflow](https://github.com/mlflow/mlflow) | 17 | 10 | 7 |
-| [langflow](https://github.com/langflow-ai/langflow) | 70 | 11 | 59 |
-| [PostHog](https://github.com/PostHog/posthog) | 255 | 8 | 247 |
+| [saleor](https://github.com/saleor/saleor) | 21 | 14 | 7 |
+| [zulip](https://github.com/zulip/zulip) | 49 | 26 | 23 |
+| [mlflow](https://github.com/mlflow/mlflow) | 21 | 14 | 7 |
+| [langflow](https://github.com/langflow-ai/langflow) | 80 | 13 | 67 |
+| [PostHog](https://github.com/PostHog/posthog) | 269 | 8 | 261 |
 
-Every dismissed alert was checked against a separate walk of each `uv.lock`, with each
-project's dependency groups read by hand: all are development-only, the one kind of alert
-later versions still filter, which only filter less. Most are `virtualenv` and `filelock` pulled in
-by `pre-commit`. Details and the other 12 projects: [benchmarks](#benchmarks).
+Every filtered alert has one reason: development-only paths in the lockfile, the only kind
+of alert depquiet still filters. The same pip-audit report given to depquiet 0.39.0, which
+first measured this table on 2026-11-11, gets the same verdict for every alert on all 18
+projects measured: the counts grew because advisories were published in between, not
+because depquiet changed. The 2026-11-11 dismissals were also checked by hand against a
+separate walk of each `uv.lock`; most were `virtualenv` and `filelock` pulled in by
+`pre-commit`. Details and the other projects: [benchmarks](#benchmarks).
 
 Of the alerts left, many cannot be fixed by the upgrade the scanner names. Across 18 uv
-projects, uv's resolver rejects the nearest fix for 502 of 991 kept alerts (51%), in 13 of
+projects on 2026-11-12, uv's resolver rejects the nearest fix for 502 of 991 kept alerts (51%), in 13 of
 the 17 projects with alerts; in 81% of the blocked upgrades, the project's own pin is what
 is in the way. See [`--check-fixes`](#can-the-fix-be-installed---check-fixes).
 
@@ -1528,6 +1532,29 @@ every group as development-only and filtered all 43 zulip alerts, 17 of them wro
 
 Nothing else was filtered: every one of these projects has a dynamic import somewhere,
 which keeps the unused-dependency filter off.
+
+**Remeasured on 2026-11-15** with depquiet 0.47.0, at the same commits, in a disposable VM
+([`remeasure.sh`](https://github.com/samuelrojas-dev/depquiet/blob/main/benchmarks/fixcheck_study/remeasure.sh)),
+on the 18 projects of the [fix-check study](#can-the-fix-be-installed---check-fixes): one
+pip-audit report per project, given to both 0.39.0 and 0.47.0. No verdict differs on any of
+them. Since that study's run on 2026-11-12, alerts went from 1,127 to 1,228 as advisories
+were published, and filtered alerts from 104 to 114, every one of them for development-only
+paths:
+
+| Project | pip-audit alerts | Development-only, filtered |
+|---|---:|---:|
+| flask | 34 | 32 |
+| zulip | 49 | 26 |
+| saleor | 21 | 14 |
+| mlflow | 21 | 14 |
+| langflow | 80 | 13 |
+| PostHog | 269 | 8 |
+| litellm | 57 | 4 |
+| redash, open-webui, llama_index | 237 | 3 |
+| eight others (Chainlit, crewAI, mitmproxy, ...) | 460 | 0 |
+
+The 10 newly filtered alerts (mlflow 4, litellm 4, langflow 2) were not checked by hand
+like the 72 above.
 
 If your project is on uv, uv 0.13 ships `uv audit` (still experimental), and
 `uv audit --no-dev` excludes the development group natively. depquiet reads `uv audit`
